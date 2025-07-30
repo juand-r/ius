@@ -13,7 +13,7 @@ import numpy as np
 class DatasetLoader:
     """Loader for datasets in common format."""
     
-    def __init__(self, data_dir: Union[str, Path] = "data"):
+    def __init__(self, data_dir: Union[str, Path] = "datasets"):
         """
         Initialize loader.
         
@@ -147,7 +147,7 @@ class DatasetLoader:
 
 
 # Convenience function matching the requested API
-def load_data(dataset_name: str, item_id: Optional[str] = None, data_dir: Union[str, Path] = "data") -> Dict[str, Any]:
+def load_data(dataset_name: str, item_id: Optional[str] = None, data_dir: Union[str, Path] = "datasets") -> Dict[str, Any]:
     """
     Convenience function to load dataset.
     
@@ -164,13 +164,13 @@ def load_data(dataset_name: str, item_id: Optional[str] = None, data_dir: Union[
 
 
 # Additional convenience functions
-def list_datasets(data_dir: Union[str, Path] = "data") -> List[str]:
+def list_datasets(data_dir: Union[str, Path] = "datasets") -> List[str]:
     """List available datasets."""
     loader = DatasetLoader(data_dir)
     return loader.list_datasets()
 
 
-def get_dataset_info(dataset_name: str, data_dir: Union[str, Path] = "data") -> Dict[str, Any]:
+def get_dataset_info(dataset_name: str, data_dir: Union[str, Path] = "datasets") -> Dict[str, Any]:
     """Get dataset summary info."""
     loader = DatasetLoader(data_dir)
     return loader.get_dataset_info(dataset_name) 

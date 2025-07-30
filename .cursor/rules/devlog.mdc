@@ -1,0 +1,5 @@
+---
+alwaysApply: true
+---
+
+Whenever major changes to code are made, or when we have struggled to do something and then gotten it to work, I want you to append a description to a devlog.md file so we have a history of what happened.
