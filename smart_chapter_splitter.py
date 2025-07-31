@@ -81,7 +81,12 @@ class SmartChapterSplitter:
             'chapter one', 
             'prologue',
             'introduction',
-            'preface'
+            'preface',
+            'epilogue',
+            'appendix',
+            'index',
+            'bibliography',
+            'references',
         ]
         
         # Look for where actual content starts (usually 50+ lines after TOC start)
