@@ -6,81 +6,82 @@ Loads datasets from the standardized format with collection.json + items/ struct
 
 import json
 from pathlib import Path
-from typing import Dict, List, Union, Optional, Any
+from typing import Any, Dict, List, Optional, Union
+
 import numpy as np
 
 
 class DatasetLoader:
     """Loader for datasets in common format."""
-    
+
     def __init__(self, data_dir: Union[str, Path] = "datasets"):
         """
         Initialize loader.
-        
+
         Args:
             data_dir: Base directory containing datasets
         """
         self.data_dir = Path(data_dir)
-    
+
     def list_datasets(self) -> List[str]:
         """List available datasets."""
         if not self.data_dir.exists():
             return []
-        
+
         datasets = []
         for subdir in self.data_dir.iterdir():
             if subdir.is_dir():
                 collection_file = subdir / "collection.json"
                 if collection_file.exists():
                     datasets.append(subdir.name)
-        
+
         return sorted(datasets)
-    
+
     def load_collection_metadata(self, dataset_name: str) -> Dict[str, Any]:
         """
         Load collection metadata.
-        
+
         Args:
             dataset_name: Name of the dataset
-        
+
         Returns:
             Collection metadata dict
         """
         collection_path = self.data_dir / dataset_name / "collection.json"
-        
+
         if not collection_path.exists():
             raise FileNotFoundError(f"Collection file not found: {collection_path}")
-        
-        with open(collection_path, 'r', encoding='utf-8') as f:
+
+        with open(collection_path, encoding='utf-8') as f:
             return json.load(f)
-    
+
     def load_item(self, dataset_name: str, item_id: str) -> Dict[str, Any]:
         """
         Load a single item.
-        
+
         Args:
             dataset_name: Name of the dataset
             item_id: ID of the item to load
-        
+
         Returns:
             Item data dict
         """
         item_path = self.data_dir / dataset_name / "items" / f"{item_id}.json"
-        
+
         if not item_path.exists():
             raise FileNotFoundError(f"Item file not found: {item_path}")
-        
-        with open(item_path, 'r', encoding='utf-8') as f:
+
+        with open(item_path, encoding='utf-8') as f:
             return json.load(f)
-    
+
     def load_data(self, dataset_name: str, item_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Load dataset with collection metadata and items.
-        
+
         Args:
             dataset_name: Name of the dataset (e.g., "bmds")
             item_id: Optional specific item ID to load. If None, loads all items.
-        
+
         Returns:
             Dict with:
             - collection_metadata: metadata from collection.json
@@ -89,7 +90,7 @@ class DatasetLoader:
         """
         # Load collection metadata
         collection_metadata = self.load_collection_metadata(dataset_name)
-        
+
         # Load items
         if item_id is not None:
             # Load single item
@@ -103,21 +104,21 @@ class DatasetLoader:
                     items[item_id] = self.load_item(dataset_name, item_id)
                 except FileNotFoundError as e:
                     print(f"Warning: Could not load item {item_id}: {e}")
-        
+
         return {
             "collection_metadata": collection_metadata,
             "items": items,
             "num_items_loaded": len(items)
         }
-    
-   
+
+
     def get_dataset_info(self, dataset_name: str) -> Dict[str, Any]:
         """
         Get summary information about a dataset.
-        
+
         Args:
             dataset_name: Name of the dataset
-        
+
         Returns:
             Summary info dict
         """
@@ -150,12 +151,12 @@ class DatasetLoader:
 def load_data(dataset_name: str, item_id: Optional[str] = None, data_dir: Union[str, Path] = "datasets") -> Dict[str, Any]:
     """
     Convenience function to load dataset.
-    
+
     Args:
         dataset_name: Name of the dataset (e.g., "bmds")
         item_id: Optional specific item ID to load. If None, loads all items.
         data_dir: Base directory containing datasets
-    
+
     Returns:
         Dict with collection_metadata, items, and num_items_loaded
     """
@@ -173,4 +174,4 @@ def list_datasets(data_dir: Union[str, Path] = "datasets") -> List[str]:
 def get_dataset_info(dataset_name: str, data_dir: Union[str, Path] = "datasets") -> Dict[str, Any]:
     """Get dataset summary info."""
     loader = DatasetLoader(data_dir)
-    return loader.get_dataset_info(dataset_name) 
+    return loader.get_dataset_info(dataset_name)
