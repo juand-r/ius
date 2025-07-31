@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Any
 import openai
 import os
+from datetime import datetime
 
 
 class SmartChapterSplitter:
@@ -27,18 +28,44 @@ class SmartChapterSplitter:
             'unsure': output_base_dir / 'chapters-unsure',
             'unknown': output_base_dir / 'chapters-unknown'
         }
-        self.codes_dir = output_base_dir / 'codes'
+        self.codes_dir = Path("iterative_chapters") / "codes"
+        self.logs_dir = Path("iterative_chapters") / "logs"
         
         # Create directories
         for dir_path in self.confidence_dirs.values():
             dir_path.mkdir(parents=True, exist_ok=True)
         self.codes_dir.mkdir(parents=True, exist_ok=True)
+        self.logs_dir.mkdir(parents=True, exist_ok=True)
             
         # Initialize OpenAI client
         api_key = os.getenv('OPENAI_API_KEY')
         if not api_key:
             raise ValueError("OPENAI_API_KEY environment variable not set")
         self.client = openai.OpenAI(api_key=api_key)
+    
+    def log_llm_interaction(self, book_name, interaction_type, prompt, response):
+        """Log LLM prompt and response to a file."""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_filename = f"{book_name}_{interaction_type}_{timestamp}.log"
+        log_path = self.logs_dir / log_filename
+        
+        with open(log_path, 'w', encoding='utf-8') as f:
+            f.write("=== SMART CHAPTER SPLITTER LLM LOG ===\n")
+            f.write(f"Book: {book_name}\n")
+            f.write(f"Type: {interaction_type}\n")
+            f.write(f"Timestamp: {datetime.now().isoformat()}\n")
+            f.write(f"\n{'='*60}\n")
+            f.write("PROMPT:\n")
+            f.write(f"{'='*60}\n")
+            f.write(prompt)
+            f.write(f"\n\n{'='*60}\n")
+            f.write("RESPONSE:\n")
+            f.write(f"{'='*60}\n")
+            f.write(response)
+            f.write(f"\n\n{'='*60}\n")
+            f.write("END LOG\n")
+        
+        print(f"   📝 Logged code generation to: {log_filename}")
     
     def extract_table_of_contents(self, text: str) -> Optional[str]:
         """
@@ -112,7 +139,7 @@ class SmartChapterSplitter:
         toc_text = '\n'.join(lines[toc_start:toc_end])
         return toc_text.strip() if toc_text.strip() else None
     
-    def generate_detection_code(self, book_name: str, book_beginning: str) -> Optional[str]:
+    def generate_detection_code(self, book_name: str, book_beginning: str, additional_prompt: str = "", loop_num: int = 1) -> Optional[str]:
         """
         Use LLM to generate custom chapter detection code for this book.
         """
@@ -122,14 +149,32 @@ class SmartChapterSplitter:
 {book_beginning}
 ```
 
+This may give you a good idea of the structure of the book (chapter titles, table of contents etc)
+
 Please write Python code that will detect chapter boundaries in this specific book. The code should:
 
 1. Take the full book text as input (variable name: `text`)
 2. Return a list of tuples: [(start_line, chapter_title), ...]
 3. Be specific to the patterns I can see in this book's structure
-4. Avoid matching index entries, bibliography, or other non-chapter content
+4. Avoid matching index entries, bibliography, endnotes,or other non-chapter content
 5. Focus on the main narrative chapters
-6. Note splits are likely to happen on newlines, but they might not.
+6. Note splits are likely to happen on newlines.
+
+IMPORTANT PATTERN DETECTION TIPS:
+• Chapters may use MULTI-LINE patterns (e.g., number on one line, title on next)
+• Look for various formats: "1.", "Chapter 1", "I.", "One", etc.
+• Don't assume single-line patterns - check line combinations
+• If you find one massive section, it likely contains undetected chapters inside
+• Experiment with different regex approaches - be creative!
+• Test multiple possible chapter numbering/formatting styles
+
+CRITICAL TABLE OF CONTENTS STRATEGY:
+• FIRST: Identify and extract the entire Table of Contents (TOC) section
+• Save the TOC as chapter_00 (Front Matter) - this includes everything before the actual narrative starts
+• Then search for chapters in the REST of the book (after the TOC ends)
+• Do NOT use TOC entries as chapters - they are just a listing, not the actual content
+• Look for the REAL chapter boundaries in the narrative text, not in the TOC
+• The actual chapters will have the same titles as the TOC but will be in the main text with content
 
 Return ONLY the Python function code, no explanations. The function should be named `detect_chapters(text: str) -> List[Tuple[int, str]]`.
 
@@ -150,8 +195,7 @@ def detect_chapters(text: str) -> List[Tuple[int, str]]:
     lines = text.split('\\n')
     chapters = []
     
-    # ALWAYS start with line 0 to preserve front matter, e.g.:
-    chapters.append((0, "Front Matter"))  # Everything before first real chapter
+    # ALWAYS be sure to keep the text from line 0 to the first real chapter, and call this "chapter_00".
     
     # Then find your actual chapters
     for i, line in enumerate(lines):
@@ -161,20 +205,32 @@ def detect_chapters(text: str) -> List[Tuple[int, str]]:
     return chapters
 ```
 
-CRITICAL: Your function MUST return (0, "Front Matter") as the first chapter to preserve the beginning of the book."""
+NOTE This was only an example, figure out the best way to do it.
+
+IMPORTANT: You can often use the chapters from the table of contents to help you detect the chapters! (Hint hint)
+
+"""
+        
+        # Add additional feedback if provided
+        if additional_prompt:
+            prompt += additional_prompt
 
         try:
             response = self.client.chat.completions.create(
-                model="gpt-4o",
+                model="o3",
                 messages=[
                     {"role": "system", "content": "You are a Python code generator specialized in text processing. Return only clean, executable Python functions."},
                     {"role": "user", "content": prompt}
                 ],
             )
             
-            code = response.choices[0].message.content.strip()
+            raw_response = response.choices[0].message.content.strip()
+            
+            # Log the interaction
+            self.log_llm_interaction(book_name, f"code_generation-{loop_num}", prompt, raw_response)
             
             # Clean up the code (remove markdown markers if present)
+            code = raw_response
             if code.startswith('```python'):
                 code = code[9:]
             if code.endswith('```'):
@@ -183,7 +239,12 @@ CRITICAL: Your function MUST return (0, "Front Matter") as the first chapter to 
             return code.strip()
             
         except Exception as e:
-            print(f"❌ Error generating detection code: {e}")
+            error_msg = f"Error generating detection code: {e}"
+            print(f"❌ {error_msg}")
+            
+            # Log the error
+            self.log_llm_interaction(book_name, f"code_generation_error-{loop_num}", prompt, error_msg)
+            
             return None
     
     def execute_detection_code(self, code: str, text: str) -> Optional[List[Tuple[int, str]]]:
@@ -272,7 +333,17 @@ CRITICAL: Your function MUST return (0, "Front Matter") as the first chapter to 
         Split text into chapter files and save to appropriate confidence directory.
         """
         lines = text.split('\n')
-        output_dir = self.confidence_dirs[confidence] / book_name
+        
+        # Generate unique directory name with iteration number
+        base_dir = self.confidence_dirs[confidence]
+        iteration = 1
+        output_dir = base_dir / f"{book_name}-{iteration}"
+        
+        # Find next available iteration number
+        while output_dir.exists():
+            iteration += 1
+            output_dir = base_dir / f"{book_name}-{iteration}"
+        
         output_dir.mkdir(exist_ok=True)
         
         if confidence == 'unknown':
@@ -309,7 +380,7 @@ CRITICAL: Your function MUST return (0, "Front Matter") as the first chapter to 
         
         return True
     
-    def process_book(self, book_path: Path) -> Dict[str, Any]:
+    def process_book(self, book_path: Path, additional_prompt: str = "", loop_num: int = 1) -> Dict[str, Any]:
         """
         Process a single book with the smart chapter splitting approach.
         """
@@ -326,15 +397,15 @@ CRITICAL: Your function MUST return (0, "Front Matter") as the first chapter to 
             # Generate detection code (use first 100 lines)
             lines = text.split('\n')
             book_beginning = '\n'.join(lines[:100])
-            detection_code = self.generate_detection_code(book_name, book_beginning)
+            detection_code = self.generate_detection_code(book_name, book_beginning, additional_prompt, loop_num)
             if not detection_code:
                 print("   ❌ Could not generate detection code")
                 return {'book': book_name, 'status': 'failed', 'reason': 'no_code'}
             
             print("   🤖 Generated custom detection code")
             
-            # Save the generated code
-            code_filename = f"{book_name}_detection.py"
+            # Save the generated code with loop number for tracking
+            code_filename = f"{book_name}_detection-{loop_num}.py"
             code_path = self.codes_dir / code_filename
             with open(code_path, 'w', encoding='utf-8') as f:
                 f.write(f"# Generated detection code for: {book_name}\n")
@@ -377,6 +448,8 @@ def main():
     parser = argparse.ArgumentParser(description="Smart chapter splitter with LLM assistance")
     parser.add_argument("book_path", help="Path to the book text file")
     parser.add_argument("--output-dir", default="data-source/smart_chapters", help="Output directory")
+    parser.add_argument("--additional-prompt", default="", help="Additional prompt to append for iterative feedback")
+    parser.add_argument("--loop-num", type=int, default=1, help="Loop/attempt number for unique code naming")
     
     args = parser.parse_args()
     
@@ -386,7 +459,7 @@ def main():
         return 1
     
     splitter = SmartChapterSplitter(Path(args.output_dir))
-    result = splitter.process_book(book_path)
+    result = splitter.process_book(book_path, args.additional_prompt, args.loop_num)
     
     print(f"\n📊 Result: {result}")
     
