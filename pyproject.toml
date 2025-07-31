@@ -10,11 +10,16 @@ authors = [
     {name = "IUS Research Team"}
 ]
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
 requires-python = ">=3.8"
 dependencies = [
     "numpy",
 ]
+
+# Package discovery - only include the 'ius' package
+[tool.setuptools.packages.find]
+include = ["ius*"]
+exclude = ["trash*", "chats*", "datasets*", "tests*"]
 
 [project.optional-dependencies]
 dev = [
