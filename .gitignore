@@ -1,5 +1,9 @@
-# Byte-compiled / optimized / DLL files
+# Avoid pushing copyrighted or other non-public data
+data-source/*/
+
 .DS_Store
+
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
 *$py.class
