@@ -61,7 +61,16 @@ ius/summarization/
 ├── utils.py            # LLM utilities, prompt management
 ├── baselines.py        # Simple baseline approaches  
 ├── incremental.py      # Incremental update strategies
-└── models.py           # LLM model abstractions
+└── models.py           # Multi-API LLM client abstractions
+
+ius/cli/                 # Command-line interface modules
+├── __init__.py          # CLI package initialization
+├── chunk.py            # python -m ius.chunk commands
+├── summarize.py        # python -m ius.summarize commands
+├── evaluate.py         # python -m ius.evaluate commands
+├── experiment.py       # python -m ius.experiment commands
+├── analyze.py          # python -m ius.analyze commands
+└── common.py           # Shared CLI utilities and parsers
 
 prompts/                 # Prompt templates directory
 ├── summarization/       # Summarization prompts
@@ -87,8 +96,22 @@ class IncrementalSummarizer(BaseSummarizer):
         """Update summary with new chunks"""
         pass
 
-# LLM abstraction for easy model switching
-class LLMInterface:
+# Multi-API LLM abstraction for easy model switching
+class LLMClient:
+    """Abstract base for different LLM APIs"""
+    
+    @classmethod
+    def create(cls, api_type: str, api_key: str, model: str):
+        """Factory method for creating API-specific clients"""
+        if api_type == "openai":
+            return OpenAIClient(api_key, model)
+        elif api_type == "anthropic":
+            return AnthropicClient(api_key, model)
+        elif api_type == "together":
+            return TogetherClient(api_key, model)
+        else:
+            raise ValueError(f"Unknown API type: {api_type}")
+    
     def complete(self, prompt: str, **kwargs) -> str:
         """Generic completion interface"""
         pass
@@ -98,12 +121,20 @@ class LLMInterface:
         pass
 ```
 
+**Multi-API Support (`models.py`)**:
+- OpenAI API (gpt-4.1-mini, gpt-4, etc.)
+- Anthropic API (Claude models)
+- Together AI API (open source models)
+- Unified interface with automatic retry logic and rate limiting
+- Cost tracking across different APIs
+- Graceful error handling and fallback strategies
+
 **LLM Utilities (`utils.py`)**:
-- Unified interface starting with OpenAI API (gpt-4.1-mini)
 - Prompt template loading and variable substitution  
-- Token counting and cost tracking
-- Retry logic and error handling
-- Response parsing utilities
+- Token counting and cost tracking across APIs
+- Retry logic with exponential backoff
+- Response parsing and validation utilities
+- Checkpointing for long-running operations
 
 **Prompt Management**:
 - Template system with variable substitution (e.g., {document} → "detective story")
@@ -225,20 +256,39 @@ evaluation:
 
 ### 2.3 CLI Interface
 
-**Command-line tools**:
+**Core Command-line Tools**:
 ```bash
-# Run single experiment (creates outputs/experiments/{name}_{timestamp}/)
-python -m ius.eval run-experiment --config experiments/bmds_baseline.yaml
+# Chunking operations
+python -m ius.chunk --dataset bmds --strategy fixed_size --size 2048
+python -m ius.chunk --dataset true-detective --strategy fixed_count --count 10
+python -m ius.chunk --dataset bmds --strategy custom --delimiter "\n\n"
 
-# Batch experiments  
-python -m ius.eval batch --config-dir experiments/batch1/
+# Summarization operations  
+python -m ius.summarize --dataset bmds --method incremental --model gpt-4.1-mini --api openai
+python -m ius.summarize --dataset bmds --method concatenate --model claude-3-haiku --api anthropic
+python -m ius.summarize --config experiments/bmds_incremental.yaml
 
-# Analyze results
-python -m ius.eval analyze --experiment-dir outputs/experiments/bmds_baseline_20241220_143022/
+# Individual evaluation
+python -m ius.evaluate --summaries outputs/summaries.json --metrics rouge,bleu,culprit_accuracy
+python -m ius.evaluate --baseline no-op --dataset bmds --downstream-task culprit
 
-# Compare experiments
-python -m ius.eval compare --experiments exp1/ exp2/ --metrics rouge,culprit_accuracy
+# Full experiment pipeline
+python -m ius.experiment run --config experiments/bmds_baseline.yaml
+python -m ius.experiment batch --config-dir experiments/parameter_sweep/
+python -m ius.experiment resume --checkpoint outputs/experiments/bmds_baseline_20241220_143022/
+
+# Analysis and comparison
+python -m ius.analyze --experiment-dir outputs/experiments/bmds_baseline_20241220_143022/
+python -m ius.compare --experiments exp1/ exp2/ --metrics rouge,culprit_accuracy
 ```
+
+**CLI Features**:
+- Argparse-based interface (simple, no extra dependencies)
+- Comprehensive help system with examples
+- Configuration file support (YAML)
+- Progress tracking and checkpointing
+- Resume capability for interrupted experiments
+- Flexible output formatting (JSON, CSV, pretty-print)
 
 ## Phase 3: Advanced Features
 
@@ -282,7 +332,7 @@ python -m ius.eval compare --experiments exp1/ exp2/ --metrics rouge,culprit_acc
 - [ ] Can evaluate downstream task performance (detective culprit identification)
 - [ ] Can track experiments with organized output structure and reproduce from config
 - [ ] Experiment outputs are clearly organized and easy to analyze
-- [ ] Code is clean, modular, readable, and easily extensible (following development principles)
+- [ ] Code is clean, modular, well-documented, readable, and easily extensible (following development principles)
 
 ## Resolved Decisions
 
