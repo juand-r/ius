@@ -105,7 +105,7 @@ Each dataset follows a standardized JSON structure:
 
 ## Development Principles. Cursor, you need to follow this!
 
-- **Lean and modular**: Keep code clean, simple, readable, modular, and easily extensible. The goals are ease of use and reproducibility.
+- **Lean and modular**: Keep code clean, simple, readable, well-documented, modular, and easily extensible. The goals are ease of use and reproducibility.
 - **Start small**: Get everything working with BMDS before expanding to other datasets
 - **Comprehensive evaluation**: Track experiments systematically with detailed metrics
 - **LLM flexibility**: Abstract LLM calls to easily switch between APIs and local models
