@@ -32,14 +32,20 @@ class TestChunking(unittest.TestCase):
 
         # Basic checks
         assert len(chunks) > 0, "Should create at least one chunk"
-        assert all(isinstance(chunk, str) for chunk in chunks), "All chunks should be strings"
+        assert all(isinstance(chunk, str) for chunk in chunks), (
+            "All chunks should be strings"
+        )
 
         # Content preservation
-        assert validate_chunks(self.text, chunks, delimiter="\n"), "Content should be preserved"
+        assert validate_chunks(self.text, chunks, delimiter="\n"), (
+            "Content should be preserved"
+        )
 
         # Size constraints (allowing for delimiter boundary flexibility)
         for chunk in chunks[:-1]:  # All but last chunk
-            assert len(chunk) <= 1200, f"Chunk too large: {len(chunk)} chars"  # Allow some flexibility
+            assert len(chunk) <= 1200, (
+                f"Chunk too large: {len(chunk)} chars"
+            )  # Allow some flexibility
 
         print(f"✅ Fixed size chunking: {len(chunks)} chunks created")
 
@@ -53,9 +59,13 @@ class TestChunking(unittest.TestCase):
         assert len(chunks) <= target_chunks, f"Should not exceed {target_chunks} chunks"
 
         # Content preservation
-        assert validate_chunks(self.text, chunks, delimiter="\n"), "Content should be preserved"
+        assert validate_chunks(self.text, chunks, delimiter="\n"), (
+            "Content should be preserved"
+        )
 
-        print(f"✅ Fixed count chunking: {len(chunks)} chunks created (target: {target_chunks})")
+        print(
+            f"✅ Fixed count chunking: {len(chunks)} chunks created (target: {target_chunks})"
+        )
 
     def test_content_preservation(self):
         """Test that chunking preserves all content."""
@@ -66,9 +76,12 @@ class TestChunking(unittest.TestCase):
         ]
 
         for chunk_size, delimiter in test_cases:
-            chunks = chunk_fixed_size(self.text, chunk_size=chunk_size, delimiter=delimiter)
-            assert validate_chunks(self.text, chunks, delimiter=delimiter), \
-f"Content preservation failed for chunk_size={chunk_size}, delimiter={repr(delimiter)}"
+            chunks = chunk_fixed_size(
+                self.text, chunk_size=chunk_size, delimiter=delimiter
+            )
+            assert validate_chunks(self.text, chunks, delimiter=delimiter), (
+                f"Content preservation failed for chunk_size={chunk_size}, delimiter={repr(delimiter)}"
+            )
 
     def test_analyze_chunks(self):
         """Test chunk analysis functionality."""
@@ -76,8 +89,15 @@ f"Content preservation failed for chunk_size={chunk_size}, delimiter={repr(delim
         analysis = analyze_chunks(chunks, delimiter="\n")
 
         # Check required fields
-        required_fields = ["num_chunks", "total_chars", "avg_chunk_size",
-                          "min_chunk_size", "max_chunk_size", "size_std", "delimiter"]
+        required_fields = [
+            "num_chunks",
+            "total_chars",
+            "avg_chunk_size",
+            "min_chunk_size",
+            "max_chunk_size",
+            "size_std",
+            "delimiter",
+        ]
         for field in required_fields:
             assert field in analysis, f"Analysis missing field: {field}"
 
@@ -95,8 +115,12 @@ f"Content preservation failed for chunk_size={chunk_size}, delimiter={repr(delim
 
         assert len(previews) == 3, "Should create previews for first 3 chunks"
         for i, preview in enumerate(previews):
-            assert preview.startswith(f"Chunk {i+1}:"), "Preview should start with chunk number"
-            assert len(preview) <= 150, "Preview should be reasonably short"  # Some overhead for formatting
+            assert preview.startswith(f"Chunk {i + 1}:"), (
+                "Preview should start with chunk number"
+            )
+            assert len(preview) <= 150, (
+                "Preview should be reasonably short"
+            )  # Some overhead for formatting
 
     def test_empty_text(self):
         """Test chunking behavior with empty text."""
@@ -108,7 +132,9 @@ f"Content preservation failed for chunk_size={chunk_size}, delimiter={repr(delim
 
     def test_no_delimiters(self):
         """Test chunking behavior when delimiter is not found in text."""
-        text_no_newlines = "This is a text without any newlines or specified delimiters."
+        text_no_newlines = (
+            "This is a text without any newlines or specified delimiters."
+        )
 
         chunks = chunk_fixed_size(text_no_newlines, chunk_size=10, delimiter="\n")
         assert len(chunks) == 1, "Should return single chunk when no delimiters found"
@@ -172,7 +198,7 @@ if __name__ == "__main__":
     test_chunking_integration()
 
     # Also run unittest cases
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("Running Unit Tests")
-    print("="*50)
+    print("=" * 50)
     unittest.main(verbosity=2, exit=False)

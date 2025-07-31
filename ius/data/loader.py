@@ -52,7 +52,7 @@ class DatasetLoader:
         if not collection_path.exists():
             raise FileNotFoundError(f"Collection file not found: {collection_path}")
 
-        with open(collection_path, encoding='utf-8') as f:
+        with open(collection_path, encoding="utf-8") as f:
             return json.load(f)
 
     def load_item(self, dataset_name: str, item_id: str) -> Dict[str, Any]:
@@ -71,10 +71,12 @@ class DatasetLoader:
         if not item_path.exists():
             raise FileNotFoundError(f"Item file not found: {item_path}")
 
-        with open(item_path, encoding='utf-8') as f:
+        with open(item_path, encoding="utf-8") as f:
             return json.load(f)
 
-    def load_data(self, dataset_name: str, item_id: Optional[str] = None) -> Dict[str, Any]:
+    def load_data(
+        self, dataset_name: str, item_id: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Load dataset with collection metadata and items.
 
@@ -108,9 +110,8 @@ class DatasetLoader:
         return {
             "collection_metadata": collection_metadata,
             "items": items,
-            "num_items_loaded": len(items)
+            "num_items_loaded": len(items),
         }
-
 
     def get_dataset_info(self, dataset_name: str) -> Dict[str, Any]:
         """
@@ -130,7 +131,15 @@ class DatasetLoader:
         min_num_documents = min(num_documents_per_item)
         avg_num_documents = int(np.mean(num_documents_per_item))
 
-        avg_words_per_document = int(np.mean([len(document["content"].split()) for item in items.values() for document in item["documents"]]))
+        avg_words_per_document = int(
+            np.mean(
+                [
+                    len(document["content"].split())
+                    for item in items.values()
+                    for document in item["documents"]
+                ]
+            )
+        )
 
         return {
             "dataset_name": dataset_name,
@@ -148,7 +157,11 @@ class DatasetLoader:
 
 
 # Convenience function matching the requested API
-def load_data(dataset_name: str, item_id: Optional[str] = None, data_dir: Union[str, Path] = "datasets") -> Dict[str, Any]:
+def load_data(
+    dataset_name: str,
+    item_id: Optional[str] = None,
+    data_dir: Union[str, Path] = "datasets",
+) -> Dict[str, Any]:
     """
     Convenience function to load dataset.
 
@@ -171,7 +184,9 @@ def list_datasets(data_dir: Union[str, Path] = "datasets") -> List[str]:
     return loader.list_datasets()
 
 
-def get_dataset_info(dataset_name: str, data_dir: Union[str, Path] = "datasets") -> Dict[str, Any]:
+def get_dataset_info(
+    dataset_name: str, data_dir: Union[str, Path] = "datasets"
+) -> Dict[str, Any]:
     """Get dataset summary info."""
     loader = DatasetLoader(data_dir)
     return loader.get_dataset_info(dataset_name)

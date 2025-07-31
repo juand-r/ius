@@ -20,7 +20,7 @@ def load_books_pickle(pickle_path: Union[str, Path]) -> Dict[str, str]:
         raise FileNotFoundError(f"Pickle file not found: {pickle_path}")
 
     print(f"Loading books from {pickle_path}...")
-    with open(pickle_path, 'rb') as f:
+    with open(pickle_path, "rb") as f:
         data = pickle.load(f)
 
     print("✅ Loaded pickle file")
@@ -41,7 +41,12 @@ def inspect_data_structure(data: Dict[str, str]) -> None:
         print(f"  ['{epub_filename}']: str (len={len(book_text)}) '{preview}'")
 
 
-def extract_books_to_txt(data: Dict[str, str], output_dir: Union[str, Path], dry_run: bool = False, show_samples: bool = False) -> None:
+def extract_books_to_txt(
+    data: Dict[str, str],
+    output_dir: Union[str, Path],
+    dry_run: bool = False,
+    show_samples: bool = False,
+) -> None:
     """
     Extract books from BooookScore pickle data (dict[filename, text]) to individual txt files.
 
@@ -81,7 +86,12 @@ def extract_books_to_txt(data: Dict[str, str], output_dir: Union[str, Path], dry
             print(f"   {preview}\n")
 
         # Clean filename: remove .epub extension and clean for filesystem
-        clean_name = epub_filename.replace('.epub', '').replace('/', '_').replace('\\', '_').replace(' ', '_')
+        clean_name = (
+            epub_filename.replace(".epub", "")
+            .replace("/", "_")
+            .replace("\\", "_")
+            .replace(" ", "_")
+        )
         filename = f"{clean_name}.txt"
         filepath = output_dir / filename
 
@@ -89,7 +99,7 @@ def extract_books_to_txt(data: Dict[str, str], output_dir: Union[str, Path], dry
             print(f"📄 Would save: {filename} ({len(text)} chars)")
         else:
             try:
-                with open(filepath, 'w', encoding='utf-8') as f:
+                with open(filepath, "w", encoding="utf-8") as f:
                     f.write(text)
                 print(f"📄 Saved: {filename} ({len(text)} chars)")
             except Exception as e:
@@ -105,7 +115,9 @@ def extract_books_to_txt(data: Dict[str, str], output_dir: Union[str, Path], dry
         avg_length = sum(text_lengths) // len(text_lengths)
         total_chars = sum(text_lengths)
 
-        print(f"   Text length - Min: {min_length:,}, Max: {max_length:,}, Avg: {avg_length:,}")
+        print(
+            f"   Text length - Min: {min_length:,}, Max: {max_length:,}, Avg: {avg_length:,}"
+        )
         print(f"   Total characters: {total_chars:,}")
         print(f"   Empty books: {len(empty_books)}")
 
@@ -128,27 +140,27 @@ def main():
     parser.add_argument(
         "--pickle-path",
         default="data-source/booookscore/all_books.pkl",
-        help="Path to pickle file (default: data-source/booookscore/all_books.pkl)"
+        help="Path to pickle file (default: data-source/booookscore/all_books.pkl)",
     )
     parser.add_argument(
         "--output-dir",
         default="data-source/booookscore/booookscore_txt",
-        help="Output directory for txt files (default: data-source/booookscore/booookscore_txt)"
+        help="Output directory for txt files (default: data-source/booookscore/booookscore_txt)",
     )
     parser.add_argument(
         "--inspect",
         action="store_true",
-        help="Inspect data structure without extracting"
+        help="Inspect data structure without extracting",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Show what would be done without actually writing files"
+        help="Show what would be done without actually writing files",
     )
     parser.add_argument(
         "--show-samples",
         action="store_true",
-        help="Show sample content from first few books"
+        help="Show sample content from first few books",
     )
 
     args = parser.parse_args()
@@ -166,7 +178,9 @@ def main():
 
         # Extract books to txt files
         print("\n📚 Extracting books...")
-        extract_books_to_txt(data, args.output_dir, dry_run=args.dry_run, show_samples=args.show_samples)
+        extract_books_to_txt(
+            data, args.output_dir, dry_run=args.dry_run, show_samples=args.show_samples
+        )
 
         if args.dry_run:
             print("\n💡 This was a dry run. Remove --dry-run to actually save files.")

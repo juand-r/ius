@@ -8,9 +8,4 @@ to a common format for downstream processing.
 from .loader import DatasetLoader, get_dataset_info, list_datasets, load_data
 
 
-__all__ = [
-    "DatasetLoader",
-    "load_data",
-    "list_datasets",
-    "get_dataset_info"
-]
+__all__ = ["DatasetLoader", "load_data", "list_datasets", "get_dataset_info"]
