@@ -17,4 +17,15 @@ Completed comprehensive processing and analysis of the entire BooookScore collec
   - Longest average chapters: "a-day-of-fallen-night" (59,682 words/chapter)  
   - Shortest average chapters: "things-i-wish-i-told-my-mother" (858 words/chapter)
 - **Visualizations**: Generated comprehensive box plots and statistical analysis saved to `plots/`
-- **Deliverables**: Created reusable analysis pipeline and chapter length distribution visualizations for research use 
+- **Deliverables**: Created reusable analysis pipeline and chapter length distribution visualizations for research use
+
+## 2024-12-20 - Project Documentation and Planning
+
+**Documentation**: Created comprehensive README.md explaining the IUS research framework, dataset formats, and key concepts including the distinction between documents, chunks, and incremental summarization strategies.
+
+**Planning**: Developed detailed plan.md outlining the implementation approach for three core modules:
+- `ius/chunk/`: Various chunking strategies (fixed-size, fixed-count, natural boundaries)  
+- `ius/summarization/`: Baseline and incremental summarization with LLM abstraction utilities
+- `ius/eval/`: Systematic experiment tracking, metrics, and analysis
+
+**Strategy**: Confirmed approach to treat books as single documents (like BMDS/True Detective) rather than splitting into chapters. Will focus on getting everything working with BMDS dataset before expanding to other collections. 
