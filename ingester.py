@@ -2,7 +2,7 @@
 """
 BooookScore book data ingester.
 
-Loads books from data-source/all_books_booookscore.pkl (dict[filename, text])
+Loads books from data-source/booookscore/all_books.pkl (dict[filename, text])
 and extracts them to individual text files for processing.
 """
 
@@ -127,13 +127,13 @@ def main():
     parser = argparse.ArgumentParser(description="Ingest books from pickle file")
     parser.add_argument(
         "--pickle-path",
-        default="data-source/all_books_booookscore.pkl",
-        help="Path to pickle file (default: data-source/all_books_booookscore.pkl)"
+        default="data-source/booookscore/all_books.pkl",
+        help="Path to pickle file (default: data-source/booookscore/all_books.pkl)"
     )
     parser.add_argument(
         "--output-dir",
-        default="data-source/booookscore_txt",
-        help="Output directory for txt files (default: data-source/booookscore_txt)"
+        default="data-source/booookscore/booookscore_txt",
+        help="Output directory for txt files (default: data-source/booookscore/booookscore_txt)"
     )
     parser.add_argument(
         "--inspect",
