@@ -153,7 +153,7 @@ class TestChunkingCLI(unittest.TestCase):
             "items": {
                 "empty": {"documents": [{"content": "", "doc_id": "empty"}]},
                 "missing_documents": {"title": "No documents field"},
-                "valid": {"documents": [{"content": "Valid content here.", "doc_id": "valid"}]},
+                "valid": {"documents": [{"content": "Valid content here.\nWith multiple lines.\nFor proper chunking.", "doc_id": "valid"}]},
             },
             "collection_metadata": {"num_items": 3},
             "num_items_loaded": 3
@@ -167,10 +167,15 @@ class TestChunkingCLI(unittest.TestCase):
 
         )
 
-        # Should process valid item (empty content still gets processed, just results in empty text)
-        # missing_documents will be skipped due to missing 'documents' field
+        # Should process only the valid item with proper content and delimiters
+        # empty content and missing_documents should be caught by validation
         self.assertEqual(len(result["items"]), 1)
         self.assertIn("valid", result["items"])
+        
+        # Should have 2 errors (empty and missing_documents)
+        self.assertEqual(len(result["errors"]), 2)
+        self.assertIn("empty", result["errors"])
+        self.assertIn("missing_documents", result["errors"])
 
     @patch('ius.cli.chunk.load_data')
     def test_chunk_dataset_validation_failure(self, mock_load_data):

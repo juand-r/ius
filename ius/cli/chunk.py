@@ -14,6 +14,7 @@ from typing import Any
 
 from ius.chunk import process_dataset_items
 from ius.data import list_datasets, load_data
+from ius.exceptions import ChunkingError, DatasetError, ValidationError
 
 from .common import (
     print_summary_stats,
@@ -55,8 +56,21 @@ def chunk_dataset(
         items = dataset["items"]
         print(f"📚 Loaded {len(items)} items from {dataset_name}")
 
+    except DatasetError as e:
+        print(f"❌ Dataset error: {e}", file=sys.stderr)
+        print("💡 Run 'python -m ius chunk --list-datasets' to see available datasets", file=sys.stderr)
+        return {}
+    except FileNotFoundError as e:
+        print(f"❌ File not found: {e}", file=sys.stderr)
+        print("💡 Check that the datasets directory exists and contains the specified dataset", file=sys.stderr)
+        return {}
+    except PermissionError as e:
+        print(f"❌ Permission denied: {e}", file=sys.stderr)
+        print("💡 Check file permissions for the datasets directory", file=sys.stderr)
+        return {}
     except Exception as e:
-        print(f"❌ Error loading dataset {dataset_name}: {e}", file=sys.stderr)
+        print(f"❌ Unexpected error loading dataset {dataset_name}: {e}", file=sys.stderr)
+        print("💡 This may be a bug. Please check the dataset format and try again.", file=sys.stderr)
         return {}
 
     # Print strategy info
@@ -115,8 +129,17 @@ def chunk_dataset(
             for item_id, error in errors.items():
                 print(f"  ❌ Error processing {item_id}: {error}")
 
+    except ChunkingError as e:
+        print(f"❌ Chunking configuration error: {e}", file=sys.stderr)
+        print("💡 Check your chunking parameters (strategy, chunk_size, num_chunks, delimiter)", file=sys.stderr)
+        return {}
+    except ValidationError as e:
+        print(f"❌ Data validation error: {e}", file=sys.stderr)
+        print("💡 Check that your dataset items have the required structure", file=sys.stderr)
+        return {}
     except Exception as e:
-        print(f"❌ Error during processing: {e}", file=sys.stderr)
+        print(f"❌ Unexpected error during processing: {e}", file=sys.stderr)
+        print("💡 This may be a bug. Please check your input data and try again.", file=sys.stderr)
         return {}
 
     # Calculate overall statistics
