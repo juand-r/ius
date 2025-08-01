@@ -1,0 +1,4 @@
+---
+alwaysApply: true
+---
+CLI should be a thin wrapper, most code logic should be called from elsewhere! 
