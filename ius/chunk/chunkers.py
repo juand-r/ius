@@ -149,17 +149,17 @@ def _apply_chunking_strategy(
 ) -> List[str]:
     """
     Apply the specified chunking strategy to text.
-    
+
     Args:
         text: Text to chunk
         strategy: Chunking strategy
         chunk_size: Target chunk size (for fixed_size)
         num_chunks: Target number of chunks (for fixed_count)
         delimiter: Delimiter for chunking
-        
+
     Returns:
         List of text chunks
-        
+
     Raises:
         ValueError: If strategy parameters are invalid
     """
@@ -167,15 +167,15 @@ def _apply_chunking_strategy(
         if not chunk_size:
             raise ValueError("chunk_size required for fixed_size strategy")
         return chunk_fixed_size(text, chunk_size, delimiter)
-        
+
     elif strategy == "fixed_count":
         if not num_chunks:
             raise ValueError("num_chunks required for fixed_count strategy")
         return chunk_fixed_count(text, num_chunks, delimiter)
-        
+
     elif strategy == "custom":
         return chunk_custom(text, "default", delimiter)
-        
+
     else:
         raise ValueError(f"Unknown strategy: {strategy}")
 
@@ -242,7 +242,7 @@ def process_dataset_items(
 
                     # Analyze chunks for this document
                     doc_stats = analyze_chunks(doc_chunks, delimiter)
-                    
+
                     chunks_array.append({
                         "document_id": doc_id,
                         "chunks": doc_chunks,
@@ -252,7 +252,7 @@ def process_dataset_items(
 
                 # Create overall stats
                 total_chunks = sum(chunk_group["stats"]["num_chunks"] for chunk_group in chunks_array)
-                avg_chunk_size = sum(chunk_group["stats"]["avg_chunk_size"] * chunk_group["stats"]["num_chunks"] 
+                avg_chunk_size = sum(chunk_group["stats"]["avg_chunk_size"] * chunk_group["stats"]["num_chunks"]
                                    for chunk_group in chunks_array) / total_chunks if total_chunks > 0 else 0
 
                 overall_stats = {
@@ -291,7 +291,7 @@ def process_dataset_items(
 
                 # Analyze chunks
                 stats = analyze_chunks(concatenated_chunks, delimiter)
-                
+
                 # Create unified chunks structure (single pseudo-document)
                 chunks_array = [{
                     "document_id": "concatenated",
@@ -305,7 +305,7 @@ def process_dataset_items(
                     "total_chunks": stats["num_chunks"],
                     "avg_chunk_size": stats["avg_chunk_size"],
                 }
-                
+
                 results[item_id] = {
                     "item_id": item_id,
                     "original_length": len(text),

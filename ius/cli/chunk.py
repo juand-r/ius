@@ -13,13 +13,11 @@ import time
 from typing import Dict, Optional
 
 from ius.chunk import process_dataset_items
-from ius.data import load_data
+from ius.data import list_datasets, load_data
 
 from .common import (
-    list_available_datasets,
     print_summary_stats,
     save_json_output,
-    validate_dataset_exists,
 )
 
 
@@ -50,11 +48,11 @@ def chunk_dataset(
     print(f"🔍 Loading dataset: {dataset_name}")
 
     try:
-        # Load dataset
+        # Load dataset - returns {"items": {...}, "collection_metadata": {...}, "num_items_loaded": N}
         dataset = load_data(dataset_name)
-        
-        # Extract items for counting
-        items = dataset.get("items", dataset)
+
+        # Extract the actual item data dictionary
+        items = dataset["items"]
         print(f"📚 Loaded {len(items)} items from {dataset_name}")
 
     except Exception as e:
@@ -81,23 +79,23 @@ def chunk_dataset(
             num_chunks=num_chunks,
             delimiter=delimiter,
         )
-        
+
         results = processing_results["results"]
         errors = processing_results["errors"]
-        
+
         # Print progress for each item
         for i, (item_id, item_result) in enumerate(results.items(), 1):
             total_items = len(results)
             print(f"  [{i}/{total_items}] Processing: {item_id}")
-            
+
             # Get overall stats
             overall_stats = item_result['overall_stats']
             print(f"    ✅ Created {overall_stats['total_chunks']} chunks, avg size: {overall_stats['avg_chunk_size']}")
-            
+
             # Show document breakdown if individual docs
             if item_result['document_handling'] == 'chunk-individual-docs' and len(item_result['chunks']) > 1:
                 print(f"    📄 {len(item_result['chunks'])} documents processed")
-            
+
             # Show previews if requested
             if preview and item_result.get("chunks"):
                 from ius.chunk.utils import preview_chunks
@@ -105,13 +103,13 @@ def chunk_dataset(
                 all_chunks = []
                 for chunk_group in item_result["chunks"]:
                     all_chunks.extend(chunk_group["chunks"])
-                
+
                 previews = preview_chunks(all_chunks[:3])
                 for prev in previews:
                     print(f"      {prev}")
                 if len(all_chunks) > 3:
                     print(f"      ... and {len(all_chunks) - 3} more chunks")
-        
+
         # Print errors if any
         if errors:
             for item_id, error in errors.items():
@@ -126,7 +124,7 @@ def chunk_dataset(
         total_chunks = sum(r["overall_stats"]["total_chunks"] for r in results.values())
         total_chars = sum(r["original_length"] for r in results.values())
         avg_chunks_per_item = total_chunks / len(results) if results else 0
-        
+
         overall_stats = {
             "total_items": len(results),
             "total_chunks": total_chunks,
@@ -171,7 +169,7 @@ def main() -> None:
     """Main entry point for chunking CLI."""
     # Handle --list-datasets early to avoid requiring other arguments
     if "--list-datasets" in sys.argv:
-        datasets = list_available_datasets()
+        datasets = list_datasets()
         if datasets:
             print("📚 Available datasets:")
             for dataset in sorted(datasets):
@@ -265,11 +263,11 @@ Examples:
         parser.error("--count is required for fixed_count strategy")
 
     # Validate dataset exists
-    if not validate_dataset_exists(args.dataset):
-        available = list_available_datasets()
+    available_datasets = list_datasets()
+    if args.dataset not in available_datasets:
         print(f"❌ Dataset '{args.dataset}' not found", file=sys.stderr)
-        if available:
-            print(f"Available datasets: {', '.join(sorted(available))}", file=sys.stderr)
+        if available_datasets:
+            print(f"Available datasets: {', '.join(sorted(available_datasets))}", file=sys.stderr)
         else:
             print("No datasets found in datasets/ directory", file=sys.stderr)
         sys.exit(1)

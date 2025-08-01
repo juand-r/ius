@@ -5,7 +5,7 @@ Common utilities for CLI modules.
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 
 def setup_output_dir(output_path: Optional[str] = None) -> Path:
@@ -64,30 +64,3 @@ def print_summary_stats(stats: Dict[str, Any]) -> None:
         else:
             print(f"  {key}: {value}")
 
-
-def validate_dataset_exists(dataset_name: str) -> bool:
-    """
-    Check if dataset exists in the datasets directory.
-
-    Args:
-        dataset_name: Name of the dataset
-
-    Returns:
-        True if dataset exists, False otherwise
-    """
-    dataset_path = Path("datasets") / dataset_name
-    return dataset_path.exists() and dataset_path.is_dir()
-
-
-def list_available_datasets() -> List[str]:
-    """
-    List all available datasets in the datasets directory.
-
-    Returns:
-        List of dataset names
-    """
-    datasets_dir = Path("datasets")
-    if not datasets_dir.exists():
-        return []
-
-    return [d.name for d in datasets_dir.iterdir() if d.is_dir()]
