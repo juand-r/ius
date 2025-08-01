@@ -39,12 +39,12 @@ class TestConfig(unittest.TestCase):
     def test_from_env_with_custom_values(self):
         """Test from_env() with custom environment variables."""
         env_vars = {
-            'IUS_DATASETS_DIR': '/custom/datasets',
-            'IUS_OUTPUTS_DIR': '/custom/outputs',
-            'IUS_DEFAULT_CHUNK_SIZE': '2000',
-            'IUS_DEFAULT_NUM_CHUNKS': '8',
-            'IUS_MAX_MEMORY': '1073741824',  # 1GB
-            'IUS_LOG_LEVEL': 'DEBUG'
+            "IUS_DATASETS_DIR": "/custom/datasets",
+            "IUS_OUTPUTS_DIR": "/custom/outputs",
+            "IUS_DEFAULT_CHUNK_SIZE": "2000",
+            "IUS_DEFAULT_NUM_CHUNKS": "8",
+            "IUS_MAX_MEMORY": "1073741824",  # 1GB
+            "IUS_LOG_LEVEL": "DEBUG",
         }
 
         with patch.dict(os.environ, env_vars, clear=True):
@@ -59,10 +59,7 @@ class TestConfig(unittest.TestCase):
 
     def test_from_env_partial_override(self):
         """Test from_env() with only some environment variables set."""
-        env_vars = {
-            'IUS_DEFAULT_CHUNK_SIZE': '1500',
-            'IUS_LOG_LEVEL': 'WARNING'
-        }
+        env_vars = {"IUS_DEFAULT_CHUNK_SIZE": "1500", "IUS_LOG_LEVEL": "WARNING"}
 
         with patch.dict(os.environ, env_vars, clear=True):
             config = Config.from_env()
@@ -88,6 +85,7 @@ class TestConfigValidation(unittest.TestCase):
     def tearDown(self):
         """Clean up test fixtures."""
         import shutil
+
         shutil.rmtree(self.temp_dir)
 
     def test_validate_success(self):
@@ -97,7 +95,7 @@ class TestConfigValidation(unittest.TestCase):
             default_chunk_size=1000,
             default_num_chunks=4,
             max_memory_usage=1024 * 1024 * 100,
-            log_level="INFO"
+            log_level="INFO",
         )
 
         # Should not raise an exception
@@ -117,10 +115,7 @@ class TestConfigValidation(unittest.TestCase):
 
     def test_validate_negative_chunk_size(self):
         """Test validation fails with negative chunk size."""
-        config = Config(
-            datasets_dir=self.datasets_dir,
-            default_chunk_size=-100
-        )
+        config = Config(datasets_dir=self.datasets_dir, default_chunk_size=-100)
 
         with self.assertRaises(ValidationError) as cm:
             config.validate()
@@ -129,10 +124,7 @@ class TestConfigValidation(unittest.TestCase):
 
     def test_validate_zero_chunk_size(self):
         """Test validation fails with zero chunk size."""
-        config = Config(
-            datasets_dir=self.datasets_dir,
-            default_chunk_size=0
-        )
+        config = Config(datasets_dir=self.datasets_dir, default_chunk_size=0)
 
         with self.assertRaises(ValidationError) as cm:
             config.validate()
@@ -141,10 +133,7 @@ class TestConfigValidation(unittest.TestCase):
 
     def test_validate_negative_num_chunks(self):
         """Test validation fails with negative number of chunks."""
-        config = Config(
-            datasets_dir=self.datasets_dir,
-            default_num_chunks=-5
-        )
+        config = Config(datasets_dir=self.datasets_dir, default_num_chunks=-5)
 
         with self.assertRaises(ValidationError) as cm:
             config.validate()
@@ -153,10 +142,7 @@ class TestConfigValidation(unittest.TestCase):
 
     def test_validate_zero_num_chunks(self):
         """Test validation fails with zero number of chunks."""
-        config = Config(
-            datasets_dir=self.datasets_dir,
-            default_num_chunks=0
-        )
+        config = Config(datasets_dir=self.datasets_dir, default_num_chunks=0)
 
         with self.assertRaises(ValidationError) as cm:
             config.validate()
@@ -165,10 +151,7 @@ class TestConfigValidation(unittest.TestCase):
 
     def test_validate_negative_memory_usage(self):
         """Test validation fails with negative memory usage."""
-        config = Config(
-            datasets_dir=self.datasets_dir,
-            max_memory_usage=-1000
-        )
+        config = Config(datasets_dir=self.datasets_dir, max_memory_usage=-1000)
 
         with self.assertRaises(ValidationError) as cm:
             config.validate()
@@ -177,10 +160,7 @@ class TestConfigValidation(unittest.TestCase):
 
     def test_validate_zero_memory_usage(self):
         """Test validation fails with zero memory usage."""
-        config = Config(
-            datasets_dir=self.datasets_dir,
-            max_memory_usage=0
-        )
+        config = Config(datasets_dir=self.datasets_dir, max_memory_usage=0)
 
         with self.assertRaises(ValidationError) as cm:
             config.validate()
@@ -189,10 +169,7 @@ class TestConfigValidation(unittest.TestCase):
 
     def test_validate_invalid_log_level(self):
         """Test validation fails with invalid log level."""
-        config = Config(
-            datasets_dir=self.datasets_dir,
-            log_level="INVALID"
-        )
+        config = Config(datasets_dir=self.datasets_dir, log_level="INVALID")
 
         with self.assertRaises(ValidationError) as cm:
             config.validate()
@@ -210,10 +187,7 @@ class TestConfigValidation(unittest.TestCase):
         valid_levels = ["debug", "INFO", "Warning", "ERROR", "critical"]
 
         for level in valid_levels:
-            config = Config(
-                datasets_dir=self.datasets_dir,
-                log_level=level
-            )
+            config = Config(datasets_dir=self.datasets_dir, log_level=level)
             # Should not raise an exception
             config.validate()
 
@@ -231,14 +205,12 @@ class TestConfigDirectoryManagement(unittest.TestCase):
     def tearDown(self):
         """Clean up test fixtures."""
         import shutil
+
         shutil.rmtree(self.temp_dir)
 
     def test_ensure_directories_creates_outputs_dir(self):
         """Test ensure_directories creates outputs directory if it doesn't exist."""
-        config = Config(
-            datasets_dir=self.datasets_dir,
-            outputs_dir=self.outputs_dir
-        )
+        config = Config(datasets_dir=self.datasets_dir, outputs_dir=self.outputs_dir)
 
         # Directory shouldn't exist initially
         self.assertFalse(self.outputs_dir.exists())
@@ -251,10 +223,7 @@ class TestConfigDirectoryManagement(unittest.TestCase):
 
     def test_ensure_directories_creates_chunks_subdir(self):
         """Test ensure_directories creates outputs/chunks subdirectory."""
-        config = Config(
-            datasets_dir=self.datasets_dir,
-            outputs_dir=self.outputs_dir
-        )
+        config = Config(datasets_dir=self.datasets_dir, outputs_dir=self.outputs_dir)
 
         config.ensure_directories()
 
@@ -268,10 +237,7 @@ class TestConfigDirectoryManagement(unittest.TestCase):
         self.outputs_dir.mkdir(parents=True)
         (self.outputs_dir / "chunks").mkdir()
 
-        config = Config(
-            datasets_dir=self.datasets_dir,
-            outputs_dir=self.outputs_dir
-        )
+        config = Config(datasets_dir=self.datasets_dir, outputs_dir=self.outputs_dir)
 
         # Should not raise an exception
         config.ensure_directories()
@@ -284,10 +250,7 @@ class TestConfigDirectoryManagement(unittest.TestCase):
         """Test ensure_directories creates nested directory paths."""
         nested_outputs = Path(self.temp_dir) / "deeply" / "nested" / "outputs"
 
-        config = Config(
-            datasets_dir=self.datasets_dir,
-            outputs_dir=nested_outputs
-        )
+        config = Config(datasets_dir=self.datasets_dir, outputs_dir=nested_outputs)
 
         config.ensure_directories()
 
@@ -310,6 +273,7 @@ class TestGlobalConfigManagement(unittest.TestCase):
     def tearDown(self):
         """Clean up test fixtures."""
         import shutil
+
         shutil.rmtree(self.temp_dir)
         # Reset config after each test
         reset_config()
@@ -317,7 +281,7 @@ class TestGlobalConfigManagement(unittest.TestCase):
     def test_get_config_lazy_initialization(self):
         """Test get_config() creates config on first call."""
         # Mock the datasets directory to exist (current working directory)
-        with patch('ius.config.Config.from_env') as mock_from_env:
+        with patch("ius.config.Config.from_env") as mock_from_env:
             mock_config = Config(datasets_dir=self.datasets_dir)
             mock_from_env.return_value = mock_config
 
@@ -336,10 +300,11 @@ class TestGlobalConfigManagement(unittest.TestCase):
 
     def test_get_config_validates_and_ensures_directories(self):
         """Test get_config() validates config and ensures directories."""
-        with patch('ius.config.Config.from_env') as mock_from_env, \
-             patch.object(Config, 'validate') as mock_validate, \
-             patch.object(Config, 'ensure_directories') as mock_ensure:
-
+        with (
+            patch("ius.config.Config.from_env") as mock_from_env,
+            patch.object(Config, "validate") as mock_validate,
+            patch.object(Config, "ensure_directories") as mock_ensure,
+        ):
             mock_config = Config(datasets_dir=self.datasets_dir)
             mock_from_env.return_value = mock_config
 
@@ -351,7 +316,7 @@ class TestGlobalConfigManagement(unittest.TestCase):
     def test_set_config_overrides_global_config(self):
         """Test set_config() overrides the global configuration."""
         # First get default config
-        with patch('ius.config.Config.from_env') as mock_from_env:
+        with patch("ius.config.Config.from_env") as mock_from_env:
             default_config = Config(datasets_dir=self.datasets_dir)
             mock_from_env.return_value = default_config
 
@@ -361,7 +326,7 @@ class TestGlobalConfigManagement(unittest.TestCase):
             custom_config = Config(
                 datasets_dir=self.datasets_dir,
                 default_chunk_size=2000,
-                log_level="DEBUG"
+                log_level="DEBUG",
             )
 
             set_config(custom_config)
@@ -376,9 +341,10 @@ class TestGlobalConfigManagement(unittest.TestCase):
 
     def test_set_config_validates_and_ensures_directories(self):
         """Test set_config() validates config and ensures directories."""
-        with patch.object(Config, 'validate') as mock_validate, \
-             patch.object(Config, 'ensure_directories') as mock_ensure:
-
+        with (
+            patch.object(Config, "validate") as mock_validate,
+            patch.object(Config, "ensure_directories") as mock_ensure,
+        ):
             custom_config = Config(datasets_dir=self.datasets_dir)
 
             set_config(custom_config)
@@ -389,11 +355,11 @@ class TestGlobalConfigManagement(unittest.TestCase):
     def test_reset_config_clears_global_config(self):
         """Test reset_config() clears the global configuration."""
         # First create a config
-        with patch('ius.config.Config.from_env') as mock_from_env:
+        with patch("ius.config.Config.from_env") as mock_from_env:
             # Use side_effect to return new instances each time
             mock_from_env.side_effect = [
                 Config(datasets_dir=self.datasets_dir),
-                Config(datasets_dir=self.datasets_dir)
+                Config(datasets_dir=self.datasets_dir),
             ]
 
             config1 = get_config()
@@ -433,17 +399,18 @@ class TestConfigIntegration(unittest.TestCase):
     def tearDown(self):
         """Clean up test fixtures."""
         import shutil
+
         shutil.rmtree(self.temp_dir)
         reset_config()
 
     def test_environment_variable_integration(self):
         """Test complete integration with environment variables."""
         env_vars = {
-            'IUS_DATASETS_DIR': str(self.datasets_dir),
-            'IUS_OUTPUTS_DIR': str(Path(self.temp_dir) / "custom_outputs"),
-            'IUS_DEFAULT_CHUNK_SIZE': '1500',
-            'IUS_DEFAULT_NUM_CHUNKS': '6',
-            'IUS_LOG_LEVEL': 'WARNING'
+            "IUS_DATASETS_DIR": str(self.datasets_dir),
+            "IUS_OUTPUTS_DIR": str(Path(self.temp_dir) / "custom_outputs"),
+            "IUS_DEFAULT_CHUNK_SIZE": "1500",
+            "IUS_DEFAULT_NUM_CHUNKS": "6",
+            "IUS_LOG_LEVEL": "WARNING",
         }
 
         with patch.dict(os.environ, env_vars, clear=True):
@@ -462,15 +429,17 @@ class TestConfigIntegration(unittest.TestCase):
     def test_invalid_environment_variable_values(self):
         """Test handling of invalid environment variable values."""
         env_vars = {
-            'IUS_DATASETS_DIR': str(self.datasets_dir),
-            'IUS_DEFAULT_CHUNK_SIZE': 'not_a_number'
+            "IUS_DATASETS_DIR": str(self.datasets_dir),
+            "IUS_DEFAULT_CHUNK_SIZE": "not_a_number",
         }
 
-        with patch.dict(os.environ, env_vars, clear=True), \
-             self.assertRaises(ValueError):
+        with (
+            patch.dict(os.environ, env_vars, clear=True),
+            self.assertRaises(ValueError),
+        ):
             # Should fail when trying to convert 'not_a_number' to int
             get_config()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

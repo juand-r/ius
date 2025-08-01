@@ -3,7 +3,6 @@ Utilities for chunking validation and analysis.
 """
 
 
-
 def validate_chunks(
     original_text: str, chunks: list[str], delimiter: str = "\n"
 ) -> bool:

@@ -8,14 +8,13 @@ by regenerating it from the dependency specifications.
 
 import subprocess
 import sys
-from pathlib import Path
 
 
 def run_command(cmd: list[str], description: str) -> bool:
     """Run a command and return success status."""
     print(f"📦 {description}...")
     try:
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
         print(f"✅ {description} completed")
         return True
     except subprocess.CalledProcessError as e:
@@ -32,42 +31,41 @@ def check_pip_tools() -> bool:
         return True
     except (subprocess.CalledProcessError, FileNotFoundError):
         print("❌ pip-tools not found. Installing...")
-        return run_command([sys.executable, "-m", "pip", "install", "pip-tools"], "Installing pip-tools")
+        return run_command(
+            [sys.executable, "-m", "pip", "install", "pip-tools"],
+            "Installing pip-tools",
+        )
 
 
 def main():
     """Main sync function."""
     print("🔄 Syncing requirements.txt with pyproject.toml")
-    
+
     # Check prerequisites
     if not check_pip_tools():
         print("❌ Failed to install pip-tools")
         return 1
-    
+
     # Generate production requirements.txt
-    if not run_command([
-        "pip-compile", 
-        "--resolver=backtracking",
-        "--upgrade",
-        "requirements.in"
-    ], "Generating requirements.txt"):
+    if not run_command(
+        ["pip-compile", "--resolver=backtracking", "--upgrade", "requirements.in"],
+        "Generating requirements.txt",
+    ):
         return 1
-    
+
     # Generate development requirements
-    if not run_command([
-        "pip-compile", 
-        "--resolver=backtracking", 
-        "--upgrade",
-        "requirements-dev.in"
-    ], "Generating requirements-dev.txt"):
+    if not run_command(
+        ["pip-compile", "--resolver=backtracking", "--upgrade", "requirements-dev.in"],
+        "Generating requirements-dev.txt",
+    ):
         return 1
-    
+
     print("\n✅ Requirements files synced successfully!")
     print("📋 Files updated:")
     print("   - requirements.txt (production dependencies)")
     print("   - requirements-dev.txt (development dependencies)")
     print("\n💡 Commit these files to keep dependencies locked.")
-    
+
     return 0
 
 

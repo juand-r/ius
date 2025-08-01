@@ -43,13 +43,17 @@ def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n") -> list[
         raise ChunkingError(f"text must be a string, got {type(text).__name__}")
 
     if not isinstance(chunk_size, int):
-        raise ChunkingError(f"chunk_size must be an integer, got {type(chunk_size).__name__}")
+        raise ChunkingError(
+            f"chunk_size must be an integer, got {type(chunk_size).__name__}"
+        )
 
     if chunk_size <= 0:
         raise ChunkingError(f"chunk_size must be positive, got {chunk_size}")
 
     if not isinstance(delimiter, str):
-        raise ChunkingError(f"delimiter must be a string, got {type(delimiter).__name__}")
+        raise ChunkingError(
+            f"delimiter must be a string, got {type(delimiter).__name__}"
+        )
 
     if len(delimiter) == 0:
         raise ChunkingError("delimiter cannot be empty")
@@ -83,7 +87,7 @@ def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n") -> list[
         desc="Chunking text",
         unit="unit",
         disable=len(units) < 100,  # Only show for texts with many units
-        leave=False  # Remove bar when done
+        leave=False,  # Remove bar when done
     )
 
     for unit in units_progress:
@@ -107,7 +111,9 @@ def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n") -> list[
 
     # Validate content preservation
     if not validate_chunks(text, chunks, delimiter):
-        raise ValidationError("Content validation failed: chunks do not preserve original text")
+        raise ValidationError(
+            "Content validation failed: chunks do not preserve original text"
+        )
 
     return chunks
 
@@ -133,13 +139,17 @@ def chunk_fixed_count(text: str, num_chunks: int, delimiter: str = "\n") -> list
         raise ChunkingError(f"text must be a string, got {type(text).__name__}")
 
     if not isinstance(num_chunks, int):
-        raise ChunkingError(f"num_chunks must be an integer, got {type(num_chunks).__name__}")
+        raise ChunkingError(
+            f"num_chunks must be an integer, got {type(num_chunks).__name__}"
+        )
 
     if num_chunks <= 0:
         raise ChunkingError(f"num_chunks must be positive, got {num_chunks}")
 
     if not isinstance(delimiter, str):
-        raise ChunkingError(f"delimiter must be a string, got {type(delimiter).__name__}")
+        raise ChunkingError(
+            f"delimiter must be a string, got {type(delimiter).__name__}"
+        )
 
     if len(delimiter) == 0:
         raise ChunkingError("delimiter cannot be empty")
@@ -188,7 +198,7 @@ def chunk_fixed_count(text: str, num_chunks: int, delimiter: str = "\n") -> list
         desc="Creating chunks",
         unit="chunk",
         disable=num_chunks < 10,  # Only show for many chunks
-        leave=False  # Remove bar when done
+        leave=False,  # Remove bar when done
     )
 
     for i in chunk_progress:
@@ -202,7 +212,9 @@ def chunk_fixed_count(text: str, num_chunks: int, delimiter: str = "\n") -> list
 
     # Validate content preservation
     if not validate_chunks(text, chunks, delimiter):
-        raise ValidationError("Content validation failed: chunks do not preserve original text")
+        raise ValidationError(
+            "Content validation failed: chunks do not preserve original text"
+        )
 
     return chunks
 
@@ -237,7 +249,9 @@ def chunk_custom(
         raise ChunkingError(f"strategy must be a string, got {type(strategy).__name__}")
 
     if not isinstance(delimiter, str):
-        raise ChunkingError(f"delimiter must be a string, got {type(delimiter).__name__}")
+        raise ChunkingError(
+            f"delimiter must be a string, got {type(delimiter).__name__}"
+        )
 
     if len(delimiter) == 0:
         raise ChunkingError("delimiter cannot be empty")
@@ -270,19 +284,25 @@ def _apply_chunking_strategy(
     """
     if strategy == "fixed_size":
         if not chunk_size or chunk_size <= 0:
-            raise ChunkingError("chunk_size required and must be positive for fixed_size strategy")
+            raise ChunkingError(
+                "chunk_size required and must be positive for fixed_size strategy"
+            )
         return chunk_fixed_size(text, chunk_size, delimiter)
 
     elif strategy == "fixed_count":
         if not num_chunks or num_chunks <= 0:
-            raise ChunkingError("num_chunks required and must be positive for fixed_count strategy")
+            raise ChunkingError(
+                "num_chunks required and must be positive for fixed_count strategy"
+            )
         return chunk_fixed_count(text, num_chunks, delimiter)
 
     elif strategy == "custom":
         return chunk_custom(text, "default", delimiter)
 
     else:
-        raise ChunkingError(f"Unknown chunking strategy: {strategy}. Available strategies: fixed_size, fixed_count, custom")
+        raise ChunkingError(
+            f"Unknown chunking strategy: {strategy}. Available strategies: fixed_size, fixed_count, custom"
+        )
 
 
 def process_dataset_items(
@@ -325,23 +345,25 @@ def process_dataset_items(
     # Validate document_handling parameter
     valid_handling = ["chunk-individual-docs", "chunk-concatenated-docs"]
     if document_handling not in valid_handling:
-        raise ChunkingError(f"Invalid document_handling: {document_handling}. Must be one of: {valid_handling}")
+        raise ChunkingError(
+            f"Invalid document_handling: {document_handling}. Must be one of: {valid_handling}"
+        )
 
     # Add progress bar for item processing
     items_progress = tqdm(
         items.items(),
         desc="Processing items",
         unit="item",
-        disable=len(items) < 2  # Don't show for single items
+        disable=len(items) < 2,  # Don't show for single items
     )
 
     for item_id, item_data in items_progress:
         try:
             # Extract documents
-            if not isinstance(item_data, dict) or 'documents' not in item_data:
+            if not isinstance(item_data, dict) or "documents" not in item_data:
                 raise ValidationError("Item missing required 'documents' field")
 
-            documents = item_data['documents']
+            documents = item_data["documents"]
             if not documents:
                 raise ValidationError("No documents found in item")
 
@@ -356,12 +378,12 @@ def process_dataset_items(
                     desc=f"Processing {item_id} docs",
                     unit="doc",
                     disable=len(documents) < 2,  # Don't show for single documents
-                    leave=False  # Remove bar when done
+                    leave=False,  # Remove bar when done
                 )
 
                 for doc in docs_progress:
-                    doc_id = doc['doc_id']
-                    doc_text = doc['content']
+                    doc_id = doc["doc_id"]
+                    doc_text = doc["content"]
                     if not doc_text:
                         raise ValidationError("Document content is empty")
 
@@ -373,17 +395,29 @@ def process_dataset_items(
                     # Analyze chunks for this document
                     doc_stats = analyze_chunks(doc_chunks, delimiter)
 
-                    chunks_array.append({
-                        "document_id": doc_id,
-                        "chunks": doc_chunks,
-                        "stats": doc_stats,
-                    })
+                    chunks_array.append(
+                        {
+                            "document_id": doc_id,
+                            "chunks": doc_chunks,
+                            "stats": doc_stats,
+                        }
+                    )
                     total_original_length += len(doc_text)
 
                 # Create overall stats
-                total_chunks = sum(chunk_group["stats"]["num_chunks"] for chunk_group in chunks_array)
-                avg_chunk_size = sum(chunk_group["stats"]["avg_chunk_size"] * chunk_group["stats"]["num_chunks"]
-                                   for chunk_group in chunks_array) / total_chunks if total_chunks > 0 else 0
+                total_chunks = sum(
+                    chunk_group["stats"]["num_chunks"] for chunk_group in chunks_array
+                )
+                avg_chunk_size = (
+                    sum(
+                        chunk_group["stats"]["avg_chunk_size"]
+                        * chunk_group["stats"]["num_chunks"]
+                        for chunk_group in chunks_array
+                    )
+                    / total_chunks
+                    if total_chunks > 0
+                    else 0
+                )
 
                 overall_stats = {
                     "num_documents": len(chunks_array),
@@ -403,17 +437,19 @@ def process_dataset_items(
                         "delimiter": delimiter,
                         **({"chunk_size": chunk_size} if chunk_size else {}),
                         **({"num_chunks": num_chunks} if num_chunks else {}),
-                    }
+                    },
                 }
 
             elif document_handling == "chunk-concatenated-docs":
                 raise ValueError("Currently untested, TODO Test before use!!")
                 # Concatenate all documents then chunk
-                doc_texts = [doc['content'] for doc in documents]
+                doc_texts = [doc["content"] for doc in documents]
                 text = delimiter.join(doc_texts)
 
                 if not text:
-                    raise ValidationError("No text content found in concatenated documents")
+                    raise ValidationError(
+                        "No text content found in concatenated documents"
+                    )
 
                 # Apply chunking strategy to concatenated text
                 concatenated_chunks = _apply_chunking_strategy(
@@ -424,11 +460,13 @@ def process_dataset_items(
                 stats = analyze_chunks(concatenated_chunks, delimiter)
 
                 # Create unified chunks structure (single pseudo-document)
-                chunks_array = [{
-                    "document_id": "concatenated",
-                    "chunks": concatenated_chunks,
-                    "stats": stats,
-                }]
+                chunks_array = [
+                    {
+                        "document_id": "concatenated",
+                        "chunks": concatenated_chunks,
+                        "stats": stats,
+                    }
+                ]
 
                 # Overall stats (same as single document stats)
                 overall_stats = {
@@ -449,7 +487,7 @@ def process_dataset_items(
                         "delimiter": delimiter,
                         **({"chunk_size": chunk_size} if chunk_size else {}),
                         **({"num_chunks": num_chunks} if num_chunks else {}),
-                    }
+                    },
                 }
 
         except (ChunkingError, ValidationError) as e:
@@ -479,7 +517,9 @@ def process_dataset_items(
         except Exception as e:
             # Catch any unexpected exceptions with detailed logging
             error_msg = f"Unexpected error: {str(e)}"
-            logger.exception(f"Processing item '{item_id}' failed with unexpected error: {error_msg}")
+            logger.exception(
+                f"Processing item '{item_id}' failed with unexpected error: {error_msg}"
+            )
             errors[item_id] = error_msg
 
     return {"results": results, "errors": errors}

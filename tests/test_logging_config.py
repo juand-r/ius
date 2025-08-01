@@ -128,7 +128,7 @@ class TestLoggingConfig(unittest.TestCase):
         self.assertNotEqual(logger1, logger2)
         self.assertEqual(logger1, logger3)  # Should be same instance
 
-    @patch('sys.stdout', new_callable=StringIO)
+    @patch("sys.stdout", new_callable=StringIO)
     def test_logging_output_levels(self, mock_stdout):
         """Test that different log levels produce appropriate output."""
         setup_logging(log_level="DEBUG")
@@ -148,7 +148,7 @@ class TestLoggingConfig(unittest.TestCase):
         self.assertIn("WARNING: Warning message", output)
         self.assertIn("ERROR: Error message", output)
 
-    @patch('sys.stdout', new_callable=StringIO)
+    @patch("sys.stdout", new_callable=StringIO)
     def test_logging_level_filtering(self, mock_stdout):
         """Test that log level filtering works correctly."""
         setup_logging(log_level="WARNING")
@@ -156,9 +156,9 @@ class TestLoggingConfig(unittest.TestCase):
 
         # Test different log levels
         logger.debug("Debug message")  # Should not appear
-        logger.info("Info message")    # Should not appear
+        logger.info("Info message")  # Should not appear
         logger.warning("Warning message")  # Should appear
-        logger.error("Error message")      # Should appear
+        logger.error("Error message")  # Should appear
 
         output = mock_stdout.getvalue()
 
@@ -173,7 +173,7 @@ class TestLoggingConfig(unittest.TestCase):
         setup_logging()
 
         # Check that urllib3 logger level is set to WARNING
-        urllib3_logger = logging.getLogger('urllib3')
+        urllib3_logger = logging.getLogger("urllib3")
         self.assertEqual(urllib3_logger.level, logging.WARNING)
 
     def test_setup_logging_clears_existing_handlers(self):
@@ -205,7 +205,7 @@ class TestLoggingIntegration(unittest.TestCase):
         """Clean up test fixtures."""
         logging.getLogger().handlers.clear()
 
-    @patch('sys.stdout', new_callable=StringIO)
+    @patch("sys.stdout", new_callable=StringIO)
     def test_realistic_usage_pattern(self, mock_stdout):
         """Test logging in a realistic usage pattern like CLI modules."""
         # Simulate what happens in CLI modules
@@ -243,8 +243,8 @@ class TestLoggingIntegration(unittest.TestCase):
 
         # But all should use the same root configuration
         self.assertEqual(chunk_logger.level, 0)  # Inherits from root
-        self.assertEqual(data_logger.level, 0)   # Inherits from root
-        self.assertEqual(main_logger.level, 0)   # Inherits from root
+        self.assertEqual(data_logger.level, 0)  # Inherits from root
+        self.assertEqual(main_logger.level, 0)  # Inherits from root
 
 
 if __name__ == "__main__":

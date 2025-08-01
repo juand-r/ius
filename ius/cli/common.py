@@ -24,7 +24,9 @@ def setup_output_dir(output_path: str | None = None) -> Path:
     return output_dir
 
 
-def save_json_output(data: dict[str, Any], output_path: str, pretty: bool = True) -> None:
+def save_json_output(
+    data: dict[str, Any], output_path: str, pretty: bool = True
+) -> None:
     """
     Save data to JSON file with error handling.
 
@@ -37,7 +39,7 @@ def save_json_output(data: dict[str, Any], output_path: str, pretty: bool = True
         output_file = Path(output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(output_file, 'w', encoding='utf-8') as f:
+        with open(output_file, "w", encoding="utf-8") as f:
             if pretty:
                 json.dump(data, f, indent=2, ensure_ascii=False)
             else:
@@ -63,4 +65,3 @@ def print_summary_stats(stats: dict[str, Any]) -> None:
             print(f"  {key}: {value:.1f}")
         else:
             print(f"  {key}: {value}")
-

@@ -50,12 +50,12 @@ class TestCLICommon(unittest.TestCase):
         test_data = {"test": "data", "number": 42}
         output_path = str(self.temp_path / "test_output.json")
 
-        with patch('builtins.print') as mock_print:
+        with patch("builtins.print") as mock_print:
             save_json_output(test_data, output_path)
 
         # Check file was created and contains correct data
         self.assertTrue(Path(output_path).exists())
-        with open(output_path, encoding='utf-8') as f:
+        with open(output_path, encoding="utf-8") as f:
             loaded_data = json.load(f)
         self.assertEqual(loaded_data, test_data)
 
@@ -69,12 +69,12 @@ class TestCLICommon(unittest.TestCase):
 
         save_json_output(test_data, output_path, pretty=True)
 
-        with open(output_path, encoding='utf-8') as f:
+        with open(output_path, encoding="utf-8") as f:
             content = f.read()
 
         # Pretty formatted JSON should contain newlines and indentation
-        self.assertIn('\n', content)
-        self.assertIn('  ', content)  # Indentation
+        self.assertIn("\n", content)
+        self.assertIn("  ", content)  # Indentation
 
     def test_save_json_output_compact_formatting(self):
         """Test JSON output with compact formatting."""
@@ -83,11 +83,11 @@ class TestCLICommon(unittest.TestCase):
 
         save_json_output(test_data, output_path, pretty=False)
 
-        with open(output_path, encoding='utf-8') as f:
+        with open(output_path, encoding="utf-8") as f:
             content = f.read()
 
         # Compact JSON should be single line
-        self.assertEqual(content.count('\n'), 0)
+        self.assertEqual(content.count("\n"), 0)
 
     def test_save_json_output_creates_directories(self):
         """Test that save_json_output creates parent directories."""
@@ -106,12 +106,12 @@ class TestCLICommon(unittest.TestCase):
 
         save_json_output(test_data, output_path)
 
-        with open(output_path, encoding='utf-8') as f:
+        with open(output_path, encoding="utf-8") as f:
             loaded_data = json.load(f)
         self.assertEqual(loaded_data, test_data)
 
-    @patch('sys.exit')
-    @patch('builtins.print')
+    @patch("sys.exit")
+    @patch("builtins.print")
     def test_save_json_output_permission_error(self, mock_print, mock_exit):
         """Test save_json_output handles permission errors."""
         # Try to write to root directory (should fail)
@@ -132,10 +132,10 @@ class TestCLICommon(unittest.TestCase):
             "total_items": 42,
             "avg_score": 85.7,
             "name": "test_dataset",
-            "success_rate": 0.95
+            "success_rate": 0.95,
         }
 
-        with patch('builtins.print') as mock_print:
+        with patch("builtins.print") as mock_print:
             print_summary_stats(stats)
 
         # Check that print was called with header
@@ -152,7 +152,7 @@ class TestCLICommon(unittest.TestCase):
 
     def test_print_summary_stats_empty_dict(self):
         """Test printing empty statistics dictionary."""
-        with patch('builtins.print') as mock_print:
+        with patch("builtins.print") as mock_print:
             print_summary_stats({})
 
         # Should still print header
@@ -163,10 +163,10 @@ class TestCLICommon(unittest.TestCase):
         stats = {
             "precise_value": 3.14159265359,
             "whole_number": 5.0,
-            "small_decimal": 0.001
+            "small_decimal": 0.001,
         }
 
-        with patch('builtins.print') as mock_print:
+        with patch("builtins.print") as mock_print:
             print_summary_stats(stats)
 
         calls = mock_print.call_args_list

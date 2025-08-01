@@ -71,7 +71,9 @@ def chunk_dataset(
     print_summary_stats(overall_stats)
 
     # Prepare final output
-    output_data = _prepare_output_data(dataset_name, strategy, overall_stats, results, errors)
+    output_data = _prepare_output_data(
+        dataset_name, strategy, overall_stats, results, errors
+    )
 
     # Save output if path specified
     if output_path:
@@ -81,6 +83,7 @@ def chunk_dataset(
 
 
 # Helper functions for chunk_dataset breakdown
+
 
 def _load_and_validate_dataset(dataset_name: str) -> dict[str, Any] | None:
     """
@@ -106,11 +109,15 @@ def _load_and_validate_dataset(dataset_name: str) -> dict[str, Any] | None:
 
     except DatasetError as e:
         logger.error(f"Dataset error: {e}")
-        logger.info("Run 'python -m ius chunk --list-datasets' to see available datasets")
+        logger.info(
+            "Run 'python -m ius chunk --list-datasets' to see available datasets"
+        )
         return None
     except FileNotFoundError as e:
         logger.error(f"File not found: {e}")
-        logger.info("Check that the datasets directory exists and contains the specified dataset")
+        logger.info(
+            "Check that the datasets directory exists and contains the specified dataset"
+        )
         return None
     except PermissionError as e:
         logger.error(f"Permission denied: {e}")
@@ -123,10 +130,7 @@ def _load_and_validate_dataset(dataset_name: str) -> dict[str, Any] | None:
 
 
 def _print_strategy_info(
-    strategy: str,
-    chunk_size: int | None,
-    num_chunks: int | None,
-    delimiter: str
+    strategy: str, chunk_size: int | None, num_chunks: int | None, delimiter: str
 ) -> None:
     """Print chunking strategy information to console."""
     logger.info(f"Chunking strategy: {strategy}")
@@ -143,7 +147,7 @@ def _process_items_with_chunking(
     chunk_size: int | None,
     num_chunks: int | None,
     delimiter: str,
-    preview: bool
+    preview: bool,
 ) -> tuple[dict, dict] | tuple[None, None]:
     """
     Process items with chunking and handle progress display.
@@ -172,16 +176,22 @@ def _process_items_with_chunking(
             logger.info(f"[{i}/{total_items}] Processing: {item_id}")
 
             # Get overall stats
-            overall_stats = item_result['overall_stats']
-            logger.info(f"Created {overall_stats['total_chunks']} chunks, avg size: {overall_stats['avg_chunk_size']}")
+            overall_stats = item_result["overall_stats"]
+            logger.info(
+                f"Created {overall_stats['total_chunks']} chunks, avg size: {overall_stats['avg_chunk_size']}"
+            )
 
             # Show document breakdown if individual docs
-            if item_result['document_handling'] == 'chunk-individual-docs' and len(item_result['chunks']) > 1:
+            if (
+                item_result["document_handling"] == "chunk-individual-docs"
+                and len(item_result["chunks"]) > 1
+            ):
                 logger.info(f"{len(item_result['chunks'])} documents processed")
 
             # Show previews if requested
             if preview and item_result.get("chunks"):
                 from ius.chunk.utils import preview_chunks
+
                 # Get all chunks flattened for preview
                 all_chunks = []
                 for chunk_group in item_result["chunks"]:
@@ -202,7 +212,9 @@ def _process_items_with_chunking(
 
     except ChunkingError as e:
         logger.error(f"Chunking configuration error: {e}")
-        logger.info("Check your chunking parameters (strategy, chunk_size, num_chunks, delimiter)")
+        logger.info(
+            "Check your chunking parameters (strategy, chunk_size, num_chunks, delimiter)"
+        )
         return None, None
     except ValidationError as e:
         logger.error(f"Data validation error: {e}")
@@ -250,11 +262,7 @@ def _calculate_overall_statistics(results: dict, errors: dict) -> dict[str, Any]
 
 
 def _prepare_output_data(
-    dataset_name: str,
-    strategy: str,
-    overall_stats: dict,
-    results: dict,
-    errors: dict
+    dataset_name: str, strategy: str, overall_stats: dict, results: dict, errors: dict
 ) -> dict[str, Any]:
     """
     Prepare final output data structure.
@@ -363,7 +371,8 @@ Examples:
     )
 
     parser.add_argument(
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         action="store_true",
         help="Enable verbose logging with timestamps and module names",
     )
@@ -407,8 +416,12 @@ Examples:
             dataset = _load_and_validate_dataset(args.dataset)
             if dataset:
                 items = dataset["items"]
-                logger.info(f"📋 Would process {len(items)} items from dataset '{args.dataset}'")
-                logger.info(f"📋 Items: {', '.join(sorted(items.keys())[:5])}{'...' if len(items) > 5 else ''}")
+                logger.info(
+                    f"📋 Would process {len(items)} items from dataset '{args.dataset}'"
+                )
+                logger.info(
+                    f"📋 Items: {', '.join(sorted(items.keys())[:5])}{'...' if len(items) > 5 else ''}"
+                )
 
                 # Show strategy that would be used
                 logger.info(f"🔧 Would use chunking strategy: {args.strategy}")

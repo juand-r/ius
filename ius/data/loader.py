@@ -81,7 +81,9 @@ class DatasetLoader:
 
             # Validate required fields
             required_fields = ["items", "num_items"]
-            missing_fields = [field for field in required_fields if field not in metadata]
+            missing_fields = [
+                field for field in required_fields if field not in metadata
+            ]
             if missing_fields:
                 raise DatasetError(
                     f"Invalid collection.json for dataset '{dataset_name}': "
@@ -126,7 +128,9 @@ class DatasetLoader:
         item_path = self.data_dir / dataset_name / "items" / f"{item_id}.json"
 
         if not item_path.exists():
-            raise DatasetError(f"Item '{item_id}' not found in dataset '{dataset_name}' at: {item_path}")
+            raise DatasetError(
+                f"Item '{item_id}' not found in dataset '{dataset_name}' at: {item_path}"
+            )
 
         try:
             with open(item_path, encoding="utf-8") as f:
@@ -134,17 +138,23 @@ class DatasetLoader:
 
             # Validate required fields
             if not isinstance(item_data, dict):
-                raise DatasetError(f"Invalid item data for '{item_id}': expected dictionary, got {type(item_data).__name__}")
+                raise DatasetError(
+                    f"Invalid item data for '{item_id}': expected dictionary, got {type(item_data).__name__}"
+                )
 
             if "documents" not in item_data:
-                raise DatasetError(f"Invalid item '{item_id}': missing required 'documents' field")
+                raise DatasetError(
+                    f"Invalid item '{item_id}': missing required 'documents' field"
+                )
 
             return item_data
 
         except json.JSONDecodeError as e:
             raise DatasetError(f"Invalid JSON in item '{item_id}': {e}") from e
         except PermissionError as e:
-            raise DatasetError(f"Permission denied reading item '{item_id}' at: {item_path}") from e
+            raise DatasetError(
+                f"Permission denied reading item '{item_id}' at: {item_path}"
+            ) from e
         except Exception as e:
             raise DatasetError(f"Unexpected error loading item '{item_id}': {e}") from e
 

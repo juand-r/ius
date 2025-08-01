@@ -30,40 +30,29 @@ class TestDatasetLoader(unittest.TestCase):
             "num_items": 2,
             "total_documents": 2,
             "description": "Test dataset",
-            "items": ["test_item1", "test_item2"]
+            "items": ["test_item1", "test_item2"],
         }
 
         self.sample_item1 = {
-            "item_metadata": {
-                "item_id": "test_item1",
-                "num_documents": 1
-            },
+            "item_metadata": {"item_id": "test_item1", "num_documents": 1},
             "documents": [
                 {
                     "content": "This is test content.\nWith multiple lines.\nFor testing purposes.",
                     "doc_id": "doc1",
-                    "metadata": {
-                        "title": "Test Document 1",
-                        "author": "Test Author"
-                    }
+                    "metadata": {"title": "Test Document 1", "author": "Test Author"},
                 }
-            ]
+            ],
         }
 
         self.sample_item2 = {
-            "item_metadata": {
-                "item_id": "test_item2",
-                "num_documents": 1
-            },
+            "item_metadata": {"item_id": "test_item2", "num_documents": 1},
             "documents": [
                 {
                     "content": "Another test document.\nWith different content.\nFor variety.",
                     "doc_id": "doc2",
-                    "metadata": {
-                        "title": "Test Document 2"
-                    }
+                    "metadata": {"title": "Test Document 2"},
                 }
-            ]
+            ],
         }
 
     def tearDown(self):
@@ -77,17 +66,17 @@ class TestDatasetLoader(unittest.TestCase):
 
         # Create collection.json
         collection_path = dataset_dir / "collection.json"
-        with open(collection_path, 'w', encoding='utf-8') as f:
+        with open(collection_path, "w", encoding="utf-8") as f:
             json.dump(self.sample_collection, f)
 
         # Create items directory and files
         items_dir = dataset_dir / "items"
         items_dir.mkdir(exist_ok=True)
 
-        with open(items_dir / "test_item1.json", 'w', encoding='utf-8') as f:
+        with open(items_dir / "test_item1.json", "w", encoding="utf-8") as f:
             json.dump(self.sample_item1, f)
 
-        with open(items_dir / "test_item2.json", 'w', encoding='utf-8') as f:
+        with open(items_dir / "test_item2.json", "w", encoding="utf-8") as f:
             json.dump(self.sample_item2, f)
 
         return dataset_dir
@@ -158,7 +147,7 @@ class TestDatasetLoader(unittest.TestCase):
 
         # Create invalid JSON file
         collection_path = dataset_dir / "collection.json"
-        with open(collection_path, 'w', encoding='utf-8') as f:
+        with open(collection_path, "w", encoding="utf-8") as f:
             f.write("{ invalid json content")
 
         with self.assertRaises(DatasetError) as cm:
@@ -173,7 +162,7 @@ class TestDatasetLoader(unittest.TestCase):
         # Create collection.json missing required fields
         incomplete_collection = {"domain": "test"}  # Missing "items" and "num_items"
         collection_path = dataset_dir / "collection.json"
-        with open(collection_path, 'w', encoding='utf-8') as f:
+        with open(collection_path, "w", encoding="utf-8") as f:
             json.dump(incomplete_collection, f)
 
         with self.assertRaises(DatasetError) as cm:
@@ -216,7 +205,7 @@ class TestDatasetLoader(unittest.TestCase):
         items_dir = dataset_dir / "items"
 
         # Create invalid JSON item file
-        with open(items_dir / "invalid_item.json", 'w', encoding='utf-8') as f:
+        with open(items_dir / "invalid_item.json", "w", encoding="utf-8") as f:
             f.write("{ invalid json")
 
         with self.assertRaises(DatasetError) as cm:
@@ -230,7 +219,7 @@ class TestDatasetLoader(unittest.TestCase):
 
         # Create item without documents field
         invalid_item = {"item_metadata": {"item_id": "invalid"}}
-        with open(items_dir / "invalid_item.json", 'w', encoding='utf-8') as f:
+        with open(items_dir / "invalid_item.json", "w", encoding="utf-8") as f:
             json.dump(invalid_item, f)
 
         with self.assertRaises(DatasetError) as cm:
@@ -243,7 +232,7 @@ class TestDatasetLoader(unittest.TestCase):
         items_dir = dataset_dir / "items"
 
         # Create item that's not a dictionary
-        with open(items_dir / "invalid_type.json", 'w', encoding='utf-8') as f:
+        with open(items_dir / "invalid_type.json", "w", encoding="utf-8") as f:
             json.dump(["this", "is", "a", "list"], f)
 
         with self.assertRaises(DatasetError) as cm:
@@ -281,9 +270,15 @@ class TestDatasetLoader(unittest.TestCase):
         info = self.loader.get_dataset_info("test_dataset")
 
         required_fields = [
-            "dataset_name", "domain", "source", "num_items", "total_documents",
-            "max_num_documents_per_item", "min_num_documents_per_item",
-            "avg_num_documents_per_item", "avg_words_per_document"
+            "dataset_name",
+            "domain",
+            "source",
+            "num_items",
+            "total_documents",
+            "max_num_documents_per_item",
+            "min_num_documents_per_item",
+            "avg_num_documents_per_item",
+            "avg_words_per_document",
         ]
 
         for field in required_fields:
@@ -312,11 +307,13 @@ class TestConvenienceFunctions(unittest.TestCase):
     def test_load_data_convenience_function(self):
         """Test the load_data convenience function."""
         # We'll test this with mocking since it's a simple wrapper
-        with patch('ius.data.loader.DatasetLoader') as mock_loader_class:
+        with patch("ius.data.loader.DatasetLoader") as mock_loader_class:
             mock_loader = mock_loader_class.return_value
             mock_loader.load_data.return_value = {"test": "data"}
 
-            result = load_data("test_dataset", item_id="test_item", data_dir=str(self.data_dir))
+            result = load_data(
+                "test_dataset", item_id="test_item", data_dir=str(self.data_dir)
+            )
 
             mock_loader_class.assert_called_once_with(str(self.data_dir))
             mock_loader.load_data.assert_called_once_with("test_dataset", "test_item")
@@ -324,7 +321,7 @@ class TestConvenienceFunctions(unittest.TestCase):
 
     def test_list_datasets_convenience_function(self):
         """Test the list_datasets convenience function."""
-        with patch('ius.data.loader.DatasetLoader') as mock_loader_class:
+        with patch("ius.data.loader.DatasetLoader") as mock_loader_class:
             mock_loader = mock_loader_class.return_value
             mock_loader.list_datasets.return_value = ["dataset1", "dataset2"]
 
@@ -336,7 +333,7 @@ class TestConvenienceFunctions(unittest.TestCase):
 
     def test_get_dataset_info_convenience_function(self):
         """Test the get_dataset_info convenience function."""
-        with patch('ius.data.loader.DatasetLoader') as mock_loader_class:
+        with patch("ius.data.loader.DatasetLoader") as mock_loader_class:
             mock_loader = mock_loader_class.return_value
             mock_loader.get_dataset_info.return_value = {"info": "data"}
 

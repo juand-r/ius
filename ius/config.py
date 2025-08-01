@@ -19,22 +19,24 @@ class Config:
     log_level: str = "INFO"
 
     @classmethod
-    def from_env(cls) -> 'Config':
+    def from_env(cls) -> "Config":
         """Load configuration from environment variables."""
         return cls(
-            datasets_dir=Path(os.getenv('IUS_DATASETS_DIR', 'datasets')),
-            outputs_dir=Path(os.getenv('IUS_OUTPUTS_DIR', 'outputs')),
-            default_chunk_size=int(os.getenv('IUS_DEFAULT_CHUNK_SIZE', '1000')),
-            default_num_chunks=int(os.getenv('IUS_DEFAULT_NUM_CHUNKS', '4')),
-            max_memory_usage=int(os.getenv('IUS_MAX_MEMORY', str(1024 * 1024 * 500))),
-            log_level=os.getenv('IUS_LOG_LEVEL', 'INFO'),
+            datasets_dir=Path(os.getenv("IUS_DATASETS_DIR", "datasets")),
+            outputs_dir=Path(os.getenv("IUS_OUTPUTS_DIR", "outputs")),
+            default_chunk_size=int(os.getenv("IUS_DEFAULT_CHUNK_SIZE", "1000")),
+            default_num_chunks=int(os.getenv("IUS_DEFAULT_NUM_CHUNKS", "4")),
+            max_memory_usage=int(os.getenv("IUS_MAX_MEMORY", str(1024 * 1024 * 500))),
+            log_level=os.getenv("IUS_LOG_LEVEL", "INFO"),
         )
 
     def validate(self) -> None:
         """Validate configuration values."""
         # Validate directories exist or can be created
         if not self.datasets_dir.exists():
-            raise ValidationError(f"Datasets directory does not exist: {self.datasets_dir}")
+            raise ValidationError(
+                f"Datasets directory does not exist: {self.datasets_dir}"
+            )
 
         # Validate numeric values
         if self.default_chunk_size <= 0:
@@ -49,7 +51,9 @@ class Config:
         # Validate log level
         valid_log_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
         if self.log_level.upper() not in valid_log_levels:
-            raise ValidationError(f"Invalid log_level: {self.log_level}. Must be one of: {valid_log_levels}")
+            raise ValidationError(
+                f"Invalid log_level: {self.log_level}. Must be one of: {valid_log_levels}"
+            )
 
     def ensure_directories(self) -> None:
         """Create necessary directories if they don't exist."""

@@ -29,6 +29,7 @@ def main():
 
     if command == "chunk":
         from ius.cli.chunk import main as chunk_main
+
         chunk_main()
     elif command == "help" or command == "-h" or command == "--help":
         print_help()
