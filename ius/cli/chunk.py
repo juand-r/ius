@@ -401,7 +401,7 @@ Examples:
     # Handle dry-run mode
     if args.dry_run:
         logger.info("🔍 DRY RUN MODE - No actual processing will be performed")
-        
+
         # Load dataset to show what would be processed
         try:
             dataset = _load_and_validate_dataset(args.dataset)
@@ -409,7 +409,7 @@ Examples:
                 items = dataset["items"]
                 logger.info(f"📋 Would process {len(items)} items from dataset '{args.dataset}'")
                 logger.info(f"📋 Items: {', '.join(sorted(items.keys())[:5])}{'...' if len(items) > 5 else ''}")
-                
+
                 # Show strategy that would be used
                 logger.info(f"🔧 Would use chunking strategy: {args.strategy}")
                 if args.strategy == "fixed_size" and args.size:
@@ -417,10 +417,10 @@ Examples:
                 elif args.strategy == "fixed_count" and args.count:
                     logger.info(f"🔧 Target number of chunks: {args.count}")
                 logger.info(f"🔧 Delimiter: {repr(args.delimiter)}")
-                
+
                 # Show output path
                 logger.info(f"💾 Would save results to: {args.output}")
-                
+
                 logger.info("✨ Dry run completed - no files were modified")
                 return
             else:

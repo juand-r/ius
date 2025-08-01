@@ -8,6 +8,8 @@ words or sentences. Content preservation is guaranteed.
 import logging
 from typing import Any
 
+from tqdm import tqdm
+
 from ..exceptions import ChunkingError, ValidationError
 from .utils import analyze_chunks, validate_chunks
 
@@ -75,7 +77,16 @@ def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n") -> list[
     current_chunk = []
     current_size = 0
 
-    for unit in units:
+    # Add progress bar for large texts (many units to process)
+    units_progress = tqdm(
+        units,
+        desc="Chunking text",
+        unit="unit",
+        disable=len(units) < 100,  # Only show for texts with many units
+        leave=False  # Remove bar when done
+    )
+
+    for unit in units_progress:
         unit_size = len(unit)
         # Add delimiter length except for first unit in chunk
         total_size = current_size + unit_size + (len(delimiter) if current_chunk else 0)
@@ -171,7 +182,16 @@ def chunk_fixed_count(text: str, num_chunks: int, delimiter: str = "\n") -> list
     chunks = []
     start_idx = 0
 
-    for i in range(num_chunks):
+    # Add progress bar for many chunks
+    chunk_progress = tqdm(
+        range(num_chunks),
+        desc="Creating chunks",
+        unit="chunk",
+        disable=num_chunks < 10,  # Only show for many chunks
+        leave=False  # Remove bar when done
+    )
+
+    for i in chunk_progress:
         # Distribute remainder units across first chunks
         chunk_size = units_per_chunk + (1 if i < remainder else 0)
         end_idx = start_idx + chunk_size
@@ -307,7 +327,15 @@ def process_dataset_items(
     if document_handling not in valid_handling:
         raise ChunkingError(f"Invalid document_handling: {document_handling}. Must be one of: {valid_handling}")
 
-    for item_id, item_data in items.items():
+    # Add progress bar for item processing
+    items_progress = tqdm(
+        items.items(),
+        desc="Processing items",
+        unit="item",
+        disable=len(items) < 2  # Don't show for single items
+    )
+
+    for item_id, item_data in items_progress:
         try:
             # Extract documents
             if not isinstance(item_data, dict) or 'documents' not in item_data:
@@ -322,7 +350,16 @@ def process_dataset_items(
                 chunks_array = []
                 total_original_length = 0
 
-                for doc in documents:
+                # Add progress bar for document processing (only if multiple docs)
+                docs_progress = tqdm(
+                    documents,
+                    desc=f"Processing {item_id} docs",
+                    unit="doc",
+                    disable=len(documents) < 2,  # Don't show for single documents
+                    leave=False  # Remove bar when done
+                )
+
+                for doc in docs_progress:
                     doc_id = doc['doc_id']
                     doc_text = doc['content']
                     if not doc_text:

@@ -405,11 +405,11 @@ class TestCLIFlags(unittest.TestCase):
     def test_verbose_flag_enables_verbose_logging(self, mock_setup_logging):
         """Test that --verbose flag enables verbose logging."""
         sys.argv = ['test', '--verbose', '--list-datasets']
-        
-        with patch('ius.cli.chunk.list_datasets', return_value=['test']):
-            with patch('ius.cli.chunk.logger'):
-                main()
-        
+
+        with patch('ius.cli.chunk.list_datasets', return_value=['test']), \
+             patch('ius.cli.chunk.logger'):
+            main()
+
         # Should call setup_logging with verbose=True
         mock_setup_logging.assert_called_with(log_level="INFO", verbose=True)
 
@@ -417,11 +417,11 @@ class TestCLIFlags(unittest.TestCase):
     def test_short_verbose_flag_enables_verbose_logging(self, mock_setup_logging):
         """Test that -v flag enables verbose logging."""
         sys.argv = ['test', '-v', '--list-datasets']
-        
-        with patch('ius.cli.chunk.list_datasets', return_value=['test']):
-            with patch('ius.cli.chunk.logger'):
-                main()
-        
+
+        with patch('ius.cli.chunk.list_datasets', return_value=['test']), \
+             patch('ius.cli.chunk.logger'):
+            main()
+
         # Should call setup_logging with verbose=True
         mock_setup_logging.assert_called_with(log_level="INFO", verbose=True)
 
@@ -429,11 +429,11 @@ class TestCLIFlags(unittest.TestCase):
     def test_no_verbose_flag_uses_normal_logging(self, mock_setup_logging):
         """Test that normal mode uses non-verbose logging."""
         sys.argv = ['test', '--list-datasets']
-        
-        with patch('ius.cli.chunk.list_datasets', return_value=['test']):
-            with patch('ius.cli.chunk.logger'):
-                main()
-        
+
+        with patch('ius.cli.chunk.list_datasets', return_value=['test']), \
+             patch('ius.cli.chunk.logger'):
+            main()
+
         # Should call setup_logging with verbose=False
         mock_setup_logging.assert_called_with(log_level="INFO", verbose=False)
 
@@ -450,17 +450,17 @@ class TestCLIFlags(unittest.TestCase):
             }
         }
         mock_load_dataset.return_value = mock_dataset
-        
+
         sys.argv = ['test', '--dataset', 'test', '--strategy', 'fixed_size', '--size', '1000', '--dry-run']
-        
+
         # Should return without calling chunk_dataset
-        with patch('ius.cli.chunk.chunk_dataset') as mock_chunk:
-            with patch('ius.cli.chunk.list_datasets', return_value=['test']):
-                main()
-            
-                # chunk_dataset should NOT be called in dry-run mode
-                mock_chunk.assert_not_called()
-        
+        with patch('ius.cli.chunk.chunk_dataset') as mock_chunk, \
+             patch('ius.cli.chunk.list_datasets', return_value=['test']):
+            main()
+
+            # chunk_dataset should NOT be called in dry-run mode
+            mock_chunk.assert_not_called()
+
         # Should log dry-run messages
         mock_logger.info.assert_any_call("📋 Would process 3 items from dataset 'test'")
         mock_logger.info.assert_any_call("🔧 Would use chunking strategy: fixed_size")
@@ -473,14 +473,14 @@ class TestCLIFlags(unittest.TestCase):
         """Test dry-run with fixed_count strategy shows correct parameters."""
         mock_dataset = {"items": {"item1": {"test": "data"}}}
         mock_load_dataset.return_value = mock_dataset
-        
+
         sys.argv = ['test', '--dataset', 'test', '--strategy', 'fixed_count', '--count', '5', '--dry-run']
-        
-        with patch('ius.cli.chunk.chunk_dataset') as mock_chunk:
-            with patch('ius.cli.chunk.list_datasets', return_value=['test']):
-                main()
-                mock_chunk.assert_not_called()
-        
+
+        with patch('ius.cli.chunk.chunk_dataset') as mock_chunk, \
+             patch('ius.cli.chunk.list_datasets', return_value=['test']):
+            main()
+            mock_chunk.assert_not_called()
+
         # Should show count-specific information
         mock_logger.info.assert_any_call("🔧 Target number of chunks: 5")
 
@@ -493,21 +493,21 @@ class TestCLIFlags(unittest.TestCase):
             "items": {f"item{i}": {"test": f"data{i}"} for i in range(10)}
         }
         mock_load_dataset.return_value = mock_dataset
-        
+
         sys.argv = ['test', '--dataset', 'test', '--strategy', 'fixed_size', '--size', '1000', '--dry-run']
-        
-        with patch('ius.cli.chunk.chunk_dataset') as mock_chunk:
-            with patch('ius.cli.chunk.list_datasets', return_value=['test']):
-                main()
-                mock_chunk.assert_not_called()
-        
+
+        with patch('ius.cli.chunk.chunk_dataset') as mock_chunk, \
+             patch('ius.cli.chunk.list_datasets', return_value=['test']):
+            main()
+            mock_chunk.assert_not_called()
+
         # Should show first 5 items with ellipsis
         items_call = None
         for call in mock_logger.info.call_args_list:
             if "📋 Items:" in str(call):
                 items_call = str(call)
                 break
-        
+
         self.assertIsNotNone(items_call)
         self.assertIn("...", items_call)  # Should have ellipsis for many items
 
@@ -517,11 +517,11 @@ class TestCLIFlags(unittest.TestCase):
     def test_dry_run_handles_dataset_loading_failure(self, mock_exit, mock_logger, mock_load_dataset):
         """Test that dry-run handles dataset loading failures gracefully."""
         mock_load_dataset.return_value = None  # Simulate loading failure
-        
+
         sys.argv = ['test', '--dataset', 'test', '--strategy', 'fixed_size', '--size', '1000', '--dry-run']
-        
+
         main()
-        
+
         # Should log error and exit
         mock_logger.error.assert_any_call("Cannot show dry run preview - dataset loading failed")
         mock_exit.assert_called_with(1)
@@ -529,15 +529,190 @@ class TestCLIFlags(unittest.TestCase):
     def test_dry_run_and_verbose_work_together(self):
         """Test that --dry-run and --verbose flags can be used together."""
         sys.argv = ['test', '--dataset', 'test', '--strategy', 'fixed_size', '--size', '1000', '--dry-run', '--verbose']
-        
-        with patch('ius.cli.chunk.setup_logging') as mock_setup:
-            with patch('ius.cli.chunk._load_and_validate_dataset', return_value={"items": {"test": {}}}):
-                with patch('ius.cli.chunk.logger'):
-                    with patch('ius.cli.chunk.list_datasets', return_value=['test']):
-                        main()
-        
+
+        with patch('ius.cli.chunk.setup_logging') as mock_setup, \
+             patch('ius.cli.chunk._load_and_validate_dataset', return_value={"items": {"test": {}}}), \
+             patch('ius.cli.chunk.logger'), \
+             patch('ius.cli.chunk.list_datasets', return_value=['test']):
+            main()
+
         # Should enable verbose logging
         mock_setup.assert_called_with(log_level="INFO", verbose=True)
+
+
+class TestProgressBars(unittest.TestCase):
+    """Test cases for tqdm progress bars."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.original_argv = sys.argv.copy()
+
+    def tearDown(self):
+        """Clean up test fixtures."""
+        sys.argv = self.original_argv
+
+    @patch('ius.chunk.chunkers.tqdm')
+    def test_progress_bar_enabled_for_multiple_items(self, mock_tqdm):
+        """Test that progress bars appear when processing multiple items."""
+        from ius.chunk.chunkers import process_dataset_items
+
+        # Create mock items (multiple items should show progress)
+        mock_items = {
+            f"item{i}": {
+                "documents": [{"doc_id": f"doc{i}", "content": "Line 1\nLine 2\nLine 3"}]
+            } for i in range(5)
+        }
+
+        # Mock tqdm to just pass through the iterator
+        mock_tqdm.side_effect = lambda iterable, **kwargs: iterable
+
+        # Process items
+        process_dataset_items(
+            items=mock_items,
+            strategy="fixed_size",
+            chunk_size=10
+        )
+
+        # Should have called tqdm for items progress
+        mock_tqdm.assert_called()
+        # Check that the first call (items progress) had disable=False for multiple items
+        first_call = mock_tqdm.call_args_list[0]
+        self.assertFalse(first_call.kwargs.get('disable', True))  # Should not be disabled
+
+    @patch('ius.chunk.chunkers.tqdm')
+    def test_progress_bar_disabled_for_single_item(self, mock_tqdm):
+        """Test that progress bars are disabled for single items."""
+        from ius.chunk.chunkers import process_dataset_items
+
+        # Create single item
+        mock_items = {
+            "item1": {
+                "documents": [{"doc_id": "doc1", "content": "Line 1\nLine 2\nLine 3"}]
+            }
+        }
+
+        # Mock tqdm to just pass through the iterator
+        mock_tqdm.side_effect = lambda iterable, **kwargs: iterable
+
+        # Process items
+        process_dataset_items(
+            items=mock_items,
+            strategy="fixed_size",
+            chunk_size=10
+        )
+
+        # Should have called tqdm but with disable=True for single item
+        mock_tqdm.assert_called()
+        first_call = mock_tqdm.call_args_list[0]
+        self.assertTrue(first_call.kwargs.get('disable', False))  # Should be disabled
+
+    @patch('ius.chunk.chunkers.tqdm')
+    def test_chunk_fixed_size_progress_bar_for_large_text(self, mock_tqdm):
+        """Test that chunk_fixed_size shows progress for large texts."""
+        from ius.chunk.chunkers import chunk_fixed_size
+
+        # Create large text with many units (> 100 to trigger progress bar)
+        large_text = "\n".join([f"Line {i}" for i in range(150)])
+
+        # Mock tqdm to just pass through the iterator
+        mock_tqdm.side_effect = lambda iterable, **kwargs: iterable
+
+        # Process chunking
+        chunk_fixed_size(large_text, chunk_size=100, delimiter="\n")
+
+        # Should have called tqdm for units progress
+        mock_tqdm.assert_called()
+        call_args = mock_tqdm.call_args
+        self.assertFalse(call_args.kwargs.get('disable', True))  # Should not be disabled
+        self.assertEqual(call_args.kwargs.get('desc'), 'Chunking text')
+
+    @patch('ius.chunk.chunkers.tqdm')
+    def test_chunk_fixed_size_no_progress_for_small_text(self, mock_tqdm):
+        """Test that chunk_fixed_size doesn't show progress for small texts."""
+        from ius.chunk.chunkers import chunk_fixed_size
+
+        # Create small text (< 100 units)
+        small_text = "\n".join([f"Line {i}" for i in range(10)])
+
+        # Mock tqdm to just pass through the iterator
+        mock_tqdm.side_effect = lambda iterable, **kwargs: iterable
+
+        # Process chunking
+        chunk_fixed_size(small_text, chunk_size=50, delimiter="\n")
+
+        # Should have called tqdm but with disable=True for small text
+        mock_tqdm.assert_called()
+        call_args = mock_tqdm.call_args
+        self.assertTrue(call_args.kwargs.get('disable', False))  # Should be disabled
+
+    @patch('ius.chunk.chunkers.tqdm')
+    def test_chunk_fixed_count_progress_bar_for_many_chunks(self, mock_tqdm):
+        """Test that chunk_fixed_count shows progress for many chunks."""
+        from ius.chunk.chunkers import chunk_fixed_count
+
+        # Create text and request many chunks (> 10 to trigger progress bar)
+        text = "\n".join([f"Line {i}" for i in range(100)])
+        num_chunks = 15
+
+        # Mock tqdm to just pass through the iterator
+        mock_tqdm.side_effect = lambda iterable, **kwargs: iterable
+
+        # Process chunking
+        chunk_fixed_count(text, num_chunks=num_chunks, delimiter="\n")
+
+        # Should have called tqdm for chunk creation progress
+        mock_tqdm.assert_called()
+        call_args = mock_tqdm.call_args
+        self.assertFalse(call_args.kwargs.get('disable', True))  # Should not be disabled
+        self.assertEqual(call_args.kwargs.get('desc'), 'Creating chunks')
+
+    @patch('ius.chunk.chunkers.tqdm')
+    def test_chunk_fixed_count_no_progress_for_few_chunks(self, mock_tqdm):
+        """Test that chunk_fixed_count doesn't show progress for few chunks."""
+        from ius.chunk.chunkers import chunk_fixed_count
+
+        # Create text and request few chunks (< 10)
+        text = "\n".join([f"Line {i}" for i in range(50)])
+        num_chunks = 5
+
+        # Mock tqdm to just pass through the iterator
+        mock_tqdm.side_effect = lambda iterable, **kwargs: iterable
+
+        # Process chunking
+        chunk_fixed_count(text, num_chunks=num_chunks, delimiter="\n")
+
+        # Should have called tqdm but with disable=True for few chunks
+        mock_tqdm.assert_called()
+        call_args = mock_tqdm.call_args
+        self.assertTrue(call_args.kwargs.get('disable', False))  # Should be disabled
+
+    @patch('ius.chunk.chunkers.tqdm')
+    def test_document_progress_bar_for_multiple_documents(self, mock_tqdm):
+        """Test that document processing shows progress for multiple documents."""
+        from ius.chunk.chunkers import process_dataset_items
+
+        # Create item with multiple documents
+        mock_items = {
+            "item1": {
+                "documents": [
+                    {"doc_id": f"doc{i}", "content": "Line 1\nLine 2\nLine 3"}
+                    for i in range(5)
+                ]
+            }
+        }
+
+        # Mock tqdm to just pass through the iterator for all calls
+        mock_tqdm.side_effect = lambda iterable, **kwargs: iterable
+
+        # Process items
+        process_dataset_items(
+            items=mock_items,
+            strategy="fixed_size",
+            chunk_size=10
+        )
+
+        # Should have called tqdm multiple times (items + documents progress bars)
+        self.assertGreater(mock_tqdm.call_count, 1)
 
 
 if __name__ == "__main__":
