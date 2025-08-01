@@ -274,8 +274,11 @@ def _prepare_output_data(
 
 def main() -> None:
     """Main entry point for chunking CLI."""
-    # Set up basic logging (can be improved with --verbose flag later)
-    setup_logging(log_level="INFO")
+    # Parse args early to get verbose flag for logging setup
+    if "--verbose" in sys.argv or "-v" in sys.argv:
+        setup_logging(log_level="INFO", verbose=True)
+    else:
+        setup_logging(log_level="INFO", verbose=False)
 
     # Handle --list-datasets early to avoid requiring other arguments
     if "--list-datasets" in sys.argv:
@@ -299,11 +302,14 @@ Examples:
   # Fixed size chunking
   python -m ius.chunk --dataset bmds --strategy fixed_size --size 2048
 
-  # Fixed count chunking
-  python -m ius.chunk --dataset true-detective --strategy fixed_count --count 10
+  # Fixed count chunking with verbose output
+  python -m ius.chunk --dataset true-detective --strategy fixed_count --count 10 --verbose
 
-  # Custom delimiter
-  python -m ius.chunk --dataset bmds --strategy fixed_size --size 1000 --delimiter "\\n\\n"
+  # Dry run to preview what would be processed
+  python -m ius.chunk --dataset bmds --strategy fixed_size --size 1000 --dry-run
+
+  # Custom delimiter with verbose logging
+  python -m ius.chunk --dataset bmds --strategy fixed_size --size 1000 --delimiter "\\n\\n" -v
 
   # Save output and show previews
   python -m ius.chunk --dataset bmds --strategy fixed_size --size 2048 \\
@@ -356,6 +362,18 @@ Examples:
         help="Show chunk previews during processing",
     )
 
+    parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="Enable verbose logging with timestamps and module names",
+    )
+
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be processed without actually doing it",
+    )
+
     args = parser.parse_args()
 
     # Validate required arguments for each strategy
@@ -379,6 +397,38 @@ Examples:
     if not args.output:
         strategy_suffix = f"{args.strategy}_{args.size or args.count}"
         args.output = f"outputs/chunks/{args.dataset}_{strategy_suffix}.json"
+
+    # Handle dry-run mode
+    if args.dry_run:
+        logger.info("🔍 DRY RUN MODE - No actual processing will be performed")
+        
+        # Load dataset to show what would be processed
+        try:
+            dataset = _load_and_validate_dataset(args.dataset)
+            if dataset:
+                items = dataset["items"]
+                logger.info(f"📋 Would process {len(items)} items from dataset '{args.dataset}'")
+                logger.info(f"📋 Items: {', '.join(sorted(items.keys())[:5])}{'...' if len(items) > 5 else ''}")
+                
+                # Show strategy that would be used
+                logger.info(f"🔧 Would use chunking strategy: {args.strategy}")
+                if args.strategy == "fixed_size" and args.size:
+                    logger.info(f"🔧 Target chunk size: {args.size} characters")
+                elif args.strategy == "fixed_count" and args.count:
+                    logger.info(f"🔧 Target number of chunks: {args.count}")
+                logger.info(f"🔧 Delimiter: {repr(args.delimiter)}")
+                
+                # Show output path
+                logger.info(f"💾 Would save results to: {args.output}")
+                
+                logger.info("✨ Dry run completed - no files were modified")
+                return
+            else:
+                logger.error("Cannot show dry run preview - dataset loading failed")
+                sys.exit(1)
+        except Exception as e:
+            logger.error(f"Error during dry run: {e}")
+            sys.exit(1)
 
     # Run chunking
     try:

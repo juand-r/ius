@@ -3,6 +3,7 @@ Tests for the chunking CLI functionality.
 """
 
 import json
+import sys
 import tempfile
 import unittest
 from io import StringIO
@@ -387,6 +388,156 @@ class TestCLIIntegration(unittest.TestCase):
                     self.assertGreater(item_data["overall_stats"]["total_chunks"], 0)
         else:
             self.skipTest("BMDS dataset format not as expected")
+
+
+class TestCLIFlags(unittest.TestCase):
+    """Test cases for CLI flags like --verbose and --dry-run."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.original_argv = sys.argv.copy()
+
+    def tearDown(self):
+        """Clean up test fixtures."""
+        sys.argv = self.original_argv
+
+    @patch('ius.cli.chunk.setup_logging')
+    def test_verbose_flag_enables_verbose_logging(self, mock_setup_logging):
+        """Test that --verbose flag enables verbose logging."""
+        sys.argv = ['test', '--verbose', '--list-datasets']
+        
+        with patch('ius.cli.chunk.list_datasets', return_value=['test']):
+            with patch('ius.cli.chunk.logger'):
+                main()
+        
+        # Should call setup_logging with verbose=True
+        mock_setup_logging.assert_called_with(log_level="INFO", verbose=True)
+
+    @patch('ius.cli.chunk.setup_logging')
+    def test_short_verbose_flag_enables_verbose_logging(self, mock_setup_logging):
+        """Test that -v flag enables verbose logging."""
+        sys.argv = ['test', '-v', '--list-datasets']
+        
+        with patch('ius.cli.chunk.list_datasets', return_value=['test']):
+            with patch('ius.cli.chunk.logger'):
+                main()
+        
+        # Should call setup_logging with verbose=True
+        mock_setup_logging.assert_called_with(log_level="INFO", verbose=True)
+
+    @patch('ius.cli.chunk.setup_logging')
+    def test_no_verbose_flag_uses_normal_logging(self, mock_setup_logging):
+        """Test that normal mode uses non-verbose logging."""
+        sys.argv = ['test', '--list-datasets']
+        
+        with patch('ius.cli.chunk.list_datasets', return_value=['test']):
+            with patch('ius.cli.chunk.logger'):
+                main()
+        
+        # Should call setup_logging with verbose=False
+        mock_setup_logging.assert_called_with(log_level="INFO", verbose=False)
+
+    @patch('ius.cli.chunk._load_and_validate_dataset')
+    @patch('ius.cli.chunk.logger')
+    def test_dry_run_flag_shows_preview_without_processing(self, mock_logger, mock_load_dataset):
+        """Test that --dry-run shows what would be processed without doing it."""
+        # Mock dataset loading
+        mock_dataset = {
+            "items": {
+                "item1": {"test": "data1"},
+                "item2": {"test": "data2"},
+                "item3": {"test": "data3"}
+            }
+        }
+        mock_load_dataset.return_value = mock_dataset
+        
+        sys.argv = ['test', '--dataset', 'test', '--strategy', 'fixed_size', '--size', '1000', '--dry-run']
+        
+        # Should return without calling chunk_dataset
+        with patch('ius.cli.chunk.chunk_dataset') as mock_chunk:
+            with patch('ius.cli.chunk.list_datasets', return_value=['test']):
+                main()
+            
+                # chunk_dataset should NOT be called in dry-run mode
+                mock_chunk.assert_not_called()
+        
+        # Should log dry-run messages
+        mock_logger.info.assert_any_call("📋 Would process 3 items from dataset 'test'")
+        mock_logger.info.assert_any_call("🔧 Would use chunking strategy: fixed_size")
+        mock_logger.info.assert_any_call("🔧 Target chunk size: 1000 characters")
+        mock_logger.info.assert_any_call("✨ Dry run completed - no files were modified")
+
+    @patch('ius.cli.chunk._load_and_validate_dataset')
+    @patch('ius.cli.chunk.logger')
+    def test_dry_run_with_fixed_count_strategy(self, mock_logger, mock_load_dataset):
+        """Test dry-run with fixed_count strategy shows correct parameters."""
+        mock_dataset = {"items": {"item1": {"test": "data"}}}
+        mock_load_dataset.return_value = mock_dataset
+        
+        sys.argv = ['test', '--dataset', 'test', '--strategy', 'fixed_count', '--count', '5', '--dry-run']
+        
+        with patch('ius.cli.chunk.chunk_dataset') as mock_chunk:
+            with patch('ius.cli.chunk.list_datasets', return_value=['test']):
+                main()
+                mock_chunk.assert_not_called()
+        
+        # Should show count-specific information
+        mock_logger.info.assert_any_call("🔧 Target number of chunks: 5")
+
+    @patch('ius.cli.chunk._load_and_validate_dataset')
+    @patch('ius.cli.chunk.logger')
+    def test_dry_run_shows_many_items_correctly(self, mock_logger, mock_load_dataset):
+        """Test that dry-run handles many items correctly (shows first 5 + ellipsis)."""
+        # Create dataset with more than 5 items
+        mock_dataset = {
+            "items": {f"item{i}": {"test": f"data{i}"} for i in range(10)}
+        }
+        mock_load_dataset.return_value = mock_dataset
+        
+        sys.argv = ['test', '--dataset', 'test', '--strategy', 'fixed_size', '--size', '1000', '--dry-run']
+        
+        with patch('ius.cli.chunk.chunk_dataset') as mock_chunk:
+            with patch('ius.cli.chunk.list_datasets', return_value=['test']):
+                main()
+                mock_chunk.assert_not_called()
+        
+        # Should show first 5 items with ellipsis
+        items_call = None
+        for call in mock_logger.info.call_args_list:
+            if "📋 Items:" in str(call):
+                items_call = str(call)
+                break
+        
+        self.assertIsNotNone(items_call)
+        self.assertIn("...", items_call)  # Should have ellipsis for many items
+
+    @patch('ius.cli.chunk._load_and_validate_dataset')
+    @patch('ius.cli.chunk.logger')
+    @patch('sys.exit')
+    def test_dry_run_handles_dataset_loading_failure(self, mock_exit, mock_logger, mock_load_dataset):
+        """Test that dry-run handles dataset loading failures gracefully."""
+        mock_load_dataset.return_value = None  # Simulate loading failure
+        
+        sys.argv = ['test', '--dataset', 'test', '--strategy', 'fixed_size', '--size', '1000', '--dry-run']
+        
+        main()
+        
+        # Should log error and exit
+        mock_logger.error.assert_any_call("Cannot show dry run preview - dataset loading failed")
+        mock_exit.assert_called_with(1)
+
+    def test_dry_run_and_verbose_work_together(self):
+        """Test that --dry-run and --verbose flags can be used together."""
+        sys.argv = ['test', '--dataset', 'test', '--strategy', 'fixed_size', '--size', '1000', '--dry-run', '--verbose']
+        
+        with patch('ius.cli.chunk.setup_logging') as mock_setup:
+            with patch('ius.cli.chunk._load_and_validate_dataset', return_value={"items": {"test": {}}}):
+                with patch('ius.cli.chunk.logger'):
+                    with patch('ius.cli.chunk.list_datasets', return_value=['test']):
+                        main()
+        
+        # Should enable verbose logging
+        mock_setup.assert_called_with(log_level="INFO", verbose=True)
 
 
 if __name__ == "__main__":
