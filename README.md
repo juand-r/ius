@@ -57,11 +57,12 @@ datasets/             # Standardized datasets
 ├── fables/           # Fables collection
 └── booookscore/      # Book collection (TODO: populate)
 
-tests/                # Comprehensive test suite (102 tests)
+tests/                # Comprehensive test suite (128 tests)
 ├── test_chunking.py         # Chunking function tests
 ├── test_cli_chunk.py        # CLI functionality tests  
 ├── test_data_loader.py      # Data loading tests
 ├── test_cli_common.py       # CLI utilities tests
+├── test_config.py          # Configuration management tests
 ├── test_main.py            # Main entry point tests
 └── test_logging_config.py  # Logging configuration tests
 
@@ -305,7 +306,7 @@ print(f"Default chunk settings: {config.default_chunk_size} size, {config.defaul
 ### 4. Running Tests
 
 ```bash
-# Run all tests (102 tests)
+# Run all tests (128 tests)
 python -m pytest
 
 # Run specific test modules
@@ -346,7 +347,7 @@ The framework has been significantly enhanced with production-ready features:
 - Sensible defaults for research workflows
 
 ### ✅ **Comprehensive Test Suite**
-- **102 tests** covering all modules and edge cases
+- **128 tests** covering all modules and edge cases
 - Unit, integration, and CLI tests
 - Error handling validation
 - Progress bar and logging tests
