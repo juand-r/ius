@@ -9,6 +9,7 @@ import logging
 from typing import Any
 
 from .utils import analyze_chunks, validate_chunks
+from ..exceptions import ChunkingError, ValidationError
 
 
 # Set up logger for this module
@@ -27,16 +28,46 @@ def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n") -> list[
     Returns:
         List of text chunks, each roughly chunk_size characters
 
+    Raises:
+        ChunkingError: If input parameters are invalid
+        ValidationError: If content preservation fails
+
     Note:
         Chunks may be slightly larger or smaller than chunk_size to respect
         delimiter boundaries and avoid splitting meaningful units.
     """
+    # Input validation
+    if not isinstance(text, str):
+        raise ChunkingError(f"text must be a string, got {type(text).__name__}")
+    
+    if not isinstance(chunk_size, int):
+        raise ChunkingError(f"chunk_size must be an integer, got {type(chunk_size).__name__}")
+    
+    if chunk_size <= 0:
+        raise ChunkingError(f"chunk_size must be positive, got {chunk_size}")
+    
+    if not isinstance(delimiter, str):
+        raise ChunkingError(f"delimiter must be a string, got {type(delimiter).__name__}")
+    
+    if len(delimiter) == 0:
+        raise ChunkingError("delimiter cannot be empty")
+    
+    # Handle empty text - this should be an error, not silent failure
     if not text:
-        return []
+        raise ChunkingError("Cannot chunk empty text")
+    
+    # Warn about potentially inefficient chunk sizes
+    if chunk_size > len(text) * 2:
+        logger.warning(
+            f"chunk_size ({chunk_size}) is much larger than text length ({len(text)}). "
+            "Consider using a smaller chunk_size for better results."
+        )
 
     if delimiter not in text:
-        # No delimiters found, return whole text as single chunk
-        return [text]
+        raise ChunkingError(
+            f"Delimiter '{delimiter}' not found in text. "
+            "Cannot split text that doesn't contain the specified delimiter."
+        )
 
     # Split text into units separated by delimiter
     units = text.split(delimiter)
@@ -65,7 +96,7 @@ def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n") -> list[
 
     # Validate content preservation
     if not validate_chunks(text, chunks, delimiter):
-        raise ValueError("Content validation failed: chunks do not preserve original text")
+        raise ValidationError("Content validation failed: chunks do not preserve original text")
 
     return chunks
 
@@ -81,16 +112,49 @@ def chunk_fixed_count(text: str, num_chunks: int, delimiter: str = "\n") -> list
 
     Returns:
         List of text chunks (may be fewer than num_chunks if not enough delimiters)
-    """
-    if not text:
-        return []
 
-    if num_chunks <= 1:
+    Raises:
+        ChunkingError: If input parameters are invalid
+        ValidationError: If content preservation fails
+    """
+    # Input validation
+    if not isinstance(text, str):
+        raise ChunkingError(f"text must be a string, got {type(text).__name__}")
+    
+    if not isinstance(num_chunks, int):
+        raise ChunkingError(f"num_chunks must be an integer, got {type(num_chunks).__name__}")
+    
+    if num_chunks <= 0:
+        raise ChunkingError(f"num_chunks must be positive, got {num_chunks}")
+    
+    if not isinstance(delimiter, str):
+        raise ChunkingError(f"delimiter must be a string, got {type(delimiter).__name__}")
+    
+    if len(delimiter) == 0:
+        raise ChunkingError("delimiter cannot be empty")
+    
+    # Handle empty text - this should be an error, not silent failure
+    if not text:
+        raise ChunkingError("Cannot chunk empty text")
+
+    # Handle single chunk case
+    if num_chunks == 1:
         return [text]
+    
+    # Warn about potentially inefficient chunk counts
+    estimated_avg_chunk_size = len(text) // num_chunks
+    if estimated_avg_chunk_size < 50:
+        logger.warning(
+            f"num_chunks ({num_chunks}) may create very small chunks "
+            f"(estimated avg size: {estimated_avg_chunk_size} chars). "
+            "Consider using fewer chunks for better results."
+        )
 
     if delimiter not in text:
-        # No delimiters found, return whole text as single chunk
-        return [text]
+        raise ChunkingError(
+            f"Delimiter '{delimiter}' not found in text. "
+            "Cannot split text that doesn't contain the specified delimiter."
+        )
 
     # Split text into units separated by delimiter
     units = text.split(delimiter)
@@ -118,7 +182,7 @@ def chunk_fixed_count(text: str, num_chunks: int, delimiter: str = "\n") -> list
 
     # Validate content preservation
     if not validate_chunks(text, chunks, delimiter):
-        raise ValueError("Content validation failed: chunks do not preserve original text")
+        raise ValidationError("Content validation failed: chunks do not preserve original text")
 
     return chunks
 
@@ -138,11 +202,28 @@ def chunk_custom(
     Returns:
         List of text chunks
 
+    Raises:
+        ChunkingError: If input parameters are invalid
+        NotImplementedError: Custom strategies are not yet implemented
+
     Note:
         This is a placeholder for future dataset-specific chunking strategies.
         Currently falls back to fixed_size chunking.
     """
-    raise NotImplementedError("Custom chunking strategy not implemented")
+    # Input validation
+    if not isinstance(text, str):
+        raise ChunkingError(f"text must be a string, got {type(text).__name__}")
+    
+    if not isinstance(strategy, str):
+        raise ChunkingError(f"strategy must be a string, got {type(strategy).__name__}")
+    
+    if not isinstance(delimiter, str):
+        raise ChunkingError(f"delimiter must be a string, got {type(delimiter).__name__}")
+    
+    if len(delimiter) == 0:
+        raise ChunkingError("delimiter cannot be empty")
+    
+    raise NotImplementedError(f"Custom chunking strategy '{strategy}' not implemented")
 
 
 def _apply_chunking_strategy(
@@ -166,23 +247,23 @@ def _apply_chunking_strategy(
         List of text chunks
 
     Raises:
-        ValueError: If strategy parameters are invalid
+        ChunkingError: If strategy parameters are invalid
     """
     if strategy == "fixed_size":
-        if not chunk_size:
-            raise ValueError("chunk_size required for fixed_size strategy")
+        if not chunk_size or chunk_size <= 0:
+            raise ChunkingError("chunk_size required and must be positive for fixed_size strategy")
         return chunk_fixed_size(text, chunk_size, delimiter)
 
     elif strategy == "fixed_count":
-        if not num_chunks:
-            raise ValueError("num_chunks required for fixed_count strategy")
+        if not num_chunks or num_chunks <= 0:
+            raise ChunkingError("num_chunks required and must be positive for fixed_count strategy")
         return chunk_fixed_count(text, num_chunks, delimiter)
 
     elif strategy == "custom":
         return chunk_custom(text, "default", delimiter)
 
     else:
-        raise ValueError(f"Unknown strategy: {strategy}")
+        raise ChunkingError(f"Unknown chunking strategy: {strategy}. Available strategies: fixed_size, fixed_count, custom")
 
 
 def process_dataset_items(
@@ -210,24 +291,32 @@ def process_dataset_items(
         Dictionary of item_id -> chunking results
 
     Raises:
-        ValueError: If strategy parameters are invalid
+        ChunkingError: If input parameters are invalid
     """
     results = {}
     errors = {}
 
+    # Input validation
+    if not isinstance(items, dict):
+        raise ChunkingError(f"items must be a dictionary, got {type(items).__name__}")
+    
+    if not isinstance(strategy, str):
+        raise ChunkingError(f"strategy must be a string, got {type(strategy).__name__}")
+    
     # Validate document_handling parameter
-    if document_handling not in ["chunk-individual-docs", "chunk-concatenated-docs"]:
-        raise ValueError(f"Invalid document_handling: {document_handling}")
+    valid_handling = ["chunk-individual-docs", "chunk-concatenated-docs"]
+    if document_handling not in valid_handling:
+        raise ChunkingError(f"Invalid document_handling: {document_handling}. Must be one of: {valid_handling}")
 
     for item_id, item_data in items.items():
         try:
             # Extract documents
             if not isinstance(item_data, dict) or 'documents' not in item_data:
-                raise ValueError("Item missing required 'documents' field")
+                raise ValidationError("Item missing required 'documents' field")
 
             documents = item_data['documents']
             if not documents:
-                raise ValueError("No documents found")
+                raise ValidationError("No documents found in item")
 
             if document_handling == "chunk-individual-docs":
                 # Chunk each document separately
@@ -238,7 +327,7 @@ def process_dataset_items(
                     doc_id = doc['doc_id']
                     doc_text = doc['content']
                     if not doc_text:
-                        raise ValueError("Document content is empty")
+                        raise ValidationError("Document content is empty")
 
                     # Apply chunking strategy to this document
                     doc_chunks = _apply_chunking_strategy(
@@ -287,7 +376,7 @@ def process_dataset_items(
                 text = delimiter.join(doc_texts)
 
                 if not text:
-                    raise ValueError("No text content found")
+                    raise ValidationError("No text content found in concatenated documents")
 
                 # Apply chunking strategy to concatenated text
                 concatenated_chunks = _apply_chunking_strategy(
@@ -326,7 +415,7 @@ def process_dataset_items(
                     }
                 }
 
-        except ValueError as e:
+        except (ChunkingError, ValidationError) as e:
             # Handle validation and content errors
             error_msg = f"Validation error: {str(e)}"
             logger.warning(f"Processing item '{item_id}' failed: {error_msg}")

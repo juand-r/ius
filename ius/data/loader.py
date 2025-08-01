@@ -5,10 +5,16 @@ Loads datasets from the standardized format with collection.json + items/ struct
 """
 
 import json
+import logging
 from pathlib import Path
 from typing import Any, Union
 
 import numpy as np
+
+from ..exceptions import DatasetError
+
+# Set up logger for this module
+logger = logging.getLogger(__name__)
 
 
 class DatasetLoader:
@@ -46,14 +52,55 @@ class DatasetLoader:
 
         Returns:
             Collection metadata dict
+            
+        Raises:
+            DatasetError: If dataset cannot be loaded or is invalid
         """
+        if not isinstance(dataset_name, str) or not dataset_name.strip():
+            raise DatasetError("dataset_name must be a non-empty string")
+            
         collection_path = self.data_dir / dataset_name / "collection.json"
 
         if not collection_path.exists():
-            raise FileNotFoundError(f"Collection file not found: {collection_path}")
+            available_datasets = self.list_datasets()
+            if available_datasets:
+                raise DatasetError(
+                    f"Dataset '{dataset_name}' not found. "
+                    f"Available datasets: {', '.join(available_datasets)}"
+                )
+            else:
+                raise DatasetError(
+                    f"Dataset '{dataset_name}' not found. "
+                    f"No datasets found in directory: {self.data_dir}"
+                )
 
-        with open(collection_path, encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(collection_path, encoding="utf-8") as f:
+                metadata = json.load(f)
+                
+            # Validate required fields
+            required_fields = ["items", "num_items"]
+            missing_fields = [field for field in required_fields if field not in metadata]
+            if missing_fields:
+                raise DatasetError(
+                    f"Invalid collection.json for dataset '{dataset_name}': "
+                    f"missing required fields: {missing_fields}"
+                )
+                
+            return metadata
+            
+        except json.JSONDecodeError as e:
+            raise DatasetError(
+                f"Invalid JSON in collection.json for dataset '{dataset_name}': {e}"
+            )
+        except PermissionError:
+            raise DatasetError(
+                f"Permission denied reading dataset '{dataset_name}' at: {collection_path}"
+            )
+        except Exception as e:
+            raise DatasetError(
+                f"Unexpected error loading dataset '{dataset_name}': {e}"
+            )
 
     def load_item(self, dataset_name: str, item_id: str) -> dict[str, Any]:
         """
@@ -105,7 +152,7 @@ class DatasetLoader:
                 try:
                     items[item_id] = self.load_item(dataset_name, item_id)
                 except FileNotFoundError as e:
-                    print(f"Warning: Could not load item {item_id}: {e}")
+                    raise ValueError(f"Could not load item {item_id}: {e}")
 
         return {
             "collection_metadata": collection_metadata,
