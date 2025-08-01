@@ -15,6 +15,7 @@ requires-python = ">=3.11"
 dependencies = [
     "numpy>=1.20.0",
     "tqdm>=4.60.0",
+    "openai>=1.0.0",
 ]
 
 # Package discovery - only include the 'ius' package
