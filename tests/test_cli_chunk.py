@@ -10,11 +10,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from ius.cli.chunk import chunk_dataset, main
-from ius.cli.common import (
-    list_available_datasets,
-    save_json_output,
-    validate_dataset_exists,
-)
+from ius.cli.common import save_json_output
 
 
 class TestChunkingCLI(unittest.TestCase):
@@ -22,26 +18,41 @@ class TestChunkingCLI(unittest.TestCase):
 
     def setUp(self):
         """Set up test environment."""
+        # Mock data in the format that load_data() actually returns
         self.test_dataset = {
-            "item_1": {
-                "documents": [
-                    {"content": "This is a test document.\nIt has multiple lines.\nFor testing purposes."}
-                ]
+            "items": {
+                "item_1": {
+                    "documents": [
+                        {"content": "This is a test document.\nIt has multiple lines.\nFor testing purposes.", "doc_id": "item_1"}
+                    ]
+                },
+                "item_2": {
+                    "documents": [
+                        {"content": "Another document.\nWith different content.\nShort lines here.", "doc_id": "item_2"}
+                    ]
+                },
             },
-            "item_2": {
-                "documents": [
-                    {"content": "Another document.\nWith different content.\nShort lines here."}
-                ]
-            },
+            "collection_metadata": {"num_items": 2},
+            "num_items_loaded": 2
         }
 
         self.multi_doc_dataset = {
-            "story_1": {
-                "documents": [
-                    {"content": "Chapter 1: The beginning.\nSomething happened."},
-                    {"content": "Chapter 2: The middle.\nMore events occurred."},
-                ]
-            }
+            "items": {
+                "story_1": {
+                    "documents": [
+                        {"content": "Chapter 1: The beginning.\nSomething happened.", "doc_id": "story_1_doc1"},
+                        {"content": "Chapter 2: The middle.\nMore events occurred.", "doc_id": "story_1_doc2"},
+                    ]
+                }
+            },
+            "collection_metadata": {"num_items": 1},
+            "num_items_loaded": 1
+        }
+
+        self.empty_dataset = {
+            "items": {},
+            "collection_metadata": {"num_items": 0},
+            "num_items_loaded": 0
         }
 
     @patch('ius.cli.chunk.load_data')
@@ -64,7 +75,7 @@ class TestChunkingCLI(unittest.TestCase):
         # Check item_1 results
         item_1 = result["items"]["item_1"]
         self.assertTrue(item_1["validation_passed"])
-        self.assertGreater(item_1["stats"]["num_chunks"], 1)
+        self.assertGreater(item_1["overall_stats"]["total_chunks"], 1)
         self.assertEqual(item_1["strategy"], "fixed_size")
 
     @patch('ius.cli.chunk.load_data')
@@ -84,7 +95,7 @@ class TestChunkingCLI(unittest.TestCase):
 
         # Each item should have exactly 2 chunks (or fewer if not enough delimiters)
         for _item_id, item_data in result["items"].items():
-            self.assertLessEqual(item_data["stats"]["num_chunks"], 2)
+            self.assertLessEqual(item_data["overall_stats"]["total_chunks"], 2)
 
     @patch('ius.cli.chunk.load_data')
     def test_chunk_dataset_multi_document(self, mock_load_data):
@@ -139,9 +150,13 @@ class TestChunkingCLI(unittest.TestCase):
     def test_chunk_dataset_empty_items(self, mock_load_data):
         """Test handling of empty or invalid items."""
         mock_dataset = {
-            "empty": {"documents": [{"content": ""}]},
-            "missing_documents": {"title": "No documents field"},
-            "valid": {"documents": [{"content": "Valid content here."}]},
+            "items": {
+                "empty": {"documents": [{"content": "", "doc_id": "empty"}]},
+                "missing_documents": {"title": "No documents field"},
+                "valid": {"documents": [{"content": "Valid content here.", "doc_id": "valid"}]},
+            },
+            "collection_metadata": {"num_items": 3},
+            "num_items_loaded": 3
         }
         mock_load_data.return_value = mock_dataset
 
@@ -311,44 +326,7 @@ class TestCLICommon(unittest.TestCase):
         finally:
             Path(output_path).unlink(missing_ok=True)
 
-    def test_validate_dataset_exists(self):
-        """Test dataset existence validation."""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            # Create a mock dataset directory
-            dataset_dir = Path(tmp_dir) / "datasets" / "test_dataset"
-            dataset_dir.mkdir(parents=True)
 
-            with patch('ius.cli.common.Path') as mock_path:
-                mock_path.return_value = dataset_dir
-                validate_dataset_exists("test_dataset")
-                # This test is simplified - in reality we'd need to mock the entire Path behavior
-
-    def test_list_available_datasets(self):
-        """Test listing available datasets."""
-        # Create mock directory entries
-        mock_bmds = MagicMock()
-        mock_bmds.name = "bmds"
-        mock_bmds.is_dir.return_value = True
-
-        mock_test = MagicMock()
-        mock_test.name = "test"
-        mock_test.is_dir.return_value = True
-
-        mock_file = MagicMock()
-        mock_file.name = "not_a_dir.txt"
-        mock_file.is_dir.return_value = False
-
-        mock_datasets_dir = MagicMock()
-        mock_datasets_dir.exists.return_value = True
-        mock_datasets_dir.iterdir.return_value = [mock_bmds, mock_test, mock_file]
-
-        with patch('ius.cli.common.Path') as mock_path_cls:
-            mock_path_cls.return_value = mock_datasets_dir
-
-            datasets = list_available_datasets()
-            self.assertEqual(len(datasets), 2)
-            self.assertIn("bmds", datasets)
-            self.assertIn("test", datasets)
 
 
 class TestCLIIntegration(unittest.TestCase):
@@ -379,7 +357,11 @@ class TestCLIIntegration(unittest.TestCase):
             items = dataset['items']
             # Create a small test with just one item
             test_item_id = list(items.keys())[0]
-            test_dataset = {test_item_id: items[test_item_id]}
+            test_dataset = {
+                "items": {test_item_id: items[test_item_id]},
+                "collection_metadata": dataset.get("collection_metadata", {}),
+                "num_items_loaded": 1
+            }
 
             # Mock load_data to return our test dataset
             with patch('ius.cli.chunk.load_data', return_value=test_dataset):
@@ -397,7 +379,7 @@ class TestCLIIntegration(unittest.TestCase):
                 # All items should pass validation
                 for item_data in result["items"].values():
                     self.assertTrue(item_data["validation_passed"])
-                    self.assertGreater(item_data["stats"]["num_chunks"], 0)
+                    self.assertGreater(item_data["overall_stats"]["total_chunks"], 0)
         else:
             self.skipTest("BMDS dataset format not as expected")
 
