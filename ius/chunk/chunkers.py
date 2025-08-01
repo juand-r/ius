@@ -7,6 +7,8 @@ words or sentences. Content preservation is guaranteed.
 
 from typing import List
 
+from .utils import validate_chunks
+
 
 def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n") -> List[str]:
     """
@@ -56,6 +58,10 @@ def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n") -> List[
     if current_chunk:
         chunks.append(delimiter.join(current_chunk))
 
+    # Validate content preservation
+    if not validate_chunks(text, chunks, delimiter):
+        raise ValueError("Content validation failed: chunks do not preserve original text")
+
     return chunks
 
 
@@ -104,6 +110,10 @@ def chunk_fixed_count(text: str, num_chunks: int, delimiter: str = "\n") -> List
         chunk_units = units[start_idx:end_idx]
         chunks.append(delimiter.join(chunk_units))
         start_idx = end_idx
+
+    # Validate content preservation
+    if not validate_chunks(text, chunks, delimiter):
+        raise ValueError("Content validation failed: chunks do not preserve original text")
 
     return chunks
 
