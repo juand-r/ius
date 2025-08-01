@@ -166,6 +166,25 @@ Processing items: 100%|████████████| 34/34 [00:02<00:00,
 2024-01-15 23:09:31 - ius.cli.chunk - INFO - Results saved to: outputs/chunks/bmds_fixed_count_4.json
 ```
 
+## Dependency Management
+
+This project uses **pip-tools** to keep `requirements.txt` synchronized with `pyproject.toml`:
+
+```bash
+# Sync requirements.txt with pyproject.toml changes
+make sync-requirements
+
+# After adding/changing dependencies in pyproject.toml:
+# 1. Run sync command above
+# 2. Commit both pyproject.toml and requirements*.txt files
+```
+
+**File structure:**
+- `pyproject.toml` - Source of truth for dependencies
+- `requirements.txt` - Auto-generated, pinned production dependencies  
+- `requirements-dev.txt` - Auto-generated, includes dev tools (pytest, ruff)
+- `requirements*.in` - Input files for pip-tools (don't edit directly)
+
 ## Configuration
 
 The framework supports flexible configuration through environment variables and code.
@@ -247,8 +266,13 @@ The configuration system provides automatic validation:
 ### 1. Quick Start with CLI
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Install dependencies (choose one)
+make install          # Recommended: production dependencies
+make install-dev      # Recommended: includes testing/linting tools
+
+# Or install manually:
+pip install -r requirements.txt        # Production only  
+pip install -r requirements-dev.txt    # Development
 
 # List available datasets  
 python -m ius chunk --list-datasets
@@ -303,7 +327,28 @@ print(f"Using datasets from: {config.datasets_dir}")
 print(f"Default chunk settings: {config.default_chunk_size} size, {config.default_num_chunks} count")
 ```
 
-### 4. Running Tests
+### 4. Development Commands (Makefile)
+
+For convenience, common development tasks are available via `make`:
+
+```bash
+# See all available commands
+make help
+
+# Install dependencies
+make install        # Production only
+make install-dev    # Includes testing/linting tools
+
+# Development workflow
+make test          # Run all tests (128 tests)
+make lint          # Check code style
+make fix-lint      # Fix code formatting issues
+
+# Dependency management
+make sync-requirements  # Update requirements.txt from pyproject.toml
+```
+
+### 5. Running Tests Manually
 
 ```bash
 # Run all tests (128 tests)

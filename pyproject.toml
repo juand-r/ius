@@ -13,7 +13,8 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
-    "numpy",
+    "numpy>=1.20.0",
+    "tqdm>=4.60.0",
 ]
 
 # Package discovery - only include the 'ius' package
@@ -23,7 +24,9 @@ exclude = ["trash*", "chats*", "datasets*", "tests*"]
 
 [project.optional-dependencies]
 dev = [
-    "ruff",
+    "ruff>=0.1.0",
+    "pytest>=7.0.0",
+    "pip-tools>=7.0.0",
 ]
 
 [tool.ruff]
