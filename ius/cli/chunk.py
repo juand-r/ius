@@ -10,6 +10,7 @@ Usage:
 import argparse
 import sys
 import time
+from typing import Any
 
 from ius.chunk import process_dataset_items
 from ius.data import list_datasets, load_data
@@ -28,7 +29,7 @@ def chunk_dataset(
     delimiter: str = "\n",
     output_path: str | None = None,
     preview: bool = False,
-) -> dict[str, any]:
+) -> dict[str, Any]:
     """
     CLI wrapper for chunking datasets with progress printing and file I/O.
 
@@ -130,7 +131,6 @@ def chunk_dataset(
             "total_characters": total_chars,
             "avg_chunks_per_item": round(avg_chunks_per_item, 1),
             "processing_time_seconds": 0.0,  # Simple for now
-            "validation_failures": sum(1 for r in results.values() if not r["validation_passed"]),
             "error_count": len(errors),
         }
     else:
@@ -140,7 +140,6 @@ def chunk_dataset(
             "total_characters": 0,
             "avg_chunks_per_item": 0,
             "processing_time_seconds": 0.0,
-            "validation_failures": 0,
             "error_count": len(errors),
         }
 
@@ -245,13 +244,6 @@ Examples:
         help="Show chunk previews during processing",
     )
 
-    # Note: Validation is now built into chunking functions
-    # parser.add_argument(
-    #     "--no-validate",
-    #     action="store_true",
-    #     help="Skip content preservation validation (deprecated)",
-    # )
-
     args = parser.parse_args()
 
     # Validate required arguments for each strategy
@@ -286,7 +278,6 @@ Examples:
             delimiter=args.delimiter,
             output_path=args.output,
             preview=args.preview,
-            # validate=not args.no_validate,  # Validation now in chunking functions
         )
 
         if results:

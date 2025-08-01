@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from io import StringIO
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from ius.cli.chunk import chunk_dataset, main
 from ius.cli.common import save_json_output

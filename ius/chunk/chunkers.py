@@ -5,9 +5,14 @@ All chunking functions use delimiter-aware splitting to avoid breaking
 words or sentences. Content preservation is guaranteed.
 """
 
+import logging
 from typing import Any
 
 from .utils import analyze_chunks, validate_chunks
+
+
+# Set up logger for this module
+logger = logging.getLogger(__name__)
 
 
 def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n") -> list[str]:
@@ -321,7 +326,34 @@ def process_dataset_items(
                     }
                 }
 
+        except ValueError as e:
+            # Handle validation and content errors
+            error_msg = f"Validation error: {str(e)}"
+            logger.warning(f"Processing item '{item_id}' failed: {error_msg}")
+            errors[item_id] = error_msg
+
+        except KeyError as e:
+            # Handle missing required fields
+            error_msg = f"Missing required field: {str(e)}"
+            logger.error(f"Processing item '{item_id}' failed: {error_msg}")
+            errors[item_id] = error_msg
+
+        except TypeError as e:
+            # Handle type-related errors (e.g., operations on wrong types)
+            error_msg = f"Type error: {str(e)}"
+            logger.error(f"Processing item '{item_id}' failed: {error_msg}")
+            errors[item_id] = error_msg
+
+        except NotImplementedError as e:
+            # Handle custom chunking strategy not implemented
+            error_msg = f"Feature not implemented: {str(e)}"
+            logger.error(f"Processing item '{item_id}' failed: {error_msg}")
+            errors[item_id] = error_msg
+
         except Exception as e:
-            errors[item_id] = str(e)
+            # Catch any unexpected exceptions with detailed logging
+            error_msg = f"Unexpected error: {str(e)}"
+            logger.exception(f"Processing item '{item_id}' failed with unexpected error: {error_msg}")
+            errors[item_id] = error_msg
 
     return {"results": results, "errors": errors}
