@@ -6,9 +6,18 @@ Enables: python -m ius [command] [args]
 
 import sys
 
+from ius.logging_config import get_logger, setup_logging
+
+
+# Set up logger for main entry point
+logger = get_logger(__name__)
+
 
 def main():
     """Main entry point that delegates to appropriate CLI modules."""
+    # Set up basic logging for error messages
+    setup_logging(log_level="INFO")
+
     if len(sys.argv) < 2:
         print_help()
         return
@@ -24,7 +33,7 @@ def main():
     elif command == "help" or command == "-h" or command == "--help":
         print_help()
     else:
-        print(f"❌ Unknown command: {command}")
+        logger.error(f"Unknown command: {command}")
         print_help()
         sys.exit(1)
 

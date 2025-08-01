@@ -8,8 +8,8 @@ words or sentences. Content preservation is guaranteed.
 import logging
 from typing import Any
 
-from .utils import analyze_chunks, validate_chunks
 from ..exceptions import ChunkingError, ValidationError
+from .utils import analyze_chunks, validate_chunks
 
 
 # Set up logger for this module
@@ -39,23 +39,23 @@ def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n") -> list[
     # Input validation
     if not isinstance(text, str):
         raise ChunkingError(f"text must be a string, got {type(text).__name__}")
-    
+
     if not isinstance(chunk_size, int):
         raise ChunkingError(f"chunk_size must be an integer, got {type(chunk_size).__name__}")
-    
+
     if chunk_size <= 0:
         raise ChunkingError(f"chunk_size must be positive, got {chunk_size}")
-    
+
     if not isinstance(delimiter, str):
         raise ChunkingError(f"delimiter must be a string, got {type(delimiter).__name__}")
-    
+
     if len(delimiter) == 0:
         raise ChunkingError("delimiter cannot be empty")
-    
+
     # Handle empty text - this should be an error, not silent failure
     if not text:
         raise ChunkingError("Cannot chunk empty text")
-    
+
     # Warn about potentially inefficient chunk sizes
     if chunk_size > len(text) * 2:
         logger.warning(
@@ -120,19 +120,19 @@ def chunk_fixed_count(text: str, num_chunks: int, delimiter: str = "\n") -> list
     # Input validation
     if not isinstance(text, str):
         raise ChunkingError(f"text must be a string, got {type(text).__name__}")
-    
+
     if not isinstance(num_chunks, int):
         raise ChunkingError(f"num_chunks must be an integer, got {type(num_chunks).__name__}")
-    
+
     if num_chunks <= 0:
         raise ChunkingError(f"num_chunks must be positive, got {num_chunks}")
-    
+
     if not isinstance(delimiter, str):
         raise ChunkingError(f"delimiter must be a string, got {type(delimiter).__name__}")
-    
+
     if len(delimiter) == 0:
         raise ChunkingError("delimiter cannot be empty")
-    
+
     # Handle empty text - this should be an error, not silent failure
     if not text:
         raise ChunkingError("Cannot chunk empty text")
@@ -140,7 +140,7 @@ def chunk_fixed_count(text: str, num_chunks: int, delimiter: str = "\n") -> list
     # Handle single chunk case
     if num_chunks == 1:
         return [text]
-    
+
     # Warn about potentially inefficient chunk counts
     estimated_avg_chunk_size = len(text) // num_chunks
     if estimated_avg_chunk_size < 50:
@@ -208,21 +208,20 @@ def chunk_custom(
 
     Note:
         This is a placeholder for future dataset-specific chunking strategies.
-        Currently falls back to fixed_size chunking.
     """
     # Input validation
     if not isinstance(text, str):
         raise ChunkingError(f"text must be a string, got {type(text).__name__}")
-    
+
     if not isinstance(strategy, str):
         raise ChunkingError(f"strategy must be a string, got {type(strategy).__name__}")
-    
+
     if not isinstance(delimiter, str):
         raise ChunkingError(f"delimiter must be a string, got {type(delimiter).__name__}")
-    
+
     if len(delimiter) == 0:
         raise ChunkingError("delimiter cannot be empty")
-    
+
     raise NotImplementedError(f"Custom chunking strategy '{strategy}' not implemented")
 
 
@@ -299,10 +298,10 @@ def process_dataset_items(
     # Input validation
     if not isinstance(items, dict):
         raise ChunkingError(f"items must be a dictionary, got {type(items).__name__}")
-    
+
     if not isinstance(strategy, str):
         raise ChunkingError(f"strategy must be a string, got {type(strategy).__name__}")
-    
+
     # Validate document_handling parameter
     valid_handling = ["chunk-individual-docs", "chunk-concatenated-docs"]
     if document_handling not in valid_handling:

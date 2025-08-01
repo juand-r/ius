@@ -171,7 +171,7 @@ class TestChunkingCLI(unittest.TestCase):
         # empty content and missing_documents should be caught by validation
         self.assertEqual(len(result["items"]), 1)
         self.assertIn("valid", result["items"])
-        
+
         # Should have 2 errors (empty and missing_documents)
         self.assertEqual(len(result["errors"]), 2)
         self.assertIn("empty", result["errors"])

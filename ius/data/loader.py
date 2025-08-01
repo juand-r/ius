@@ -13,6 +13,7 @@ import numpy as np
 
 from ..exceptions import DatasetError
 
+
 # Set up logger for this module
 logger = logging.getLogger(__name__)
 
@@ -52,13 +53,13 @@ class DatasetLoader:
 
         Returns:
             Collection metadata dict
-            
+
         Raises:
             DatasetError: If dataset cannot be loaded or is invalid
         """
         if not isinstance(dataset_name, str) or not dataset_name.strip():
             raise DatasetError("dataset_name must be a non-empty string")
-            
+
         collection_path = self.data_dir / dataset_name / "collection.json"
 
         if not collection_path.exists():
@@ -77,7 +78,7 @@ class DatasetLoader:
         try:
             with open(collection_path, encoding="utf-8") as f:
                 metadata = json.load(f)
-                
+
             # Validate required fields
             required_fields = ["items", "num_items"]
             missing_fields = [field for field in required_fields if field not in metadata]
@@ -86,21 +87,21 @@ class DatasetLoader:
                     f"Invalid collection.json for dataset '{dataset_name}': "
                     f"missing required fields: {missing_fields}"
                 )
-                
+
             return metadata
-            
+
         except json.JSONDecodeError as e:
             raise DatasetError(
                 f"Invalid JSON in collection.json for dataset '{dataset_name}': {e}"
-            )
-        except PermissionError:
+            ) from e
+        except PermissionError as e:
             raise DatasetError(
                 f"Permission denied reading dataset '{dataset_name}' at: {collection_path}"
-            )
+            ) from e
         except Exception as e:
             raise DatasetError(
                 f"Unexpected error loading dataset '{dataset_name}': {e}"
-            )
+            ) from e
 
     def load_item(self, dataset_name: str, item_id: str) -> dict[str, Any]:
         """
@@ -112,14 +113,40 @@ class DatasetLoader:
 
         Returns:
             Item data dict
+
+        Raises:
+            DatasetError: If item cannot be loaded or is invalid
         """
+        if not isinstance(dataset_name, str) or not dataset_name.strip():
+            raise DatasetError("dataset_name must be a non-empty string")
+
+        if not isinstance(item_id, str) or not item_id.strip():
+            raise DatasetError("item_id must be a non-empty string")
+
         item_path = self.data_dir / dataset_name / "items" / f"{item_id}.json"
 
         if not item_path.exists():
-            raise FileNotFoundError(f"Item file not found: {item_path}")
+            raise DatasetError(f"Item '{item_id}' not found in dataset '{dataset_name}' at: {item_path}")
 
-        with open(item_path, encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(item_path, encoding="utf-8") as f:
+                item_data = json.load(f)
+
+            # Validate required fields
+            if not isinstance(item_data, dict):
+                raise DatasetError(f"Invalid item data for '{item_id}': expected dictionary, got {type(item_data).__name__}")
+
+            if "documents" not in item_data:
+                raise DatasetError(f"Invalid item '{item_id}': missing required 'documents' field")
+
+            return item_data
+
+        except json.JSONDecodeError as e:
+            raise DatasetError(f"Invalid JSON in item '{item_id}': {e}") from e
+        except PermissionError as e:
+            raise DatasetError(f"Permission denied reading item '{item_id}' at: {item_path}") from e
+        except Exception as e:
+            raise DatasetError(f"Unexpected error loading item '{item_id}': {e}") from e
 
     def load_data(
         self, dataset_name: str, item_id: str | None = None
@@ -151,8 +178,8 @@ class DatasetLoader:
             for item_id in item_ids:
                 try:
                     items[item_id] = self.load_item(dataset_name, item_id)
-                except FileNotFoundError as e:
-                    raise ValueError(f"Could not load item {item_id}: {e}")
+                except DatasetError as e:
+                    raise DatasetError(f"Could not load item {item_id}: {e}") from e
 
         return {
             "collection_metadata": collection_metadata,

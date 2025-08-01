@@ -12,8 +12,8 @@ from ius.chunk import (
     preview_chunks,
     validate_chunks,
 )
-from ius.exceptions import ChunkingError, ValidationError
 from ius.data import load_data
+from ius.exceptions import ChunkingError
 
 
 class TestChunking(unittest.TestCase):
@@ -153,17 +153,17 @@ class TestChunkingValidation(unittest.TestCase):
         # Test non-string text
         with self.assertRaises(ChunkingError):
             chunk_fixed_size(123, chunk_size=100)
-        
+
         with self.assertRaises(ChunkingError):
             chunk_fixed_count(None, num_chunks=5)
-        
-        # Test non-integer parameters  
+
+        # Test non-integer parameters
         with self.assertRaises(ChunkingError):
             chunk_fixed_size("test text", chunk_size="100")
-            
+
         with self.assertRaises(ChunkingError):
             chunk_fixed_count("test text", num_chunks=5.5)
-        
+
         # Test non-string delimiter
         with self.assertRaises(ChunkingError):
             chunk_fixed_size("test text", chunk_size=100, delimiter=123)
@@ -173,17 +173,17 @@ class TestChunkingValidation(unittest.TestCase):
         # Test negative/zero chunk sizes
         with self.assertRaises(ChunkingError):
             chunk_fixed_size("test text", chunk_size=0)
-            
+
         with self.assertRaises(ChunkingError):
             chunk_fixed_size("test text", chunk_size=-100)
-        
+
         # Test negative/zero chunk counts
         with self.assertRaises(ChunkingError):
             chunk_fixed_count("test text", num_chunks=0)
-            
+
         with self.assertRaises(ChunkingError):
             chunk_fixed_count("test text", num_chunks=-5)
-        
+
         # Test empty delimiter
         with self.assertRaises(ChunkingError):
             chunk_fixed_size("test text", chunk_size=100, delimiter="")
@@ -191,10 +191,10 @@ class TestChunkingValidation(unittest.TestCase):
     def test_missing_delimiter_error(self):
         """Test that missing delimiters raise ChunkingError with helpful message."""
         text = "This has no newlines just spaces"
-        
+
         with self.assertRaises(ChunkingError) as cm:
             chunk_fixed_size(text, chunk_size=10, delimiter="\n")
-        
+
         self.assertIn("Delimiter", str(cm.exception))
         self.assertIn("not found", str(cm.exception))
 
@@ -202,7 +202,7 @@ class TestChunkingValidation(unittest.TestCase):
         """Test that empty text raises ChunkingError with helpful message."""
         with self.assertRaises(ChunkingError) as cm:
             chunk_fixed_size("", chunk_size=100)
-        
+
         self.assertIn("Cannot chunk empty text", str(cm.exception))
 
 
