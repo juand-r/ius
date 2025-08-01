@@ -407,6 +407,7 @@ def process_dataset_items(
                 }
 
             elif document_handling == "chunk-concatenated-docs":
+                raise ValueError("Currently untested, TODO Test before use!!")
                 # Concatenate all documents then chunk
                 doc_texts = [doc['content'] for doc in documents]
                 text = delimiter.join(doc_texts)
