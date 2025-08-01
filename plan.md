@@ -144,7 +144,6 @@ class LLMClient:
 **Baseline Strategies (`baselines.py`)**:
 1. **No-op**: Summary = original text (for downstream task evaluation)
 2. **Concatenate + Summarize**: Concatenate chunks 1...k and summarize
-3. **Full Re-summarization**: Re-summarize everything from scratch each time
 
 **Incremental Strategies (`incremental.py`)**:
 1. **Summary Merging**: Separately summarize new content, then merge summaries
