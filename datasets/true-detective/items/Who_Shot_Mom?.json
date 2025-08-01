@@ -41,7 +41,8 @@
           "model": "o3",
           "reveal_segment": "Given the fact that someone had to put tape on the sprayer, the question is: Who could have done it? The key is that only one person had access to the sink in order to do it. Rory was out of the kitchen long before I finished washing the pots and pans. So, if Rory had done it, I would have been the one sprayed. Dad wasn’t in the kitchen, having gone from his walk directly to the family room. And Roger? Well, he might have been a likely candidate if not for Ginger’s phone call. In fact, it was Roger who was the planned victim. If he had done the dessert dishes as he was supposed to, my plan would have worked, and Roger would have been the one who was shot. Yes, you caught me -- I was the one who shot Mom."
         }
-      }
+      },
+      "doc_id": "Who_Shot_Mom?"
     }
   ]
 }
