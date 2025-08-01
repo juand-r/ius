@@ -338,7 +338,7 @@ python -m ius.compare --experiments exp1/ exp2/ --metrics rouge,culprit_accuracy
 1. **Chunking overlap**: ❌ No overlap - consecutive chunks only with content preservation validation
 2. **Summary formats**: Will depend on prompts (to be provided later)
 3. **Evaluation baselines**: No-op (summary=original) and concatenate+summarize baselines
-4. **Model selection**: Start with gpt-4o-mini  
+4. **Model selection**: Start with gpt-4.1-mini  
 5. **Result storage**: JSON files
 6. **Prompts**: Organized in `prompts/` directory with template system (prompts to be provided later)
 
