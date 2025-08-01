@@ -9,10 +9,10 @@ and extracts them to individual text files for processing.
 import argparse
 import pickle
 from pathlib import Path
-from typing import Dict, Union
+from typing import Union
 
 
-def load_books_pickle(pickle_path: Union[str, Path]) -> Dict[str, str]:
+def load_books_pickle(pickle_path: Union[str, Path]) -> dict[str, str]:
     """Load books from pickle file."""
     pickle_path = Path(pickle_path)
 
@@ -27,7 +27,7 @@ def load_books_pickle(pickle_path: Union[str, Path]) -> Dict[str, str]:
     return data
 
 
-def inspect_data_structure(data: Dict[str, str]) -> None:
+def inspect_data_structure(data: dict[str, str]) -> None:
     """Inspect the BooookScore pickle data structure."""
     print("\n📊 Data Structure:")
     print(f"root: dict with {len(data)} books")
@@ -42,7 +42,7 @@ def inspect_data_structure(data: Dict[str, str]) -> None:
 
 
 def extract_books_to_txt(
-    data: Dict[str, str],
+    data: dict[str, str],
     output_dir: Union[str, Path],
     dry_run: bool = False,
     show_samples: bool = False,

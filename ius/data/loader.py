@@ -6,7 +6,7 @@ Loads datasets from the standardized format with collection.json + items/ struct
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Union
 
 import numpy as np
 
@@ -23,7 +23,7 @@ class DatasetLoader:
         """
         self.data_dir = Path(data_dir)
 
-    def list_datasets(self) -> List[str]:
+    def list_datasets(self) -> list[str]:
         """List available datasets."""
         if not self.data_dir.exists():
             return []
@@ -37,7 +37,7 @@ class DatasetLoader:
 
         return sorted(datasets)
 
-    def load_collection_metadata(self, dataset_name: str) -> Dict[str, Any]:
+    def load_collection_metadata(self, dataset_name: str) -> dict[str, Any]:
         """
         Load collection metadata.
 
@@ -55,7 +55,7 @@ class DatasetLoader:
         with open(collection_path, encoding="utf-8") as f:
             return json.load(f)
 
-    def load_item(self, dataset_name: str, item_id: str) -> Dict[str, Any]:
+    def load_item(self, dataset_name: str, item_id: str) -> dict[str, Any]:
         """
         Load a single item.
 
@@ -75,8 +75,8 @@ class DatasetLoader:
             return json.load(f)
 
     def load_data(
-        self, dataset_name: str, item_id: Optional[str] = None
-    ) -> Dict[str, Any]:
+        self, dataset_name: str, item_id: str | None = None
+    ) -> dict[str, Any]:
         """
         Load dataset with collection metadata and items.
 
@@ -113,7 +113,7 @@ class DatasetLoader:
             "num_items_loaded": len(items),
         }
 
-    def get_dataset_info(self, dataset_name: str) -> Dict[str, Any]:
+    def get_dataset_info(self, dataset_name: str) -> dict[str, Any]:
         """
         Get summary information about a dataset.
 
@@ -159,9 +159,9 @@ class DatasetLoader:
 # Convenience function matching the requested API
 def load_data(
     dataset_name: str,
-    item_id: Optional[str] = None,
+    item_id: str | None = None,
     data_dir: Union[str, Path] = "datasets",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Convenience function to load dataset.
 
@@ -178,7 +178,7 @@ def load_data(
 
 
 # Additional convenience functions
-def list_datasets(data_dir: Union[str, Path] = "datasets") -> List[str]:
+def list_datasets(data_dir: Union[str, Path] = "datasets") -> list[str]:
     """List available datasets."""
     loader = DatasetLoader(data_dir)
     return loader.list_datasets()
@@ -186,7 +186,7 @@ def list_datasets(data_dir: Union[str, Path] = "datasets") -> List[str]:
 
 def get_dataset_info(
     dataset_name: str, data_dir: Union[str, Path] = "datasets"
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Get dataset summary info."""
     loader = DatasetLoader(data_dir)
     return loader.get_dataset_info(dataset_name)

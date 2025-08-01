@@ -2,11 +2,10 @@
 Utilities for chunking validation and analysis.
 """
 
-from typing import List
 
 
 def validate_chunks(
-    original_text: str, chunks: List[str], delimiter: str = "\n"
+    original_text: str, chunks: list[str], delimiter: str = "\n"
 ) -> bool:
     """
     Verify that chunks preserve all content when joined with delimiter.
@@ -26,7 +25,7 @@ def validate_chunks(
     return reconstructed == original_text
 
 
-def analyze_chunks(chunks: List[str], delimiter: str = "\n") -> dict:
+def analyze_chunks(chunks: list[str], delimiter: str = "\n") -> dict:
     """
     Analyze chunk statistics for debugging and optimization.
 
@@ -66,7 +65,7 @@ def analyze_chunks(chunks: List[str], delimiter: str = "\n") -> dict:
     }
 
 
-def preview_chunks(chunks: List[str], max_preview: int = 100) -> List[str]:
+def preview_chunks(chunks: list[str], max_preview: int = 100) -> list[str]:
     """
     Create preview of chunks for debugging (truncated for readability).
 

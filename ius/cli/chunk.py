@@ -10,7 +10,6 @@ Usage:
 import argparse
 import sys
 import time
-from typing import Dict, Optional
 
 from ius.chunk import process_dataset_items
 from ius.data import list_datasets, load_data
@@ -24,12 +23,12 @@ from .common import (
 def chunk_dataset(
     dataset_name: str,
     strategy: str,
-    chunk_size: Optional[int] = None,
-    num_chunks: Optional[int] = None,
+    chunk_size: int | None = None,
+    num_chunks: int | None = None,
     delimiter: str = "\n",
-    output_path: Optional[str] = None,
+    output_path: str | None = None,
     preview: bool = False,
-) -> Dict[str, any]:
+) -> dict[str, any]:
     """
     CLI wrapper for chunking datasets with progress printing and file I/O.
 

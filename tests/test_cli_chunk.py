@@ -197,7 +197,7 @@ class TestCLICommands(unittest.TestCase):
         test_args = ['ius', '--list-datasets']
         with (
             patch('sys.argv', test_args),
-            patch('ius.cli.chunk.list_available_datasets', return_value=['bmds', 'test']),
+            patch('ius.cli.chunk.list_datasets', return_value=['bmds', 'test']),
             patch('sys.stdout', new_callable=StringIO) as mock_stdout,
         ):
             main()
@@ -206,11 +206,11 @@ class TestCLICommands(unittest.TestCase):
             self.assertIn("bmds", output)
             self.assertIn("test", output)
 
-    @patch('ius.cli.chunk.validate_dataset_exists')
+    @patch('ius.cli.chunk.list_datasets')
     @patch('ius.cli.chunk.chunk_dataset')
-    def test_main_successful_run(self, mock_chunk_dataset, mock_validate):
+    def test_main_successful_run(self, mock_chunk_dataset, mock_list_datasets):
         """Test successful CLI execution."""
-        mock_validate.return_value = True
+        mock_list_datasets.return_value = ['test']
         mock_chunk_dataset.return_value = {"dataset": "test", "items": {"item1": {}}}
 
         test_args = [
@@ -262,12 +262,10 @@ class TestCLICommands(unittest.TestCase):
             main()
             self.assertNotEqual(cm.exception.code, 0)
 
-    @patch('ius.cli.chunk.validate_dataset_exists')
-    @patch('ius.cli.chunk.list_available_datasets')
-    def test_main_nonexistent_dataset(self, mock_list, mock_validate):
+    @patch('ius.cli.chunk.list_datasets')
+    def test_main_nonexistent_dataset(self, mock_list_datasets):
         """Test error handling for nonexistent dataset."""
-        mock_validate.return_value = False
-        mock_list.return_value = ['bmds', 'other']
+        mock_list_datasets.return_value = ['bmds', 'other']
 
         test_args = [
             'ius', '--dataset', 'nonexistent',

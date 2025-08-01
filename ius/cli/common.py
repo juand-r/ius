@@ -5,10 +5,10 @@ Common utilities for CLI modules.
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 
-def setup_output_dir(output_path: Optional[str] = None) -> Path:
+def setup_output_dir(output_path: str | None = None) -> Path:
     """
     Set up output directory, creating it if it doesn't exist.
 
@@ -24,7 +24,7 @@ def setup_output_dir(output_path: Optional[str] = None) -> Path:
     return output_dir
 
 
-def save_json_output(data: Dict[str, Any], output_path: str, pretty: bool = True) -> None:
+def save_json_output(data: dict[str, Any], output_path: str, pretty: bool = True) -> None:
     """
     Save data to JSON file with error handling.
 
@@ -50,7 +50,7 @@ def save_json_output(data: Dict[str, Any], output_path: str, pretty: bool = True
         sys.exit(1)
 
 
-def print_summary_stats(stats: Dict[str, Any]) -> None:
+def print_summary_stats(stats: dict[str, Any]) -> None:
     """
     Print formatted summary statistics.
 

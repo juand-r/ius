@@ -5,12 +5,12 @@ All chunking functions use delimiter-aware splitting to avoid breaking
 words or sentences. Content preservation is guaranteed.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .utils import analyze_chunks, validate_chunks
 
 
-def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n") -> List[str]:
+def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n") -> list[str]:
     """
     Split text into chunks of approximately fixed size, respecting delimiter boundaries.
 
@@ -65,7 +65,7 @@ def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n") -> List[
     return chunks
 
 
-def chunk_fixed_count(text: str, num_chunks: int, delimiter: str = "\n") -> List[str]:
+def chunk_fixed_count(text: str, num_chunks: int, delimiter: str = "\n") -> list[str]:
     """
     Split text into a fixed number of chunks, respecting delimiter boundaries.
 
@@ -120,7 +120,7 @@ def chunk_fixed_count(text: str, num_chunks: int, delimiter: str = "\n") -> List
 
 def chunk_custom(
     text: str, strategy: str, delimiter: str = "\n", **kwargs
-) -> List[str]:
+) -> list[str]:
     """
     Split text using custom strategy (placeholder for dataset-specific approaches).
 
@@ -143,10 +143,10 @@ def chunk_custom(
 def _apply_chunking_strategy(
     text: str,
     strategy: str,
-    chunk_size: Optional[int],
-    num_chunks: Optional[int],
+    chunk_size: int | None,
+    num_chunks: int | None,
     delimiter: str,
-) -> List[str]:
+) -> list[str]:
     """
     Apply the specified chunking strategy to text.
 
@@ -181,13 +181,13 @@ def _apply_chunking_strategy(
 
 
 def process_dataset_items(
-    items: Dict[str, Any],
+    items: dict[str, Any],
     strategy: str,
     document_handling: str = "chunk-individual-docs",
-    chunk_size: Optional[int] = None,
-    num_chunks: Optional[int] = None,
+    chunk_size: int | None = None,
+    num_chunks: int | None = None,
     delimiter: str = "\n",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Core logic to chunk all items in a dataset.
 
