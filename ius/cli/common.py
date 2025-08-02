@@ -52,6 +52,55 @@ def save_json_output(
         sys.exit(1)
 
 
+def save_chunked_collection_and_items(
+    chunked_collection: dict[str, Any], chunked_items: dict[str, Any], 
+    output_directory: str, pretty: bool = True
+) -> None:
+    """
+    Save chunked collection and individual items in the proper directory structure.
+
+    Args:
+        chunked_collection: Collection-level metadata and statistics
+        chunked_items: Dictionary of item_id -> chunked item data
+        output_directory: Directory to save the chunked data
+        pretty: Whether to pretty-print the JSON
+    """
+    try:
+        output_dir = Path(output_directory)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Create items subdirectory
+        items_dir = output_dir / "items"
+        items_dir.mkdir(exist_ok=True)
+
+        # Save collection.json
+        collection_file = output_dir / "collection.json"
+        with open(collection_file, "w", encoding="utf-8") as f:
+            if pretty:
+                json.dump(chunked_collection, f, indent=2, ensure_ascii=False)
+            else:
+                json.dump(chunked_collection, f, ensure_ascii=False)
+
+        # Save individual items
+        saved_count = 0
+        for item_id, item_data in chunked_items.items():
+            item_file = items_dir / f"{item_id}.json"
+            
+            with open(item_file, "w", encoding="utf-8") as f:
+                if pretty:
+                    json.dump(item_data, f, indent=2, ensure_ascii=False)
+                else:
+                    json.dump(item_data, f, ensure_ascii=False)
+            
+            saved_count += 1
+
+        print(f"✅ Collection and {saved_count} chunked items saved to: {output_dir}")
+
+    except Exception as e:
+        print(f"❌ Error saving chunked data to {output_directory}: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 def print_summary_stats(stats: dict[str, Any]) -> None:
     """
     Print formatted summary statistics.

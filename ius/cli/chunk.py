@@ -20,6 +20,7 @@ from ius.logging_config import get_logger, setup_logging
 from .common import (
     print_summary_stats,
     save_json_output,
+    save_chunked_collection_and_items,
 )
 
 
@@ -70,14 +71,19 @@ def chunk_dataset(
     overall_stats = _calculate_overall_statistics(results, errors)
     print_summary_stats(overall_stats)
 
-    # Prepare final output
+    # Prepare chunked items and collection in new format
+    chunked_items, chunked_collection = _prepare_chunked_data_for_saving(
+        dataset_name, strategy, overall_stats, results, dataset["items"], dataset.get("collection_metadata", {})
+    )
+
+    # Save chunked collection and items if path specified
+    if output_path:
+        save_chunked_collection_and_items(chunked_collection, chunked_items, output_path)
+
+    # Prepare legacy output format for return value (compatibility)
     output_data = _prepare_output_data(
         dataset_name, strategy, overall_stats, results, errors
     )
-
-    # Save output if path specified
-    if output_path:
-        save_json_output(output_data, output_path)
 
     return output_data
 
@@ -261,11 +267,83 @@ def _calculate_overall_statistics(results: dict, errors: dict) -> dict[str, Any]
         }
 
 
+def _prepare_chunked_data_for_saving(
+    dataset_name: str, strategy: str, overall_stats: dict, results: dict, 
+    original_items: dict, original_collection_metadata: dict
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """
+    Prepare chunked collection and items in the new format that matches original dataset structure.
+    
+    Args:
+        dataset_name: Name of the dataset
+        strategy: Chunking strategy used
+        overall_stats: Overall statistics from chunking
+        results: Chunking results per item
+        original_items: Original item data to preserve metadata
+        original_collection_metadata: Original collection metadata
+        
+    Returns:
+        Tuple of (chunked_items, chunked_collection)
+    """
+    # Prepare collection-level data
+    chunked_collection = {
+        **original_collection_metadata,  # Preserve original collection metadata
+        "chunking_info": {
+            "strategy": strategy,
+            "overall_stats": overall_stats,
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+    }
+    
+    # Prepare individual items
+    chunked_items = {}
+    
+    for item_id, chunk_result in results.items():
+        # Get original item data for metadata preservation
+        original_item = original_items[item_id]
+        original_metadata = original_item.get("item_metadata", {})
+        
+        # Create new item_metadata with ONLY item-specific chunking info
+        item_metadata = {
+            **original_metadata,  # Preserve original metadata
+            "chunking_method": strategy,
+            "chunking_params": chunk_result["parameters"],
+            "chunking_timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        
+        # Convert chunked documents to new format
+        documents = []
+        for i, chunk_group in enumerate(chunk_result["chunks"]):
+            # Get original document metadata if available
+            original_doc = original_item["documents"][i] if i < len(original_item["documents"]) else {}
+            original_doc_metadata = original_doc.get("metadata", {})
+            
+            document = {
+                "chunks": chunk_group["chunks"],  # List of text chunks
+                "metadata": {
+                    "original_metadata": original_doc_metadata,
+                    "chunking_stats": {
+                        **chunk_group["stats"],
+                        "original_length": len(original_doc.get("content", "")),
+                    }
+                }
+            }
+            documents.append(document)
+        
+        # Create the new chunked item structure
+        chunked_items[item_id] = {
+            "item_metadata": item_metadata,
+            "documents": documents
+        }
+    
+    return chunked_items, chunked_collection
+
+
 def _prepare_output_data(
     dataset_name: str, strategy: str, overall_stats: dict, results: dict, errors: dict
 ) -> dict[str, Any]:
     """
-    Prepare final output data structure.
+    Prepare final output data structure (legacy format for compatibility).
 
     Returns:
         Complete output data dictionary
@@ -405,7 +483,7 @@ Examples:
     # Set up output path if not specified
     if not args.output:
         strategy_suffix = f"{args.strategy}_{args.size or args.count}"
-        args.output = f"outputs/chunks/{args.dataset}_{strategy_suffix}.json"
+        args.output = f"outputs/chunks/{args.dataset}_{strategy_suffix}"
 
     # Handle dry-run mode
     if args.dry_run:

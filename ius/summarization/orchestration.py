@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 
 from .methods import no_op, concat_and_summarize, iterative_summarize
-
+from ..data import ChunkedDataset
 from ..logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -51,12 +51,12 @@ def summarize(strategy: str, dataset: str, scope: str,
     
     os.makedirs(results_dir, exist_ok=True)
     
-    # Load chunked data
+    # Load chunked data using new ChunkedDataset class
     if chunked_file_path is None:
-        # Use default chunked file - look for most recent in outputs/chunks/
-        chunked_file_path = _find_default_chunked_file(dataset)
+        # Use default chunked directory - look for most recent in outputs/chunks/
+        chunked_file_path = _find_default_chunked_directory(dataset)
     
-    chunked_data = load_chunked_data(chunked_file_path)
+    chunked_dataset = ChunkedDataset(chunked_file_path)
     
     # Initialize experiment config and metadata
     config = {
@@ -81,40 +81,43 @@ def summarize(strategy: str, dataset: str, scope: str,
         "api_calls": 0
     }
     
-    # Process based on scope
+    # Process based on scope using ChunkedDataset methods
     if scope == "item":
         # Single item processing
         item_id = kwargs["item_id"]
-        # Remove item_id from kwargs since it's passed positionally
-        strategy_kwargs = {k: v for k, v in kwargs.items() if k != "item_id"}
-        result = _process_single_item(strategy, chunked_data, item_id, **strategy_kwargs)
+        chunks = chunked_dataset.get_chunks_for_scope(scope, item_id=item_id)
+        
+        # Apply strategy
+        strategy_kwargs = {k: v for k, v in kwargs.items() if k not in ["item_id", "scope", "doc_range"]}
+        result = _apply_strategy(strategy, chunks, **strategy_kwargs)
         
         # Save result
         _save_item_result(results_dir, item_id, result["response"])
         
         # Update metadata
-        summary_metadata[item_id] = _extract_item_metadata(result, chunked_data, item_id, scope, kwargs.get("doc_range"))
+        summary_metadata[item_id] = _extract_item_metadata_new(result, chunked_dataset, item_id, scope, kwargs.get("doc_range"))
         _update_total_usage(total_usage, result["usage"])
         config["total_items_processed"] = 1
         
     elif scope == "dataset":
         # Process all items in dataset
-        item_ids = list(chunked_data["items"].keys())
+        item_ids = chunked_dataset.item_ids
         
         for item_id in item_ids:
             logger.info(f"Processing item {item_id} ({len(summary_metadata)+1}/{len(item_ids)})")
             
             try:
-                # Create kwargs for this item (excluding item_id since it's passed positionally)
-                item_kwargs = kwargs.copy()
+                chunks = chunked_dataset.get_chunks_for_scope("item", item_id=item_id)
                 
-                result = _process_single_item(strategy, chunked_data, item_id, **item_kwargs)
+                # Apply strategy
+                strategy_kwargs = {k: v for k, v in kwargs.items() if k not in ["item_id", "scope", "doc_range"]}
+                result = _apply_strategy(strategy, chunks, **strategy_kwargs)
                 
                 # Save result
                 _save_item_result(results_dir, item_id, result["response"])
                 
                 # Update metadata
-                summary_metadata[item_id] = _extract_item_metadata(result, chunked_data, item_id, scope, None)
+                summary_metadata[item_id] = _extract_item_metadata_new(result, chunked_dataset, item_id, "item", None)
                 _update_total_usage(total_usage, result["usage"])
                 
             except Exception as e:
@@ -126,17 +129,20 @@ def summarize(strategy: str, dataset: str, scope: str,
     elif scope == "doc_range":
         # Document range within an item
         item_id = kwargs["item_id"]
-        # Remove item_id from kwargs since it's passed positionally
-        strategy_kwargs = {k: v for k, v in kwargs.items() if k != "item_id"}
-        result = _process_single_item(strategy, chunked_data, item_id, **strategy_kwargs)
+        doc_range = kwargs["doc_range"]
+        chunks = chunked_dataset.get_chunks_for_scope(scope, item_id=item_id, doc_range=doc_range)
+        
+        # Apply strategy
+        strategy_kwargs = {k: v for k, v in kwargs.items() if k not in ["item_id", "scope", "doc_range"]}
+        result = _apply_strategy(strategy, chunks, **strategy_kwargs)
         
         # Save result
-        doc_range_str = str(kwargs["doc_range"]).replace(":", "-")
+        doc_range_str = str(doc_range).replace(":", "-").replace(",", "_")
         filename = f"{item_id}_docs_{doc_range_str}"
         _save_item_result(results_dir, filename, result["response"])
         
         # Update metadata
-        summary_metadata[filename] = _extract_item_metadata(result, chunked_data, item_id, scope, kwargs["doc_range"])
+        summary_metadata[filename] = _extract_item_metadata_new(result, chunked_dataset, item_id, scope, doc_range)
         _update_total_usage(total_usage, result["usage"])
         config["total_items_processed"] = 1
     
@@ -159,147 +165,89 @@ def summarize(strategy: str, dataset: str, scope: str,
     }
 
 
-def _process_single_item(strategy: str, chunked_data: Dict, item_id: str, **kwargs) -> Dict[str, Any]:
-    """Process a single item with the specified strategy."""
-    # Get chunks directly from chunked data
-    if item_id not in chunked_data["items"]:
-        raise ValueError(f"Item {item_id} not found in chunked data")
-    
-    # Extract actual text chunks from document objects
-    document_objects = chunked_data["items"][item_id]["chunks"]
-    item_chunks = []
-    for doc_obj in document_objects:
-        item_chunks.extend(doc_obj["chunks"])  # Get the actual text chunks
-    
-    # Extract chunks based on scope and doc_range
-    scope = kwargs.get("scope", "item")  # Default to item scope for single processing
-    doc_range = kwargs.get("doc_range", None)
-    chunks = _extract_chunks_for_scope(item_chunks, scope, doc_range)
-    
-    # Apply strategy
-    strategy_kwargs = {k: v for k, v in kwargs.items() if k not in ["item_id", "scope", "doc_range"]}
-    
+def _apply_strategy(strategy: str, chunks: List[str], **kwargs) -> Dict[str, Any]:
+    """Apply the specified strategy to the given chunks."""
     if strategy == "no_op":
-        return no_op(chunks, **strategy_kwargs)
+        return no_op(chunks, **kwargs)
     elif strategy == "concat_and_summarize":
-        return concat_and_summarize(chunks, **strategy_kwargs)
+        return concat_and_summarize(chunks, **kwargs)
     elif strategy == "iterative_summarize":
-        return iterative_summarize(chunks, **strategy_kwargs)
+        return iterative_summarize(chunks, **kwargs)
     else:
         raise ValueError(f"Unknown strategy: {strategy}")
 
 
-def load_chunked_data(chunked_file_path: str) -> Dict[str, Any]:
+def load_chunked_data(chunked_directory_path: str) -> ChunkedDataset:
     """
     Load pre-chunked data from outputs/chunks/ directory.
     
     Args:
-        chunked_file_path: Path to chunked JSON file
+        chunked_directory_path: Path to chunked directory
         
     Returns:
-        Dict with chunked data for all items
+        ChunkedDataset instance
     """
-    if not os.path.exists(chunked_file_path):
-        raise FileNotFoundError(f"Chunked data file not found: {chunked_file_path}")
-    
-    with open(chunked_file_path, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-    
-    logger.info(f"Loaded chunked data: {len(data.get('items', {}))} items from {chunked_file_path}")
-    return data
+    return ChunkedDataset(chunked_directory_path)
 
 
 
 
 
-def _extract_chunks_for_scope(chunks: List[str], scope: str, doc_range: Optional[str]) -> List[str]:
+def _extract_item_metadata_new(result: Dict[str, Any], chunked_dataset: ChunkedDataset, 
+                             item_id: str, scope: str, doc_range: Optional[str]) -> Dict[str, Any]:
     """
-    Extract chunks based on scope and document range.
+    Extract metadata for an item using the new ChunkedDataset.
     
     Args:
-        chunks: List of text chunks for an item
-        scope: "item", "dataset", or "doc_range"
-        doc_range: Document range specification (e.g., "0:2", "1", None)
+        result: Result from strategy application
+        chunked_dataset: ChunkedDataset instance
+        item_id: Item ID
+        scope: Processing scope
+        doc_range: Document range (if applicable)
         
     Returns:
-        List of text chunks for the specified scope
-    """    
-    if scope in ["item", "dataset"]:
-        # All chunks in the item
-        return chunks
-        
-    elif scope == "doc_range":
-        if doc_range is None:
-            raise ValueError("doc_range required for doc_range scope")
-        
-        # Parse document range
-        if ":" in str(doc_range):
-            # Range format: "0:2" means docs 0, 1, 2
-            start, end = map(int, str(doc_range).split(":"))
-            if start < 0 or end >= len(chunks):
-                raise ValueError(f"Document range {doc_range} out of bounds (0 to {len(chunks)-1})")
-            return chunks[start:end+1]
-        else:
-            # Single document: "1" means just doc 1
-            doc_idx = int(doc_range)
-            if doc_idx < 0 or doc_idx >= len(chunks):
-                raise ValueError(f"Document index {doc_idx} out of bounds (0 to {len(chunks)-1})")
-            return [chunks[doc_idx]]
+        Metadata dictionary
+    """
+    # Get chunking stats from the dataset
+    chunking_stats = chunked_dataset.get_item_stats(item_id)
     
+    # Calculate chunk counts based on scope
+    if scope == "item":
+        chunks_processed = len(chunked_dataset.get_item_chunks(item_id))
+    elif scope == "doc_range":
+        chunks_processed = len(chunked_dataset.get_chunks_for_scope(scope, item_id=item_id, doc_range=doc_range))
     else:
-        raise ValueError(f"Unknown scope: {scope}")
+        chunks_processed = len(chunked_dataset.get_item_chunks(item_id))
+    
+    return {
+        "scope": scope,
+        "doc_range": doc_range,
+        "chunks_processed": chunks_processed,
+        "chunking_stats": chunking_stats,
+        "usage": result.get("usage", {}),
+        "response_length": len(result.get("response", "")),
+        "method": result.get("method", "unknown")
+    }
 
 
-def _find_default_chunked_file(dataset: str) -> str:
-    """Find the most recent chunked file for a dataset."""
+def _find_default_chunked_directory(dataset: str) -> str:
+    """Find the most recent chunked directory for a dataset."""
     chunks_dir = "outputs/chunks"
     if not os.path.exists(chunks_dir):
         raise FileNotFoundError(f"Chunks directory not found: {chunks_dir}")
     
-    # Look for files matching the pattern
+    # Look for directories matching the pattern
     pattern = f"{dataset}_"
-    matching_files = [f for f in os.listdir(chunks_dir) if f.startswith(pattern) and f.endswith('.json')]
+    matching_dirs = [d for d in os.listdir(chunks_dir) 
+                    if d.startswith(pattern) and os.path.isdir(os.path.join(chunks_dir, d))]
     
-    if not matching_files:
-        raise FileNotFoundError(f"No chunked files found for dataset {dataset} in {chunks_dir}")
+    if not matching_dirs:
+        raise FileNotFoundError(f"No chunked directories found for dataset {dataset} in {chunks_dir}")
     
     # Return the first match (could be enhanced to find most recent)
-    default_file = os.path.join(chunks_dir, matching_files[0])
-    logger.info(f"Using default chunked file: {default_file}")
-    return default_file
-
-
-def _extract_item_metadata(result: Dict, chunked_data: Dict, item_id: str, scope: str, doc_range: Optional[str]) -> Dict[str, Any]:
-    """Extract metadata for a single item result."""
-    chunks_used = result.get("input_chunks", 1)
-    
-    # Determine input type
-    if scope == "doc_range" and doc_range:
-        if ":" in str(doc_range):
-            start, end = map(int, str(doc_range).split(":"))
-            input_docs = f"doc_range_{start}_{end}"
-        else:
-            input_docs = f"single_doc_{doc_range}"
-    else:
-        # Calculate total chunks from all documents in the item
-        document_objects = chunked_data["items"][item_id]["chunks"]
-        total_chunks = sum(len(doc_obj["chunks"]) for doc_obj in document_objects)
-        input_docs = "all_docs" if total_chunks > 1 else "single_doc"
-    
-    # Calculate lengths
-    response = result.get("response", "")
-    
-    return {
-        "input_docs": input_docs,
-        "total_chunks": chunks_used,
-        "input_length_chars": len(result.get("input_text", "")),  # Would need to track this
-        "input_length_words": result.get("input_word_count", 0),  # Would need to track this
-        "summary_length_chars": len(response),
-        "summary_length_words": len(response.split()),
-        "processing_time": result.get("processing_time", 0.0),
-        "model": result.get("model", "unknown"),
-        "usage": result.get("usage", {})
-    }
+    default_dir = os.path.join(chunks_dir, matching_dirs[0])
+    logger.info(f"Using default chunked directory: {default_dir}")
+    return default_dir
 
 
 def _update_total_usage(total_usage: Dict, item_usage: Dict) -> None:
