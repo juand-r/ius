@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 
 from .methods import no_op, concat_and_summarize, iterative_summarize
-from ..data import ChunkedDataset
+from ..data import ChunkedDataset, SummaryDataset
 from ..logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -287,3 +287,108 @@ def _save_summary_metadata(experiment_dir: str, metadata: Dict) -> None:
     
     with open(metadata_path, 'w', encoding='utf-8') as f:
         json.dump(metadata, f, indent=2, ensure_ascii=False)
+
+
+# Pipeline Integration Functions
+
+def load_summary_experiment(experiment_id: str) -> SummaryDataset:
+    """
+    Load a completed summarization experiment as a SummaryDataset.
+    
+    Args:
+        experiment_id: ID of the experiment (e.g., "20250801_210856_no_op_item")
+        
+    Returns:
+        SummaryDataset instance for the experiment
+        
+    Raises:
+        ValueError: If experiment directory doesn't exist
+    """
+    experiment_dir = f"outputs/summaries/{experiment_id}"
+    
+    if not os.path.exists(experiment_dir):
+        raise ValueError(f"Experiment directory not found: {experiment_dir}")
+    
+    return SummaryDataset(experiment_dir)
+
+
+def list_summary_experiments() -> List[str]:
+    """
+    List all available summarization experiments.
+    
+    Returns:
+        List of experiment IDs
+    """
+    summaries_dir = "outputs/summaries"
+    
+    if not os.path.exists(summaries_dir):
+        return []
+    
+    experiments = []
+    for item in os.listdir(summaries_dir):
+        experiment_path = os.path.join(summaries_dir, item)
+        if os.path.isdir(experiment_path):
+            # Check if it's a valid experiment (has config.json)
+            config_file = os.path.join(experiment_path, "config.json")
+            if os.path.exists(config_file):
+                experiments.append(item)
+    
+    return sorted(experiments)
+
+
+def get_pipeline_summary(dataset_name: str, chunk_experiment: str, 
+                        summary_experiment: str) -> Dict[str, Any]:
+    """
+    Get a complete pipeline summary: Dataset -> ChunkedDataset -> SummaryDataset.
+    
+    Args:
+        dataset_name: Name of the original dataset (e.g., "bmds")
+        chunk_experiment: Name of the chunking experiment (e.g., "bmds_fixed_count_3")
+        summary_experiment: ID of the summarization experiment
+        
+    Returns:
+        Dictionary with pipeline statistics and metadata
+    """
+    try:
+        # Load all three stages of the pipeline
+        from ..data import Dataset
+        
+        original_dataset = Dataset(f"datasets/{dataset_name}")
+        chunked_dataset = ChunkedDataset(f"outputs/chunks/{chunk_experiment}")
+        summary_dataset = load_summary_experiment(summary_experiment)
+        
+        # Get collection-level stats
+        pipeline_stats = {
+            "dataset_name": dataset_name,
+            "pipeline_stages": {
+                "original": {
+                    "name": original_dataset.name,
+                    "items": len(original_dataset),
+                    "metadata": original_dataset.metadata
+                },
+                "chunked": {
+                    "name": chunked_dataset.name,
+                    "items": len(chunked_dataset),
+                    "metadata": chunked_dataset.metadata
+                },
+                "summarized": {
+                    "name": summary_dataset.name,
+                    "items": len(summary_dataset),
+                    "metadata": summary_dataset.metadata
+                }
+            },
+            "pipeline_consistency": {
+                "all_stages_same_item_count": (
+                    len(original_dataset) == len(chunked_dataset) == len(summary_dataset)
+                ),
+                "original_items": len(original_dataset),
+                "chunked_items": len(chunked_dataset),
+                "summarized_items": len(summary_dataset)
+            }
+        }
+        
+        return pipeline_stats
+        
+    except Exception as e:
+        logger.error(f"Error creating pipeline summary: {e}")
+        raise

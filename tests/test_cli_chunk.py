@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 from ius.cli.chunk import chunk_dataset, main
 from ius.cli.common import save_json_output
+from ius.data import Dataset
 
 
 class TestChunkingCLI(unittest.TestCase):
@@ -68,10 +69,21 @@ class TestChunkingCLI(unittest.TestCase):
             "num_items_loaded": 0,
         }
 
-    @patch("ius.cli.chunk.load_data")
-    def test_chunk_dataset_fixed_size(self, mock_load_data):
+    def _create_mock_dataset(self, dataset_dict):
+        """Helper to create mock Dataset object from old format."""
+        from unittest.mock import MagicMock
+        mock_dataset = MagicMock()
+        items = dataset_dict.get("items", {})
+        mock_dataset.item_ids = list(items.keys())
+        mock_dataset.load_item.side_effect = lambda item_id: items[item_id]
+        mock_dataset.metadata = dataset_dict.get("collection_metadata", {})
+        mock_dataset.__len__.return_value = len(items)
+        return mock_dataset
+
+    @patch("ius.cli.chunk.Dataset")
+    def test_chunk_dataset_fixed_size(self, mock_dataset_class):
         """Test dataset chunking with fixed size strategy."""
-        mock_load_data.return_value = self.test_dataset
+        mock_dataset_class.return_value = self._create_mock_dataset(self.test_dataset)
 
         result = chunk_dataset(
             dataset_name="test",
@@ -90,10 +102,10 @@ class TestChunkingCLI(unittest.TestCase):
         self.assertGreater(item_1["overall_stats"]["total_chunks"], 1)
         self.assertEqual(item_1["strategy"], "fixed_size")
 
-    @patch("ius.cli.chunk.load_data")
-    def test_chunk_dataset_fixed_count(self, mock_load_data):
+    @patch("ius.cli.chunk.Dataset")
+    def test_chunk_dataset_fixed_count(self, mock_dataset_class):
         """Test dataset chunking with fixed count strategy."""
-        mock_load_data.return_value = self.test_dataset
+        mock_dataset_class.return_value = self._create_mock_dataset(self.test_dataset)
 
         result = chunk_dataset(
             dataset_name="test",
@@ -108,10 +120,10 @@ class TestChunkingCLI(unittest.TestCase):
         for _item_id, item_data in result["items"].items():
             self.assertLessEqual(item_data["overall_stats"]["total_chunks"], 2)
 
-    @patch("ius.cli.chunk.load_data")
-    def test_chunk_dataset_multi_document(self, mock_load_data):
+    @patch("ius.cli.chunk.Dataset")
+    def test_chunk_dataset_multi_document(self, mock_dataset_class):
         """Test chunking dataset with multi-document items."""
-        mock_load_data.return_value = self.multi_doc_dataset
+        mock_dataset_class.return_value = self._create_mock_dataset(self.multi_doc_dataset)
 
         result = chunk_dataset(
             dataset_name="test",
@@ -126,15 +138,14 @@ class TestChunkingCLI(unittest.TestCase):
         self.assertTrue(story_1["validation_passed"])
         self.assertGreater(story_1["original_length"], 50)  # Combined text
 
-    @patch("ius.cli.chunk.load_data")
-    def test_chunk_dataset_with_output(self, mock_load_data):
+    @patch("ius.cli.chunk.Dataset")
+    def test_chunk_dataset_with_output(self, mock_dataset_class):
         """Test chunking with output file saving."""
-        mock_load_data.return_value = self.test_dataset
+        mock_dataset_class.return_value = self._create_mock_dataset(self.test_dataset)
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
-            output_path = tmp.name
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_path = tmp_dir
 
-        try:
             chunk_dataset(
                 dataset_name="test",
                 strategy="fixed_size",
@@ -142,21 +153,19 @@ class TestChunkingCLI(unittest.TestCase):
                 output_path=output_path,
             )
 
-            # Check that file was created and contains expected data
-            self.assertTrue(Path(output_path).exists())
+            # Check that directory structure was created
+            output_dir = Path(output_path)
+            self.assertTrue(output_dir.exists())
+            self.assertTrue((output_dir / "collection.json").exists())
+            self.assertTrue((output_dir / "items").exists())
 
-            with open(output_path) as f:
-                saved_data = json.load(f)
+            # Verify at least some items were saved
+            items_dir = output_dir / "items"
+            item_files = list(items_dir.glob("*.json"))
+            self.assertEqual(len(item_files), 2)
 
-            self.assertEqual(saved_data["dataset"], "test")
-            self.assertEqual(len(saved_data["items"]), 2)
-
-        finally:
-            # Cleanup
-            Path(output_path).unlink(missing_ok=True)
-
-    @patch("ius.cli.chunk.load_data")
-    def test_chunk_dataset_empty_items(self, mock_load_data):
+    @patch("ius.cli.chunk.Dataset")
+    def test_chunk_dataset_empty_items(self, mock_dataset_class):
         """Test handling of empty or invalid items."""
         mock_dataset = {
             "items": {
@@ -174,7 +183,7 @@ class TestChunkingCLI(unittest.TestCase):
             "collection_metadata": {"num_items": 3},
             "num_items_loaded": 3,
         }
-        mock_load_data.return_value = mock_dataset
+        mock_dataset_class.return_value = self._create_mock_dataset(mock_dataset)
 
         result = chunk_dataset(
             dataset_name="test",
@@ -192,10 +201,10 @@ class TestChunkingCLI(unittest.TestCase):
         self.assertIn("empty", result["errors"])
         self.assertIn("missing_documents", result["errors"])
 
-    @patch("ius.cli.chunk.load_data")
-    def test_chunk_dataset_validation_failure(self, mock_load_data):
+    @patch("ius.cli.chunk.Dataset")
+    def test_chunk_dataset_validation_failure(self, mock_dataset_class):
         """Test handling of validation failures."""
-        mock_load_data.return_value = self.test_dataset
+        mock_dataset_class.return_value = self._create_mock_dataset(self.test_dataset)
 
         # Mock chunking function to raise validation error
         with patch(

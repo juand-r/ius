@@ -13,7 +13,7 @@ import time
 from typing import Any
 
 from ius.chunk import process_dataset_items
-from ius.data import list_datasets, load_data
+from ius.data import Dataset, list_datasets
 from ius.exceptions import ChunkingError, DatasetError, ValidationError
 from ius.logging_config import get_logger, setup_logging
 
@@ -57,12 +57,15 @@ def chunk_dataset(
     if not dataset:
         return {}
 
+    # Convert Dataset object to items dictionary for processing
+    items_dict = _dataset_to_items_dict(dataset)
+
     # Print strategy information
     _print_strategy_info(strategy, chunk_size, num_chunks, delimiter)
 
     # Process items with chunking
     results, errors = _process_items_with_chunking(
-        dataset["items"], strategy, chunk_size, num_chunks, delimiter, preview
+        items_dict, strategy, chunk_size, num_chunks, delimiter, preview
     )
     if results is None:  # Processing failed
         return {}
@@ -73,7 +76,7 @@ def chunk_dataset(
 
     # Prepare chunked items and collection in new format
     chunked_items, chunked_collection = _prepare_chunked_data_for_saving(
-        dataset_name, strategy, overall_stats, results, dataset["items"], dataset.get("collection_metadata", {})
+        dataset_name, strategy, overall_stats, results, items_dict, dataset.metadata
     )
 
     # Save chunked collection and items if path specified
@@ -91,25 +94,22 @@ def chunk_dataset(
 # Helper functions for chunk_dataset breakdown
 
 
-def _load_and_validate_dataset(dataset_name: str) -> dict[str, Any] | None:
+def _load_and_validate_dataset(dataset_name: str) -> Dataset | None:
     """
-    Load dataset with comprehensive error handling.
+    Load dataset using Dataset class with comprehensive error handling.
 
     Args:
         dataset_name: Name of the dataset to load
 
     Returns:
-        Dataset dictionary or None if loading failed
+        Dataset object or None if loading failed
     """
     logger.info(f"Loading dataset: {dataset_name}")
 
     try:
-        # Load dataset - returns {"items": {...}, "collection_metadata": {...}, "num_items_loaded": N}
-        dataset = load_data(dataset_name)
-
-        # Extract the actual item data dictionary
-        items = dataset["items"]
-        logger.info(f"Loaded {len(items)} items from {dataset_name}")
+        # Load dataset using Dataset class
+        dataset = Dataset(f"datasets/{dataset_name}")
+        logger.info(f"Loaded {len(dataset)} items from {dataset_name}")
 
         return dataset
 
@@ -133,6 +133,22 @@ def _load_and_validate_dataset(dataset_name: str) -> dict[str, Any] | None:
         logger.error(f"Unexpected error loading dataset {dataset_name}: {e}")
         logger.info("This may be a bug. Please check the dataset format and try again.")
         return None
+
+
+def _dataset_to_items_dict(dataset: Dataset) -> dict[str, Any]:
+    """
+    Convert Dataset object to items dictionary for compatibility with existing processing functions.
+    
+    Args:
+        dataset: Dataset object
+        
+    Returns:
+        Dictionary mapping item_id -> item_data
+    """
+    items_dict = {}
+    for item_id in dataset.item_ids:
+        items_dict[item_id] = dataset.load_item(item_id)
+    return items_dict
 
 
 def _print_strategy_info(
@@ -493,12 +509,11 @@ Examples:
         try:
             dataset = _load_and_validate_dataset(args.dataset)
             if dataset:
-                items = dataset["items"]
                 logger.info(
-                    f"📋 Would process {len(items)} items from dataset '{args.dataset}'"
+                    f"📋 Would process {len(dataset)} items from dataset '{args.dataset}'"
                 )
                 logger.info(
-                    f"📋 Items: {', '.join(sorted(items.keys())[:5])}{'...' if len(items) > 5 else ''}"
+                    f"📋 Items: {', '.join(sorted(dataset.item_ids)[:5])}{'...' if len(dataset) > 5 else ''}"
                 )
 
                 # Show strategy that would be used

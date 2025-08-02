@@ -12,7 +12,7 @@ from ius.chunk import (
     preview_chunks,
     validate_chunks,
 )
-from ius.data import load_data
+from ius.data import Dataset
 from ius.exceptions import ChunkingError
 
 
@@ -22,8 +22,8 @@ class TestChunking(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Load BMDS data for testing."""
-        data = load_data("bmds", item_id="ADP02")
-        cls.item = data["items"]["ADP02"]
+        dataset = Dataset("datasets/bmds")
+        cls.item = dataset.load_item("ADP02")
         cls.document = cls.item["documents"][0]
         cls.text = cls.document["content"]
 
@@ -212,8 +212,8 @@ def test_chunking_integration():
 
     # Load data
     print("📚 Loading BMDS dataset...")
-    data = load_data("bmds", item_id="ADP02")
-    item = data["items"]["ADP02"]
+    dataset = Dataset("datasets/bmds")
+    item = dataset.load_item("ADP02")
     document = item["documents"][0]
     text = document["content"]
 
