@@ -10,7 +10,7 @@ This module provides different approaches to combining and summarizing chunks:
 from typing import Any
 
 from ..logging_config import get_logger
-from .utils import call_llm
+from ..utils import call_llm
 
 
 logger = get_logger(__name__)

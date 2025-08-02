@@ -15,15 +15,15 @@ try:
 except ImportError:
     raise ImportError("OpenAI package not installed. Run: pip install openai") from None
 
-from ..exceptions import ValidationError
-from ..logging_config import get_logger
+from .exceptions import ValidationError
+from .logging_config import get_logger
 
 
 logger = get_logger(__name__)
 
 
 def call_llm(text: str, model: str = "gpt-4.1-mini", system_and_user_prompt: dict[str, str] = None,
-             ask_user_confirmation: bool = False, **kwargs) -> dict[str, Any]:
+             template_vars: dict[str, str] = None, ask_user_confirmation: bool = False, **kwargs) -> dict[str, Any]:
     """
     Call LLM with comprehensive tracking and optional user confirmation.
 
@@ -31,6 +31,7 @@ def call_llm(text: str, model: str = "gpt-4.1-mini", system_and_user_prompt: dic
         text: Input text to process
         model: Model name (default: gpt-4.1-mini)
         system_and_user_prompt: Dict with "system" and "user" prompt content
+        template_vars: Dict of variables for prompt template substitution
         ask_user_confirmation: Whether to ask user confirmation before expensive calls
         **kwargs: Additional model parameters
 
@@ -39,17 +40,27 @@ def call_llm(text: str, model: str = "gpt-4.1-mini", system_and_user_prompt: dic
     """
     # Handle OpenAI models (gpt, o1, o3, o4, etc.)
     if model.startswith(("gpt", "o1", "o3", "o4")):
-        return _call_openai(text, model, system_and_user_prompt, ask_user_confirmation, **kwargs)
+        return _call_openai(text, model, system_and_user_prompt, template_vars, ask_user_confirmation, **kwargs)
     else:
         raise NotImplementedError(f"Local model {model} not implemented yet")
 
 
 def _call_openai(text: str, model: str, system_and_user_prompt: dict[str, str] = None,
-                ask_user_confirmation: bool = False, temperature: float = 0.0,
-                max_tokens: int = 1000, **kwargs) -> dict[str, Any]:
+                template_vars: dict[str, str] = None, ask_user_confirmation: bool = False, 
+                temperature: float = 0.0, max_tokens: int = 1000, **kwargs) -> dict[str, Any]:
     """
     Call OpenAI API with pre-call cost estimation and usage tracking (synchronous).
     Handles different model parameter requirements automatically.
+    
+    Args:
+        text: Input text to process
+        model: Model name
+        system_and_user_prompt: Dict with "system" and "user" prompt content
+        template_vars: Dict of variables for prompt template substitution
+        ask_user_confirmation: Whether to ask user confirmation before API calls
+        temperature: Model temperature parameter
+        max_tokens: Maximum output tokens
+        **kwargs: Additional model parameters
 
     Returns:
         {
@@ -72,14 +83,7 @@ def _call_openai(text: str, model: str, system_and_user_prompt: dict[str, str] =
 
     client = OpenAI(api_key=api_key)
 
-    # Build template variables for prompt substitution
-    template_vars = {
-        "text": text,
-                    "word_count": str(len(text.split())),
-        "char_count": str(len(text))
-    }
-
-    # Build messages from prompts
+    # Build messages from prompts using provided template_vars
     messages = _build_messages_from_prompts(template_vars, system_and_user_prompt)
 
     # Estimate cost before making the call

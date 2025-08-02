@@ -38,7 +38,7 @@ Usage Example:
 
 from .methods import concat_and_summarize, iterative_summarize, no_op
 from .orchestration import load_chunked_data, summarize
-from .utils import call_llm
+from ..utils import call_llm
 
 
 __all__ = [

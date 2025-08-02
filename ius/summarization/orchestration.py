@@ -85,7 +85,9 @@ def summarize(strategy: str, dataset: str, scope: str,
     if scope == "item":
         # Single item processing
         item_id = kwargs["item_id"]
-        result = _process_single_item(strategy, chunked_data, item_id, **kwargs)
+        # Remove item_id from kwargs since it's passed positionally
+        strategy_kwargs = {k: v for k, v in kwargs.items() if k != "item_id"}
+        result = _process_single_item(strategy, chunked_data, item_id, **strategy_kwargs)
         
         # Save result
         _save_item_result(results_dir, item_id, result["response"])
@@ -103,9 +105,8 @@ def summarize(strategy: str, dataset: str, scope: str,
             logger.info(f"Processing item {item_id} ({len(summary_metadata)+1}/{len(item_ids)})")
             
             try:
-                # Create kwargs for this item
+                # Create kwargs for this item (excluding item_id since it's passed positionally)
                 item_kwargs = kwargs.copy()
-                item_kwargs["item_id"] = item_id
                 
                 result = _process_single_item(strategy, chunked_data, item_id, **item_kwargs)
                 
@@ -125,7 +126,9 @@ def summarize(strategy: str, dataset: str, scope: str,
     elif scope == "doc_range":
         # Document range within an item
         item_id = kwargs["item_id"]
-        result = _process_single_item(strategy, chunked_data, item_id, **kwargs)
+        # Remove item_id from kwargs since it's passed positionally
+        strategy_kwargs = {k: v for k, v in kwargs.items() if k != "item_id"}
+        result = _process_single_item(strategy, chunked_data, item_id, **strategy_kwargs)
         
         # Save result
         doc_range_str = str(kwargs["doc_range"]).replace(":", "-")
@@ -162,7 +165,11 @@ def _process_single_item(strategy: str, chunked_data: Dict, item_id: str, **kwar
     if item_id not in chunked_data["items"]:
         raise ValueError(f"Item {item_id} not found in chunked data")
     
-    item_chunks = chunked_data["items"][item_id]["chunks"]
+    # Extract actual text chunks from document objects
+    document_objects = chunked_data["items"][item_id]["chunks"]
+    item_chunks = []
+    for doc_obj in document_objects:
+        item_chunks.extend(doc_obj["chunks"])  # Get the actual text chunks
     
     # Extract chunks based on scope and doc_range
     scope = kwargs.get("scope", "item")  # Default to item scope for single processing
@@ -274,7 +281,9 @@ def _extract_item_metadata(result: Dict, chunked_data: Dict, item_id: str, scope
         else:
             input_docs = f"single_doc_{doc_range}"
     else:
-        total_chunks = len(chunked_data["items"][item_id]["chunks"])
+        # Calculate total chunks from all documents in the item
+        document_objects = chunked_data["items"][item_id]["chunks"]
+        total_chunks = sum(len(doc_obj["chunks"]) for doc_obj in document_objects)
         input_docs = "all_docs" if total_chunks > 1 else "single_doc"
     
     # Calculate lengths
