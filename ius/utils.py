@@ -86,6 +86,23 @@ def _call_openai(text: str, model: str, system_and_user_prompt: dict[str, str] =
     # Build messages from prompts using provided template_vars
     messages = _build_messages_from_prompts(template_vars, system_and_user_prompt)
 
+    # Print system and user prompts for transparency
+    print(f"\n📝 System Prompt:")
+    system_content = next((msg["content"] for msg in messages if msg["role"] == "system"), "")
+    if system_content:
+        truncated_system = system_content[:200] + "..." if len(system_content) > 200 else system_content
+        print(f"   {truncated_system}")
+    else:
+        print("   (no system prompt)")
+
+    print(f"\n📝 User Prompt:")
+    user_content = next((msg["content"] for msg in messages if msg["role"] == "user"), "")
+    if user_content:
+        truncated_user = user_content[:500] + "..." if len(user_content) > 500 else user_content
+        print(f"   {truncated_user}")
+    else:
+        print("   (no user prompt)")
+
     # Estimate cost before making the call
     estimated_input_tokens = _estimate_token_count(messages)
     estimated_output_tokens = max_tokens if _model_supports_max_tokens(model) else 1000

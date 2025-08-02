@@ -11,7 +11,7 @@ from typing import Any
 
 from ..logging_config import get_logger
 from ..utils import call_llm
-
+from pathlib import Path
 
 logger = get_logger(__name__)
 
@@ -46,9 +46,12 @@ def no_op(chunks: list[str], **kwargs) -> dict[str, Any]:
     }
 
 
-def concat_and_summarize(chunks: list[str], model: str = "gpt-4.1-mini",
-                        system_and_user_prompt: dict[str, str] = None, ask_user_confirmation: bool = False,
-                        **kwargs) -> dict[str, Any]:
+def concat_and_summarize(chunks: list[str],
+                         final_only: bool = False,
+                         prompt_name: str = "default-concat-prompt",
+                         model: str = "gpt-4.1-mini",
+                         ask_user_confirmation: bool = False,
+                         **kwargs) -> dict[str, Any]:
     """
     Concatenate chunks and send to LLM for summarization.
 
@@ -62,16 +65,38 @@ def concat_and_summarize(chunks: list[str], model: str = "gpt-4.1-mini",
     Returns:
         Dict with summary and metadata
     """
-    # Concatenate chunks with newlines
-    full_text = "\n\n".join(chunks)
+    # load system and user prompt from prompts/
+    system_prompt = Path(f"prompts/summarization/{prompt_name}/system.txt").read_text()
+    user_prompt = Path(f"prompts/summarization/{prompt_name}/user.txt").read_text()
 
-    logger.info(f"Summarizing {len(chunks)} chunks ({len(full_text.split())} words) with {model}")
+    system_and_user_prompt = {
+        "system": system_prompt,
+        "user": user_prompt
+    }
 
-    result = call_llm(full_text, model, system_and_user_prompt, ask_user_confirmation, **kwargs)
-    result["method"] = "concat_and_summarize"
-    result["input_chunks"] = len(chunks)
+    if final_only:
+        # Concatenate chunks with newlines
+        full_text = "\n\n".join(chunks)
 
-    return result
+        logger.info(f"Summarizing {len(chunks)} chunks ({len(full_text.split())} words) with {model}")
+
+        result = call_llm(full_text, model, system_and_user_prompt, template_vars={"text": full_text}, ask_user_confirmation=ask_user_confirmation, **kwargs)
+        result["method"] = "concat_and_summarize"
+        result["input_chunks"] = len(chunks)
+        result["final_only"] = True
+        return result
+    else:
+        results = []
+        for ii in range(len(chunks)):
+            print(f"Summarizing chunks from 1 to {ii+1}")
+            full_text = "\n\n".join(chunks[:ii+1])
+            result = call_llm(full_text, model, system_and_user_prompt, template_vars={"text": full_text}, ask_user_confirmation=ask_user_confirmation, **kwargs)
+            result["method"] = "concat_and_summarize"
+            result["input_chunks"] = len(chunks)
+            result["final_only"] = False
+            result["chunk_index"] = ii
+            results.append(result)
+        return results
 
 
 def iterative_summarize(chunks: list[str], **kwargs) -> dict[str, Any]:

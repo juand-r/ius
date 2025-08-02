@@ -36,6 +36,7 @@ Usage Example:
     )
 """
 
+from .core import summarize_chunks
 from .methods import concat_and_summarize, iterative_summarize, no_op
 from .orchestration import (
     load_chunked_data, 
@@ -48,6 +49,10 @@ from ..utils import call_llm
 
 
 __all__ = [
+    # New simplified API
+    "summarize_chunks",
+    
+    # Legacy API (still available)
     "summarize",
     "call_llm",
     "no_op",
