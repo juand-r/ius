@@ -49,7 +49,7 @@ ius/                    # Main project code
 │   ├── loader.py     # Standard dataset loader with error handling
 │   └── __init__.py   # Data loading convenience functions
 ├── eval/             # Evaluation and experiment tracking (TODO)  
-└── summarization/    # Core summarization strategies (TODO)
+└── summarization/    # LLM-based summarization with experimental tracking ✅ IMPLEMENTED
 
 datasets/             # Standardized datasets
 ├── bmds/             # Birth of Modern Detection Stories (34 items)
@@ -166,6 +166,274 @@ Processing items: 100%|████████████| 34/34 [00:02<00:00,
 2024-01-15 23:09:31 - ius.cli.chunk - INFO - Results saved to: outputs/chunks/bmds_fixed_count_4.json
 ```
 
+## Summarization Usage
+
+The IUS framework provides LLM-based summarization with comprehensive experimental tracking and cost monitoring. Currently available through Python API (CLI coming soon).
+
+### Basic Summarization
+
+```python
+from ius.summarization import summarize
+
+# Summarize a single item (all chunks within one item)
+result = summarize(
+    strategy="concat_and_summarize",
+    dataset="bmds", 
+    scope="item",
+    item_id="ADP02"
+)
+
+print(f"Experiment ID: {result['experiment_id']}")
+print(f"Results saved to: {result['experiment_dir']}")
+print(f"Total cost: ${result['total_usage']['total_cost']:.6f}")
+```
+
+### Scope Options
+
+The summarization system supports three different scopes:
+
+#### 1. Single Item Summarization
+```python  
+# Summarize all chunks in one specific item
+result = summarize(
+    strategy="concat_and_summarize",
+    dataset="bmds",
+    scope="item", 
+    item_id="ADP02",
+    model="gpt-4o-mini"
+)
+```
+
+#### 2. Full Dataset Summarization  
+```python
+# Summarize every item in the dataset (creates one summary per item)
+result = summarize(
+    strategy="concat_and_summarize", 
+    dataset="bmds",
+    scope="dataset"  # Processes all 34 items in BMDS
+)
+
+# Each item gets its own summary file:
+# outputs/summaries/{timestamp}_concat_and_summarize_dataset/results/
+# ├── ADP02.txt
+# ├── ADP06.txt  
+# ├── ASH03.txt
+# └── ... (one per item)
+```
+
+#### 3. Document Range Summarization
+```python
+# Summarize specific chunk ranges within an item
+result = summarize(
+    strategy="concat_and_summarize",
+    dataset="bmds", 
+    scope="doc_range",
+    item_id="ADP02",
+    doc_range="0:2"  # Chunks 0, 1, and 2
+)
+
+# Or summarize just one chunk
+result = summarize(
+    strategy="concat_and_summarize",
+    dataset="bmds",
+    scope="doc_range", 
+    item_id="ADP02",
+    doc_range="1"  # Just chunk 1
+)
+```
+
+### Summarization Strategies
+
+#### No-Op Strategy (Baseline)
+```python
+# Simple concatenation without LLM processing
+result = summarize(
+    strategy="no_op",
+    dataset="bmds",
+    scope="item",
+    item_id="ADP02"
+)
+# Returns concatenated chunks as baseline for comparison
+```
+
+#### Concat and Summarize
+```python
+# Concatenate all chunks and send to LLM for summarization
+result = summarize(
+    strategy="concat_and_summarize", 
+    dataset="bmds",
+    scope="item",
+    item_id="ADP02",
+    model="gpt-4o-mini",
+    temperature=0.1,
+    max_tokens=500
+)
+```
+
+### Custom Prompts
+
+```python
+# Use custom system and user prompts with template variables
+custom_prompts = {
+    "system": "You are an expert at analyzing detective stories and identifying key plot elements.",
+    "user": """Please provide a concise summary of this detective story focusing on:
+1. The main characters
+2. The mystery or crime
+3. Key clues discovered
+4. The resolution
+
+Text to summarize ({word_count} words, {char_count} characters):
+{text}"""
+}
+
+result = summarize(
+    strategy="concat_and_summarize",
+    dataset="bmds", 
+    scope="item",
+    item_id="ADP02",
+    system_and_user_prompt=custom_prompts,
+    model="gpt-4o-mini"
+)
+```
+
+### Cost Management and Confirmation
+
+```python
+# Get cost estimate and require confirmation before API calls
+result = summarize(
+    strategy="concat_and_summarize",
+    dataset="bmds",
+    scope="dataset",  # This could be expensive for full dataset!
+    ask_user_confirmation=True,  # Will show estimate and ask for confirmation
+    model="gpt-4o"
+)
+
+# The system will print:
+# 💰 Estimated Cost: $0.045000
+# Do you want to proceed? (y/N): 
+```
+
+### Working with Pre-chunked Data
+
+```python
+from ius.summarization import load_chunked_data
+
+# Load and inspect chunked data
+chunked_data = load_chunked_data("outputs/chunks/bmds_fixed_count_3.json")
+print(f"Available items: {list(chunked_data['items'].keys())}")
+
+# Use specific chunked file  
+result = summarize(
+    strategy="concat_and_summarize",
+    dataset="bmds",
+    scope="item", 
+    item_id="ADP02",
+    chunked_file_path="outputs/chunks/bmds_fixed_size_1000.json"
+)
+```
+
+### Chunked Data File Structure
+
+**Important**: Understanding this structure is critical for working with chunked data files.
+
+The chunked data files generated by `python -m ius chunk` have this structure:
+
+```json
+{
+  "dataset": "bmds",
+  "strategy": "fixed_count",
+  "overall_stats": {
+    "total_items": 34,
+    "total_chunks": 102,
+    "avg_chunks_per_item": 3.0
+  },
+  "items": {
+    "ADP02": {
+      "item_id": "ADP02", 
+      "original_length": 34811,
+      "chunks": [
+        {
+          "document_id": "ADP02",
+          "chunks": [
+            "First chunk text...",
+            "Second chunk text...", 
+            "Third chunk text..."
+          ],
+          "stats": {
+            "num_chunks": 3,
+            "total_chars": 34811,
+            "avg_chunk_size": 966.0
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+**Key Structure Notes:**
+- Each item contains a list of `"chunks"` (document objects)
+- Each document object has:
+  - `"document_id"`: The document identifier
+  - `"chunks"`: **Array of actual text chunks (strings)**
+  - `"stats"`: Metadata about chunking
+- The actual text chunks are at: `data["items"][item_id]["chunks"][0]["chunks"]`
+
+**For Most Items**: Since BMDS has one document per item, you'll typically see:
+```python
+item_data = chunked_data["items"]["ADP02"]
+document_obj = item_data["chunks"][0]  # First (and usually only) document
+text_chunks = document_obj["chunks"]   # List of actual text strings
+```
+
+### Output and Experimental Tracking
+
+Each summarization run creates a comprehensive experimental record:
+
+```
+outputs/summaries/20240115_143022_concat_and_summarize_item/
+├── config.json              # Complete experiment configuration
+├── summary_metadata.json    # Per-item processing metadata  
+└── results/
+    └── ADP02.txt            # Generated summary text
+```
+
+**config.json** contains:
+- Experiment parameters (strategy, scope, model, prompts)
+- Processing timestamp and unique experiment ID
+- Total usage statistics (tokens, costs, API calls)
+- Chunked data file path used
+
+**summary_metadata.json** contains per-item details:
+- Input/output text lengths (characters and words)
+- Processing time and token usage
+- Model parameters and costs
+- Chunk counts and document ranges processed
+
+### Advanced Usage
+
+```python  
+# Direct function usage for integration with other code
+from ius.summarization import concat_and_summarize
+
+chunks = ["First chunk text...", "Second chunk text...", "Third chunk..."]
+
+result = concat_and_summarize(
+    chunks=chunks,
+    model="gpt-4o-mini", 
+    system_and_user_prompt={
+        "system": "You are a helpful summarization assistant.",
+        "user": "Summarize the following text concisely:\n\n{text}"
+    },
+    temperature=0.0,
+    max_tokens=300
+)
+
+print(f"Summary: {result['response']}")
+print(f"Cost: ${result['usage']['total_cost']:.6f}")
+print(f"Tokens used: {result['usage']['total_tokens']}")
+```
+
 ## Dependency Management
 
 This project uses **pip-tools** to keep `requirements.txt` synchronized with `pyproject.toml`:
@@ -274,6 +542,9 @@ make install-dev      # Recommended: includes testing/linting tools
 pip install -r requirements.txt        # Production only  
 pip install -r requirements-dev.txt    # Development
 
+# For summarization features, set up OpenAI API key
+export OPENAI_API_KEY="your-api-key-here"
+
 # List available datasets  
 python -m ius chunk --list-datasets
 
@@ -286,6 +557,7 @@ python -m ius chunk --dataset bmds --strategy fixed_count --count 4 --verbose
 
 ### 2. Python API Usage
 
+#### Data Loading and Chunking
 ```python
 from ius.data import load_data, list_datasets, get_dataset_info
 from ius.chunk.chunkers import chunk_fixed_size, process_dataset_items
@@ -309,6 +581,33 @@ results = process_dataset_items(
     strategy="fixed_count", 
     num_chunks=4,
     delimiter="\n"
+)
+```
+
+#### Summarization
+```python
+from ius.summarization import summarize
+
+# Quick single-item summarization
+result = summarize(
+    strategy="concat_and_summarize",
+    dataset="bmds",
+    scope="item", 
+    item_id="ADP02"
+)
+
+# Full dataset processing with custom prompts
+detective_prompts = {
+    "system": "You are an expert at analyzing detective stories.", 
+    "user": "Summarize this detective story, focusing on the mystery and resolution:\n\n{text}"
+}
+
+result = summarize(
+    strategy="concat_and_summarize",
+    dataset="bmds", 
+    scope="dataset",
+    system_and_user_prompt=detective_prompts,
+    model="gpt-4o-mini"
 )
 ```
 
@@ -406,10 +705,20 @@ The framework has been significantly enhanced with production-ready features:
 
 ## Future Directions
 
+### ✅ Recently Completed
+- **LLM-based Summarization**: OpenAI integration with cost tracking and experimental management
+- **Multiple Strategies**: No-op baseline, concat-and-summarize, with iterative strategies planned
+- **Flexible Scope Handling**: Single item, full dataset, and document range summarization
+
+### 🚧 In Progress  
+- **Summarization CLI**: Command-line interface for summarization workflows
+- **Evaluation Framework**: Metrics for content preservation, summary quality, and computational efficiency
+
+### 📋 Planned Features
 - **Multi-document datasets**: News sequences, TV show episodes, book series
 - **Advanced chunking**: Semantic and structure-aware chunking strategies  
-- **Incremental strategies**: Various approaches to update summaries efficiently
-- **Comprehensive evaluation**: Content preservation, summary quality, computational efficiency
+- **Incremental strategies**: Various approaches to update summaries efficiently (iterative_summarize)
+- **Local LLM support**: Integration with local models (Ollama, Hugging Face)
 - **Interactive tools**: Visualization and analysis of incremental summarization results
 
 ## Research Questions
