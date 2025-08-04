@@ -129,6 +129,9 @@ python -m ius chunk --dataset true-detective --strategy fixed_count --count 8
 # Custom delimiter chunking
 python -m ius chunk --dataset bmds --strategy fixed_size --size 8000 --delimiter "\n\n"
 
+# List available summarization strategies
+python -m ius summarize --list-strategies
+
 # Summarize chunked data (basic)
 python -m ius summarize --input outputs/chunks/bmds_fixed_count_3
 
@@ -178,6 +181,40 @@ python -m ius summarize --input outputs/chunks/bmds_fixed_count_3 \
 
 # Summarize single item file directly
 python -m ius summarize --input outputs/chunks/bmds_fixed_count_3/items/ADP02.json
+
+# List available summarization strategies
+python -m ius summarize --list-strategies
+
+# Skip existing results (default behavior)
+python -m ius summarize --input outputs/chunks/bmds_fixed_count_3 --item ADP02
+
+# Overwrite existing results
+python -m ius summarize --input outputs/chunks/bmds_fixed_count_3 --item ADP02 --overwrite
+```
+
+### Discovering Available Strategies
+
+Before choosing a summarization approach, you can list all available strategies:
+
+```bash
+$ python -m ius summarize --list-strategies
+
+Available summarization strategies:
+
+📋 concat_and_summarize
+   • Concatenates all chunks into a single text
+   • Produces cumulative summaries (final summary of all content)
+   • Use --intermediate flag to get progressive summaries
+   • Best for: Getting overall summary of entire document
+
+📋 summarize_chunks_independently
+   • Summarizes each chunk separately
+   • Produces chunk summaries (one summary per chunk)
+   • Maintains chunk-level granularity
+   • Best for: Analyzing content at chunk level
+
+Note: Use --strategy <name> to specify which strategy to use
+Default strategy: concat_and_summarize
 ```
 
 ### Summarization Strategies
@@ -200,6 +237,8 @@ python -m ius summarize --input outputs/chunks/bmds_fixed_count_3/items/ADP02.js
 - **🎯 Auto-generated Names**: Intelligent naming based on input, strategy, model, and options
 - **⚡ Multiple Strategies**: Support for cumulative and independent summarization approaches
 - **💰 Cost Tracking**: Real-time cost estimation and usage reporting
+- **🔄 Skip/Overwrite Control**: Automatically skip existing results (default) or force overwrite with `--overwrite`
+- **📋 Strategy Discovery**: List and compare available strategies with `--list-strategies`
 
 ### Example Output
 
@@ -897,6 +936,8 @@ The framework has been significantly enhanced with production-ready features:
 - **Object-Oriented Data Access**: Dataset and ChunkedDataset classes for clean data handling
 - **Comprehensive CLI Testing**: Validated across multiple strategies, datasets, and delimiters (191+ items tested)
 - **Enhanced Error Handling**: Graceful delimiter mismatch handling and detailed error reporting
+- **Skip/Overwrite Control**: Intelligent result caching with `--overwrite` flag for cost-effective incremental processing
+- **Strategy Discovery**: Built-in `--list-strategies` command for easy exploration of available approaches
 
 ### 🚧 In Progress  
 - **Evaluation Framework**: Metrics for content preservation, summary quality, and computational efficiency

@@ -94,6 +94,7 @@ def summarize_chunks(
     prompt_name: str | None = None,  # No default - let strategy functions handle it
     final_only: bool = True,
     preview: bool = False,
+    overwrite: bool = False,
 ) -> Dict[str, Any]:
     """
     CLI wrapper for summarizing chunks with progress printing and file I/O.
@@ -107,6 +108,7 @@ def summarize_chunks(
         prompt_name: Name of prompt template to use
         final_only: Whether to return only final summary or intermediate ones too
         preview: Whether to show summary previews
+        overwrite: Whether to overwrite existing item results (default: skip existing items)
 
     Returns:
         Dictionary with summarization results and metadata
@@ -154,6 +156,19 @@ def summarize_chunks(
     for current_item_id in items_to_process:
         print(f"\n🔄 Processing {current_item_id}...")
         
+        # Check if item already exists and should be skipped
+        output_dir = f"outputs/summaries/{output_name}"
+        item_output_file = Path(output_dir) / "items" / f"{current_item_id}.json"
+        
+        if item_output_file.exists() and not overwrite:
+            print(f"⏭️  Skipping {current_item_id} (already exists, use --overwrite to replace)")
+            # Still need to track this item for collection.json
+            results[current_item_id] = {
+                "skipped": True,
+                "item_metadata": {"skipped": True}
+            }
+            continue
+        
         # Load chunks for this item
         item_data = chunked_dataset.load_item(current_item_id)
         chunks = []
@@ -187,6 +202,7 @@ def summarize_chunks(
                 prompts_used = concat_result.get("prompts_used", {})
                 final_prompts_used = concat_result.get("final_prompts_used", {})
                 template_vars = concat_result.get("template_vars", {})
+                actual_prompt_name = concat_result.get("prompt_name", prompt_name)
             else:
                 # List of result dicts (like independent strategy)
                 summaries = [r["response"] for r in concat_result]
@@ -203,6 +219,7 @@ def summarize_chunks(
                 prompts_used = concat_result[0].get("prompts_used", {}) if concat_result else {}
                 final_prompts_used = concat_result[0].get("final_prompts_used", {}) if concat_result else {}
                 template_vars = concat_result[0].get("template_vars", {}) if concat_result else {}
+                actual_prompt_name = concat_result[0].get("prompt_name", prompt_name) if concat_result else prompt_name
             
         elif strategy == "summarize_chunks_independently":  
             # Only pass prompt_name if user specified one
@@ -230,21 +247,26 @@ def summarize_chunks(
             prompts_used = chunk_results[0].get("prompts_used", {}) if chunk_results else {}
             final_prompts_used = chunk_results[0].get("final_prompts_used", {}) if chunk_results else {}
             template_vars = chunk_results[0].get("template_vars", {}) if chunk_results else {}
+            actual_prompt_name = chunk_results[0].get("prompt_name", prompt_name) if chunk_results else prompt_name
             
         else:
             raise ValueError(f"Unknown strategy: {strategy}")
+        
+        # actual_prompt_name is now extracted within each strategy branch above
         
         # Separate collection-level vs item-level metadata
         collection_metadata = {
             "strategy_function": strategy,
             "summary_type": summary_type,
             "model": model,
-            "prompt_name": prompt_name,
+            "prompt_name": actual_prompt_name,  # Use actual prompt name from function
             "prompts_used": prompts_used,  # Template prompts (collection-level)
             "final_only": final_only
         }
         
         item_metadata = {
+            "strategy_function": strategy,  # For item-level completeness
+            "summary_type": summary_type,   # For item-level completeness
             "final_prompts_used": final_prompts_used,  # Item-specific (contains actual text)
             "template_vars": _truncate_template_vars(template_vars),  # Item-specific (contains actual text)
             "processing_time": result.get("processing_time", 0),
@@ -282,7 +304,14 @@ def summarize_chunks(
     
     elapsed_time = time.time() - start_time
     
+    # Count processed vs skipped items
+    processed_items = [item_id for item_id, result in results.items() if not result.get("skipped", False)]
+    skipped_items = [item_id for item_id, result in results.items() if result.get("skipped", False)]
+    
     print(f"\n🎉 Summarization completed!")
+    print(f"✅ Processed: {len(processed_items)} items")
+    if skipped_items:
+        print(f"⏭️  Skipped: {len(skipped_items)} items (already existed)")
     print(f"⏱️  Total time: {elapsed_time:.2f}s")  
     print(f"💰 Total cost: ${total_cost:.6f}")
     print(f"🔢 Total tokens: {total_tokens:,}")
@@ -296,6 +325,26 @@ def summarize_chunks(
         "output_dir": f"outputs/summaries/{output_name}",
         "results": results
     }
+
+
+def _list_strategies() -> None:
+    """List available summarization strategies and exit."""
+    print("Available summarization strategies:")
+    print()
+    print("📋 concat_and_summarize")
+    print("   • Concatenates all chunks into a single text")
+    print("   • Produces cumulative summaries (final summary of all content)")
+    print("   • Use --intermediate flag to get progressive summaries")
+    print("   • Best for: Getting overall summary of entire document")
+    print()
+    print("📋 summarize_chunks_independently") 
+    print("   • Summarizes each chunk separately")
+    print("   • Produces chunk summaries (one summary per chunk)")
+    print("   • Maintains chunk-level granularity")
+    print("   • Best for: Analyzing content at chunk level")
+    print()
+    print("Note: Use --strategy <name> to specify which strategy to use")
+    print("Default strategy: concat_and_summarize")
 
 
 def _validate_input_path(path: str) -> None:
@@ -344,12 +393,17 @@ Examples:
   
   # Use different model, strategy, and prompt with intermediate summaries
   python -m ius summarize --input outputs/chunks/ipython_test --strategy concat_and_summarize --model gpt-4 --prompt custom-prompt --intermediate
+  
+  # Overwrite existing results instead of skipping them  
+  python -m ius summarize --input outputs/chunks/ipython_test --item ADP02 --overwrite
+  
+  # List available summarization strategies
+  python -m ius summarize --list-strategies
         """
     )
     
     parser.add_argument(
         "--input", "-i",
-        required=True,
         help="Path to chunked dataset directory or specific item JSON file"
     )
     
@@ -401,8 +455,29 @@ Examples:
         help="Set logging level (default: INFO)"
     )
     
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Overwrite existing item results (default: skip existing items)"
+    )
+    
+    parser.add_argument(
+        "--list-strategies",
+        action="store_true",
+        help="List available summarization strategies and exit"
+    )
+    
     args = parser.parse_args()
     
+    # Handle --list-strategies flag early
+    if args.list_strategies:
+        _list_strategies()
+        return
+    
+    # Validate required arguments when not listing strategies
+    if not args.input:
+        parser.error("--input/-i is required (unless using --list-strategies)")
+        
     # Set up logging with specified level
     setup_logging(log_level=args.log_level)
     
@@ -418,7 +493,8 @@ Examples:
             "strategy": args.strategy,
             "model": args.model,
             "final_only": not args.intermediate,
-            "preview": args.preview
+            "preview": args.preview,
+            "overwrite": args.overwrite
         }
         
         # Only pass prompt_name if user specified it, let function defaults handle None
