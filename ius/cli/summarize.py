@@ -16,7 +16,7 @@ from typing import Any, Dict, List
 from ius.data import ChunkedDataset
 from ius.exceptions import DatasetError, ValidationError
 from ius.logging_config import get_logger, setup_logging
-from ius.summarization import concat_and_summarize, summarize_chunks_independently, save_summaries
+from ius.summarization import concat_and_summarize, summarize_chunks_independently, iterative_summarize, save_summaries
 
 
 # Set up logger for this module
@@ -58,7 +58,9 @@ def _generate_output_name(
     if strategy == "concat_and_summarize":
         strategy_short = "concat"
     elif strategy == "summarize_chunks_independently":
-        strategy_short = "independent"
+        strategy_short = "independent" 
+    elif strategy == "iterative_summarize":
+        strategy_short = "iterative"
     else:
         strategy_short = strategy
     
@@ -68,6 +70,8 @@ def _generate_output_name(
             prompt_name = "default-concat-prompt"
         elif strategy == "summarize_chunks_independently":
             prompt_name = "default-independent-chunks"
+        elif strategy == "iterative_summarize":
+            prompt_name = "incremental"
         else:
             prompt_name = "default"
     
@@ -181,6 +185,21 @@ def summarize_chunks(
             preview_text = chunks[0][:200] + "..." if len(chunks[0]) > 200 else chunks[0]
             print(f"👀 First chunk preview: {preview_text}")
         
+        # Validate strategy and final_only combination
+        if final_only and strategy == "summarize_chunks_independently":
+            raise ValueError(
+                "Strategy 'summarize_chunks_independently' requires --intermediate flag. "
+                "This strategy produces one summary per chunk, so there's no single 'final' summary. "
+                "Use --intermediate to get all chunk summaries."
+            )
+        
+        if final_only and strategy == "iterative_summarize":
+            raise ValueError(
+                "Strategy 'iterative_summarize' requires --intermediate flag. "
+                "This strategy builds incremental summaries step-by-step. "
+                "Use --intermediate to see the progression of summaries."
+            )
+        
         # Run summarization based on strategy
         if strategy == "concat_and_summarize":
             # Only pass prompt_name if user specified one
@@ -248,6 +267,34 @@ def summarize_chunks(
             final_prompts_used = chunk_results[0].get("final_prompts_used", {}) if chunk_results else {}
             template_vars = chunk_results[0].get("template_vars", {}) if chunk_results else {}
             actual_prompt_name = chunk_results[0].get("prompt_name", prompt_name) if chunk_results else prompt_name
+            
+        elif strategy == "iterative_summarize":
+            # Only pass prompt_name if user specified one
+            kwargs = {
+                "chunks": chunks,
+                "final_only": final_only,
+                "model": model
+            }
+            if prompt_name is not None:
+                kwargs["prompt_name"] = prompt_name
+                
+            iterative_results = iterative_summarize(**kwargs)
+            # Extract summaries from list of results (one per step)
+            summaries = [r["response"] for r in iterative_results]
+            # Combine metadata from all iterative results
+            result = {
+                "processing_time": sum(r.get("processing_time", 0) for r in iterative_results),
+                "usage": {
+                    "total_cost": sum(r.get("usage", {}).get("total_cost", 0) for r in iterative_results),
+                    "total_tokens": sum(r.get("usage", {}).get("total_tokens", 0) for r in iterative_results)
+                }
+            }
+            # Extract summary_type and prompts from first result (all should be the same)
+            summary_type = iterative_results[0].get("summary_type", "--") if iterative_results else "--"
+            prompts_used = iterative_results[0].get("prompts_used", {}) if iterative_results else {}
+            final_prompts_used = iterative_results[0].get("final_prompts_used", {}) if iterative_results else {}
+            template_vars = iterative_results[0].get("template_vars", {}) if iterative_results else {}
+            actual_prompt_name = iterative_results[0].get("prompt_name", prompt_name) if iterative_results else prompt_name
             
         else:
             raise ValueError(f"Unknown strategy: {strategy}")
@@ -343,6 +390,13 @@ def _list_strategies() -> None:
     print("   • Maintains chunk-level granularity")
     print("   • Best for: Analyzing content at chunk level")
     print()
+    print("📋 iterative_summarize") 
+    print("   • Builds summaries incrementally, using previous summary as context")
+    print("   • First chunk gets initial summary, then each subsequent summary")
+    print("     incorporates previous summary + new chunk")
+    print("   • Produces incremental summaries (n summaries building on each other)")
+    print("   • Best for: True incremental summarization with context continuity")
+    print()
     print("Note: Use --strategy <name> to specify which strategy to use")
     print("Default strategy: concat_and_summarize")
 
@@ -420,7 +474,7 @@ Examples:
     parser.add_argument(
         "--strategy", "-s",
         default="concat_and_summarize",
-        choices=["concat_and_summarize", "summarize_chunks_independently"],
+        choices=["concat_and_summarize", "summarize_chunks_independently", "iterative_summarize"],
         help="Summarization strategy (default: concat_and_summarize)"
     )
     

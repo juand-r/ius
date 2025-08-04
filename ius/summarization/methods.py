@@ -181,21 +181,113 @@ def concat_and_summarize(chunks: list[str],
         return results
 
 
-def iterative_summarize(chunks: list[str], **kwargs) -> dict[str, Any]:
+def iterative_summarize(chunks: list[str], 
+                        final_only: bool = False,
+                        prompt_name: str = "incremental",
+                        model: str = "gpt-4.1-mini",
+                        ask_user_confirmation: bool = False,
+                        **kwargs) -> list[dict[str, Any]]:
     """
-    Iterative summarization strategy (placeholder for future implementation).
-
+    Iterative summarization strategy - builds summaries incrementally using previous context.
+    
+    First chunk gets summarized using "first-chunk-summary.txt" prompt.
+    Each subsequent chunk uses the previous summary as context with 
+    "summarize-chunk-with-previous-summary-context.txt" prompt.
+    
     Args:
         chunks: List of text chunks to summarize iteratively
-        **kwargs: Strategy-specific parameters
-
+        final_only: If True, return only the final summary. If False, return all n summaries
+        prompt_name: Name of prompt directory to use (default: "incremental")
+        model: LLM model name
+        ask_user_confirmation: Whether to ask for confirmation before API calls
+        **kwargs: Additional parameters passed to call_llm
+        
     Returns:
-        Dict with summary and metadata
-
-    Raises:
-        NotImplementedError: This strategy is not yet implemented
+        List of result dictionaries, one for each incremental step
     """
-    raise NotImplementedError("Iterative summarization strategy not yet implemented")
+    if not chunks:
+        return []
+    
+    # Load prompt templates
+    prompts_dir = Path(f"prompts/summarization/{prompt_name}")
+    if not prompts_dir.exists():
+        raise ValueError(f"Prompt directory not found: {prompts_dir}")
+    
+    prompts = {}
+    for prompt_file in prompts_dir.glob("*.txt"):
+        prompt_key = prompt_file.stem
+        with open(prompt_file, 'r', encoding='utf-8') as f:
+            prompts[prompt_key] = f.read().strip()
+    
+    if "system" not in prompts:
+        raise ValueError(f"Missing 'system.txt' in {prompts_dir}")
+    if "first-chunk-summary" not in prompts:
+        raise ValueError(f"Missing 'first-chunk-summary.txt' in {prompts_dir}")
+    if "summarize-chunk-with-previous-summary-context" not in prompts:
+        raise ValueError(f"Missing 'summarize-chunk-with-previous-summary-context.txt' in {prompts_dir}")
+    
+    results = []
+    previous_summary = None
+    
+    for i, chunk in enumerate(chunks):
+        chunk_num = i + 1  # 1-indexed for human readability
+        
+        if i == 0:
+            # First chunk - use first-chunk-summary prompt
+            user_prompt = prompts["first-chunk-summary"]
+            template_vars = {
+                "domain": "detective story",  # TODO: Could be parameterized
+                "chunk_num": str(chunk_num),
+                "total_chunks": str(len(chunks)),
+                "text": chunk,
+                "optional_summary_length": ""
+            }
+        else:
+            # Subsequent chunks - use incremental prompt with previous context
+            user_prompt = prompts["summarize-chunk-with-previous-summary-context"]
+            template_vars = {
+                "domain": "detective story",  # TODO: Could be parameterized
+                "chunk_num": str(chunk_num),
+                "total_chunks": str(len(chunks)),
+                "chunk_num-1": str(chunk_num - 1),  # For "parts 1-{chunk_num-1}"
+                "previous_summary": previous_summary,
+                "chunk_text": chunk,
+                "optional_summary_length": ""
+            }
+        
+        system_and_user_prompt = {
+            "system": prompts["system"],
+            "user": user_prompt
+        }
+        
+        print(f"Incremental summarization step {chunk_num}/{len(chunks)}")
+        
+        result = call_llm(chunk, model, system_and_user_prompt, template_vars=template_vars, 
+                         ask_user_confirmation=ask_user_confirmation, **kwargs)
+        
+        # Add iterative-specific metadata
+        result["method"] = "iterative_summarize"
+        result["step"] = chunk_num
+        result["total_steps"] = len(chunks)
+        result["is_first_chunk"] = (i == 0)
+        result["prompt_name"] = prompt_name
+        result["prompts_used"] = prompts  # Save all prompt templates
+        result["template_vars"] = template_vars  # Save template variables used
+        result["summary_type"] = "incremental summary"
+        
+        # Update previous_summary for next iteration
+        previous_summary = result["response"]
+        
+        results.append(result)
+    
+    # Return based on final_only flag
+    if final_only:
+        return [results[-1]]  # Return only the final summary as a list for consistency
+    else:
+        return results  # Return all incremental summaries
+
+
+
 
 
 def save_summaries(
