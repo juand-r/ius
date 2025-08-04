@@ -1,3 +1,5 @@
-Please provide a comprehensive summary of the following text. Capture the main themes, key insights, and important details:
+Summarize the following {domain} text:
 
 {text}
+
+Provide a comprehensive {optional_summary_length}summary of the key events, information, and important details from this document."""

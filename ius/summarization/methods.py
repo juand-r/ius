@@ -50,7 +50,7 @@ def no_op(chunks: list[str], **kwargs) -> dict[str, Any]:
 
 def summarize_chunks_independently(chunks: list[str],
                          final_only: bool = False,
-                         prompt_name: str = "default-concat-prompt",
+                         prompt_name: str = "default-independent-chunks",
                          model: str = "gpt-4.1-mini",
                          ask_user_confirmation: bool = False,
                          **kwargs) -> dict[str, Any]:
@@ -68,26 +68,38 @@ def summarize_chunks_independently(chunks: list[str],
     Returns:
         Dict with summary and metadata
     """
-    # load system and user prompt from prompts/
-    system_prompt = Path(f"prompts/summarization/{prompt_name}/system.txt").read_text()
-    user_prompt = Path(f"prompts/summarization/{prompt_name}/user.txt").read_text()
-
+    # load all prompts from prompts/ directory
+    prompt_dir = Path(f"prompts/summarization/{prompt_name}")
+    prompts = {}
+    for prompt_file in prompt_dir.glob("*.txt"):
+        key = prompt_file.stem  # filename without .txt extension
+        prompts[key] = prompt_file.read_text()
+    
+    # For backward compatibility, create system_and_user_prompt dict
     system_and_user_prompt = {
-        "system": system_prompt,
-        "user": user_prompt
+        "system": prompts.get("system", ""),
+        "user": prompts.get("user", "")
     }
 
     results = []
     for ii in range(len(chunks)):
         print(f"Summarizing chunk {ii+1}")
         full_text = chunks[ii]
-        result = call_llm(full_text, model, system_and_user_prompt, template_vars={"text": full_text}, ask_user_confirmation=ask_user_confirmation, **kwargs)
+
+        template_vars = {"text": full_text,
+                        "domain": "detective story",
+                        "optional_summary_length": ""}
+
+        result = call_llm(full_text, model, system_and_user_prompt, template_vars=template_vars, ask_user_confirmation=ask_user_confirmation, **kwargs)
         result["method"] = "summarize_chunks_independently"
         result["input_chunks"] = len(chunks)
         result["final_only"] = False
         result["chunk_index"] = ii
         result["prompt_name"] = prompt_name
+        result["prompts_used"] = prompts  # Save all prompt templates
+        result["template_vars"] = template_vars  # Save template variables used
         result["summary_type"] = "chunk summary"
+        # final_prompts_used (with variables replaced) comes from call_llm result
         results.append(result)
     return results
 
@@ -110,13 +122,17 @@ def concat_and_summarize(chunks: list[str],
     Returns:
         Dict with summary and metadata
     """
-    # load system and user prompt from prompts/
-    system_prompt = Path(f"prompts/summarization/{prompt_name}/system.txt").read_text()
-    user_prompt = Path(f"prompts/summarization/{prompt_name}/user.txt").read_text()
-
+    # load all prompts from prompts/ directory
+    prompt_dir = Path(f"prompts/summarization/{prompt_name}")
+    prompts = {}
+    for prompt_file in prompt_dir.glob("*.txt"):
+        key = prompt_file.stem  # filename without .txt extension
+        prompts[key] = prompt_file.read_text()
+    
+    # For backward compatibility, create system_and_user_prompt dict
     system_and_user_prompt = {
-        "system": system_prompt,
-        "user": user_prompt
+        "system": prompts.get("system", ""),
+        "user": prompts.get("user", "")
     }
 
     if final_only:
@@ -125,26 +141,42 @@ def concat_and_summarize(chunks: list[str],
 
         logger.info(f"Summarizing {len(chunks)} chunks ({len(full_text.split())} words) with {model}")
 
-        result = call_llm(full_text, model, system_and_user_prompt, template_vars={"text": full_text}, ask_user_confirmation=ask_user_confirmation, **kwargs)
+
+        template_vars = {"text": full_text,
+                        "domain": "detective story",
+                        "optional_summary_length": ""}
+
+        result = call_llm(full_text, model, system_and_user_prompt, template_vars=template_vars, ask_user_confirmation=ask_user_confirmation, **kwargs)
         result["method"] = "concat_and_summarize"
         result["input_chunks"] = len(chunks)
         result["final_only"] = True
         result["prompt_name"] = prompt_name
+        result["prompts_used"] = prompts  # Save all prompt templates
+        result["template_vars"] = template_vars  # Save template variables used
         result["summary_type"] = "cumulative summary"
+        # final_prompts_used (with variables replaced) comes from call_llm result
         return result
     else:
         results = []
         for ii in range(len(chunks)):
             print(f"Summarizing chunks from 1 to {ii+1}")
             full_text = "\n\n".join(chunks[:ii+1])
-            result = call_llm(full_text, model, system_and_user_prompt, template_vars={"text": full_text}, ask_user_confirmation=ask_user_confirmation, **kwargs)
+
+            template_vars = {"text": full_text,
+                            "domain": "detective story",
+                            "optional_summary_length": ""}
+
+            result = call_llm(full_text, model, system_and_user_prompt, template_vars=template_vars, ask_user_confirmation=ask_user_confirmation, **kwargs)
             result["method"] = "concat_and_summarize"
             result["input_chunks"] = len(chunks)
             result["final_only"] = False
             result["chunk_index"] = ii
             result["prompt_name"] = prompt_name
             result["summary_content"] = "cumulative summary"
+            result["prompts_used"] = prompts  # Save all prompt templates
+            result["template_vars"] = template_vars  # Save template variables used
             result["summary_type"] = "cumulative summary"
+            # final_prompts_used (with variables replaced) comes from call_llm result
             results.append(result)
         return results
 
@@ -171,7 +203,8 @@ def save_summaries(
     summaries: List[str], 
     original_item_data: Dict[str, Any],
     output_dir: str,
-    experiment_metadata: Dict[str, Any] = None
+    collection_metadata: Dict[str, Any] = None,
+    item_metadata: Dict[str, Any] = None
 ) -> None:
     """
     Save summaries using the same structure as ChunkedDataset but with 'summaries' instead of 'chunks'.
@@ -181,7 +214,8 @@ def save_summaries(
         summaries: List of summary strings
         original_item_data: Original item data from ChunkedDataset (to preserve metadata)
         output_dir: Directory to save summaries (e.g., 'outputs/summaries/experiment_name')
-        experiment_metadata: Additional metadata about the summarization experiment
+        collection_metadata: Collection-level metadata (strategy, model, prompts templates, etc.)
+        item_metadata: Item-specific metadata (final prompts with actual text, template vars, etc.)
     """
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -218,18 +252,28 @@ def save_summaries(
             "summarization_timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
         })
         
+        # Add item-specific metadata (final prompts with actual text, etc.)
+        if item_metadata:
+            doc_data["metadata"]["item_experiment_metadata"] = item_metadata
+        
         summary_item["documents"].append(doc_data)
     
     else:
         # Multi-document case - create single document with all summaries
+        multi_doc_metadata = {
+            "num_summaries": len(summaries),
+            "original_num_documents": len(original_docs),
+            "original_total_chunks": sum(len(doc.get("chunks", [])) for doc in original_docs),
+            "summarization_timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+        }
+        
+        # Add item-specific metadata (final prompts with actual text, etc.)
+        if item_metadata:
+            multi_doc_metadata["item_experiment_metadata"] = item_metadata
+            
         summary_item["documents"].append({
             "summaries": summaries,
-            "metadata": {
-                "num_summaries": len(summaries),
-                "original_num_documents": len(original_docs),
-                "original_total_chunks": sum(len(doc.get("chunks", [])) for doc in original_docs),
-                "summarization_timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
-            }
+            "metadata": multi_doc_metadata
         })
     
     # Save individual item
@@ -248,7 +292,7 @@ def save_summaries(
         # Create new collection metadata
         collection_data = {
             "summarization_info": {
-                "experiment_metadata": experiment_metadata or {},
+                "collection_metadata": collection_metadata or {},
                 "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
                 "items_processed": []
             }

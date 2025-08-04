@@ -23,11 +23,22 @@ from ius.summarization import concat_and_summarize, summarize_chunks_independent
 logger = get_logger(__name__)
 
 
+def _truncate_template_vars(template_vars: Dict[str, Any], max_length: int = 89) -> Dict[str, Any]:
+    """Truncate string values in template_vars to max_length characters."""
+    truncated = {}
+    for key, value in template_vars.items():
+        if isinstance(value, str) and len(value) > max_length:
+            truncated[key] = value[:max_length] + "..."
+        else:
+            truncated[key] = value
+    return truncated
+
+
 def _generate_output_name(
     input_path: str,
     item_id: str | None,
     strategy: str,
-    prompt_name: str,
+    prompt_name: str | None,  # Can be None
     final_only: bool
 ) -> str:
     """Generate automatic output directory name based on input parameters."""
@@ -51,6 +62,15 @@ def _generate_output_name(
     else:
         strategy_short = strategy
     
+    # Handle None prompt_name by using strategy defaults
+    if prompt_name is None:
+        if strategy == "concat_and_summarize":
+            prompt_name = "default-concat-prompt"
+        elif strategy == "summarize_chunks_independently":
+            prompt_name = "default-independent-chunks"
+        else:
+            prompt_name = "default"
+    
     # Clean prompt name (remove path separators)
     clean_prompt = prompt_name.replace("/", "-").replace("\\", "-")
     
@@ -71,7 +91,7 @@ def summarize_chunks(
     item_id: str | None = None,
     strategy: str = "concat_and_summarize",
     model: str = "gpt-4.1-mini",
-    prompt_name: str = "default-concat-prompt",
+    prompt_name: str | None = None,  # No default - let strategy functions handle it
     final_only: bool = True,
     preview: bool = False,
 ) -> Dict[str, Any]:
@@ -103,7 +123,9 @@ def summarize_chunks(
     print(f"📤 Output: outputs/summaries/{output_name}")
     print(f"⚡ Strategy: {strategy}")
     print(f"🧠 Model: {model}")
-    print(f"📝 Prompt: {prompt_name}")
+    # Display prompt name (show function default if None)
+    display_prompt = prompt_name or "(function default)"
+    print(f"📝 Prompt: {display_prompt}")
     
     # Determine if input is a directory or specific file
     input_path_obj = Path(input_path)
@@ -146,18 +168,25 @@ def summarize_chunks(
         
         # Run summarization based on strategy
         if strategy == "concat_and_summarize":
-            concat_result = concat_and_summarize(
-                chunks=chunks,
-                final_only=final_only,
-                prompt_name=prompt_name,
-                model=model
-            )
+            # Only pass prompt_name if user specified one
+            kwargs = {
+                "chunks": chunks,
+                "final_only": final_only,
+                "model": model
+            }
+            if prompt_name is not None:
+                kwargs["prompt_name"] = prompt_name
+                
+            concat_result = concat_and_summarize(**kwargs)
             
             if final_only:
                 # Single result dict
                 summaries = [concat_result["response"]]
                 result = concat_result  # Use the single result for metadata
                 summary_type = concat_result.get("summary_type", "--")
+                prompts_used = concat_result.get("prompts_used", {})
+                final_prompts_used = concat_result.get("final_prompts_used", {})
+                template_vars = concat_result.get("template_vars", {})
             else:
                 # List of result dicts (like independent strategy)
                 summaries = [r["response"] for r in concat_result]
@@ -169,16 +198,23 @@ def summarize_chunks(
                         "total_tokens": sum(r.get("usage", {}).get("total_tokens", 0) for r in concat_result)
                     }
                 }
-                # Extract summary_type from first result (all should be the same)
+                # Extract summary_type and prompts from first result (all should be the same)
                 summary_type = concat_result[0].get("summary_type", "--") if concat_result else "--"
+                prompts_used = concat_result[0].get("prompts_used", {}) if concat_result else {}
+                final_prompts_used = concat_result[0].get("final_prompts_used", {}) if concat_result else {}
+                template_vars = concat_result[0].get("template_vars", {}) if concat_result else {}
             
         elif strategy == "summarize_chunks_independently":  
-            chunk_results = summarize_chunks_independently(
-                chunks=chunks,
-                final_only=final_only,
-                prompt_name=prompt_name,
-                model=model
-            )
+            # Only pass prompt_name if user specified one
+            kwargs = {
+                "chunks": chunks,
+                "final_only": final_only,
+                "model": model
+            }
+            if prompt_name is not None:
+                kwargs["prompt_name"] = prompt_name
+                
+            chunk_results = summarize_chunks_independently(**kwargs)
             # Extract summaries from list of results (one per chunk)
             summaries = [r["response"] for r in chunk_results]
             # Combine metadata from all chunk results
@@ -189,19 +225,28 @@ def summarize_chunks(
                     "total_tokens": sum(r.get("usage", {}).get("total_tokens", 0) for r in chunk_results)
                 }
             }
-            # Extract summary_type from first result (all should be the same)
-            summary_type = chunk_results[0].get("summary_type", "chunk summary") if chunk_results else "chunk summary"
+            # Extract summary_type and prompts from first result (all should be the same)
+            summary_type = chunk_results[0].get("summary_type", "--") if chunk_results else "--"
+            prompts_used = chunk_results[0].get("prompts_used", {}) if chunk_results else {}
+            final_prompts_used = chunk_results[0].get("final_prompts_used", {}) if chunk_results else {}
+            template_vars = chunk_results[0].get("template_vars", {}) if chunk_results else {}
             
         else:
             raise ValueError(f"Unknown strategy: {strategy}")
         
-        # Save results
-        experiment_metadata = {
+        # Separate collection-level vs item-level metadata
+        collection_metadata = {
             "strategy_function": strategy,
             "summary_type": summary_type,
             "model": model,
             "prompt_name": prompt_name,
-            "final_only": final_only,
+            "prompts_used": prompts_used,  # Template prompts (collection-level)
+            "final_only": final_only
+        }
+        
+        item_metadata = {
+            "final_prompts_used": final_prompts_used,  # Item-specific (contains actual text)
+            "template_vars": _truncate_template_vars(template_vars),  # Item-specific (contains actual text)
             "processing_time": result.get("processing_time", 0),
             "cost": result.get("usage", {}).get("total_cost", 0),
             "total_tokens": result.get("usage", {}).get("total_tokens", 0)
@@ -214,13 +259,15 @@ def summarize_chunks(
             summaries=summaries,
             original_item_data=item_data,
             output_dir=output_dir,
-            experiment_metadata=experiment_metadata
+            collection_metadata=collection_metadata,
+            item_metadata=item_metadata
         )
         
         # Track results
         results[current_item_id] = {
             "summaries": summaries,
-            "metadata": experiment_metadata
+            "collection_metadata": collection_metadata,
+            "item_metadata": item_metadata
         }
         
         # Accumulate costs
@@ -331,8 +378,8 @@ Examples:
     
     parser.add_argument(
         "--prompt", "-p",
-        default="default-concat-prompt", 
-        help="Prompt template name to use (default: default-concat-prompt)"
+        default=None,  # Let CLI choose based on strategy
+        help="Prompt template name to use (default: strategy-specific)"
     )
     
     parser.add_argument(
@@ -364,16 +411,21 @@ Examples:
         _validate_input_path(args.input)
         
         # Run summarization
-        results = summarize_chunks(
-            input_path=args.input,
-            output_name=args.output,
-            item_id=args.item,
-            strategy=args.strategy,
-            model=args.model,
-            prompt_name=args.prompt,
-            final_only=not args.intermediate,
-            preview=args.preview
-        )
+        kwargs = {
+            "input_path": args.input,
+            "output_name": args.output,
+            "item_id": args.item,
+            "strategy": args.strategy,
+            "model": args.model,
+            "final_only": not args.intermediate,
+            "preview": args.preview
+        }
+        
+        # Only pass prompt_name if user specified it, let function defaults handle None
+        if args.prompt is not None:
+            kwargs["prompt_name"] = args.prompt
+            
+        results = summarize_chunks(**kwargs)
         
         logger.info(f"Summarization completed successfully: {len(results['items_processed'])} items processed")
         

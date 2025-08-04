@@ -170,6 +170,14 @@ def _call_openai(text: str, model: str, system_and_user_prompt: dict[str, str] =
         _log_cost_to_file(total_cost, model, input_tokens, output_tokens, total_tokens,
                          input_cost, output_cost)
 
+        # Capture the final prompts that were actually sent to the LLM
+        final_prompts = {}
+        for message in messages:
+            if message["role"] == "system":
+                final_prompts["system"] = message["content"]
+            elif message["role"] == "user":
+                final_prompts["user"] = message["content"]
+
         return {
             "response": response.choices[0].message.content.strip(),
             "usage": {
@@ -181,7 +189,8 @@ def _call_openai(text: str, model: str, system_and_user_prompt: dict[str, str] =
                 "total_cost": round(total_cost, 6)
             },
             "model": model,
-            "processing_time": processing_time
+            "processing_time": processing_time,
+            "final_prompts_used": final_prompts  # Prompts with template variables replaced
         }
 
     except Exception as e:
