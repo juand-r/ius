@@ -87,7 +87,7 @@ def summarize_chunks_independently(chunks: list[str],
         result["final_only"] = False
         result["chunk_index"] = ii
         result["prompt_name"] = prompt_name
-        result["summary_content"] = "cumulative content"
+        result["summary_type"] = "chunk summary"
         results.append(result)
     return results
 
@@ -130,7 +130,7 @@ def concat_and_summarize(chunks: list[str],
         result["input_chunks"] = len(chunks)
         result["final_only"] = True
         result["prompt_name"] = prompt_name
-        result["summary_content"] = "cumulative content"
+        result["summary_type"] = "cumulative summary"
         return result
     else:
         results = []
@@ -143,7 +143,8 @@ def concat_and_summarize(chunks: list[str],
             result["final_only"] = False
             result["chunk_index"] = ii
             result["prompt_name"] = prompt_name
-            result["summary_content"] = "cumulative content"
+            result["summary_content"] = "cumulative summary"
+            result["summary_type"] = "cumulative summary"
             results.append(result)
         return results
 

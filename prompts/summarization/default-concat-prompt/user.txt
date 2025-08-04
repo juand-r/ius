@@ -1,0 +1,3 @@
+Please provide a comprehensive summary of the following text. Capture the main themes, key insights, and important details:
+
+{text}

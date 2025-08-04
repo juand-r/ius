@@ -157,6 +157,7 @@ def summarize_chunks(
                 # Single result dict
                 summaries = [concat_result["response"]]
                 result = concat_result  # Use the single result for metadata
+                summary_type = concat_result.get("summary_type", "--")
             else:
                 # List of result dicts (like independent strategy)
                 summaries = [r["response"] for r in concat_result]
@@ -168,8 +169,8 @@ def summarize_chunks(
                         "total_tokens": sum(r.get("usage", {}).get("total_tokens", 0) for r in concat_result)
                     }
                 }
-            
-            summary_type = "cumulative summary"
+                # Extract summary_type from first result (all should be the same)
+                summary_type = concat_result[0].get("summary_type", "--") if concat_result else "--"
             
         elif strategy == "summarize_chunks_independently":  
             chunk_results = summarize_chunks_independently(
@@ -188,7 +189,8 @@ def summarize_chunks(
                     "total_tokens": sum(r.get("usage", {}).get("total_tokens", 0) for r in chunk_results)
                 }
             }
-            summary_type = "chunk summary"
+            # Extract summary_type from first result (all should be the same)
+            summary_type = chunk_results[0].get("summary_type", "chunk summary") if chunk_results else "chunk summary"
             
         else:
             raise ValueError(f"Unknown strategy: {strategy}")
