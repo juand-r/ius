@@ -36,7 +36,7 @@ Usage Example:
     )
 """
 
-from .methods import concat_and_summarize, iterative_summarize, no_op, save_summaries
+from .methods import concat_and_summarize, iterative_summarize, no_op, save_summaries, summarize_chunks_independently
 from ..utils import call_llm
 
 
@@ -45,6 +45,7 @@ __all__ = [
     "call_llm", 
     "no_op",
     "concat_and_summarize",
-    "iterative_summarize",
+    "summarize_chunks_independently",
+    "iterative_summarize", 
     "save_summaries",
 ]

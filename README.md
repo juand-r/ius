@@ -23,7 +23,7 @@ Documents often arrive in chunks over time. This project explores how to effecti
 
 The framework supports multiple chunking approaches:
 
-1. **Fixed-size chunking**: Split documents into chunks of roughly equal length
+1. **Fixed-size chunking**: Split documents into chunks of roughly equal length (measured in characters)
 2. **Fixed-count chunking**: Split documents into a fixed number of chunks  
 3. **Natural chunking**: Use document structure (paragraphs, sections) when available
 
@@ -120,14 +120,20 @@ The IUS framework provides a comprehensive command-line interface for text chunk
 # List available datasets
 python -m ius chunk --list-datasets
 
-# Basic chunking with fixed size
-python -m ius chunk --dataset bmds --strategy fixed_size --size 2048
+# Basic chunking with fixed size (characters)
+python -m ius chunk --dataset bmds --strategy fixed_size --size 10000
 
 # Fixed count chunking  
 python -m ius chunk --dataset true-detective --strategy fixed_count --count 8
 
 # Custom delimiter chunking
-python -m ius chunk --dataset bmds --strategy fixed_size --size 1000 --delimiter "\n\n"
+python -m ius chunk --dataset bmds --strategy fixed_size --size 8000 --delimiter "\n\n"
+
+# Summarize chunked data (basic)
+python -m ius summarize --input outputs/chunks/bmds_fixed_count_3
+
+# Summarize with specific strategy and item
+python -m ius summarize --input outputs/chunks/bmds_fixed_count_3 --item ADP02 --strategy summarize_chunks_independently
 ```
 
 ### Advanced Features
@@ -143,9 +149,46 @@ python -m ius chunk --dataset bmds --strategy fixed_size --size 1500 --dry-run
 python -m ius chunk --dataset true-detective --strategy fixed_count --count 6 --dry-run --verbose
 
 # Save output to specific location  
-python -m ius chunk --dataset bmds --strategy fixed_size --size 2048 \
+python -m ius chunk --dataset bmds --strategy fixed_size --size 10000 \
   --output outputs/chunks/bmds_large_chunks --preview
 ```
+
+### Summarization Commands
+
+The CLI provides comprehensive summarization capabilities with multiple strategies and automatic output naming.
+
+```bash
+# Basic summarization (auto-generated output name)
+python -m ius summarize --input outputs/chunks/bmds_fixed_count_3
+
+# Summarize specific item with preview
+python -m ius summarize --input outputs/chunks/bmds_fixed_count_3 --item ADP02 --preview
+
+# Use independent chunk strategy (each chunk summarized separately)
+python -m ius summarize --input outputs/chunks/bmds_fixed_count_3 \
+  --strategy summarize_chunks_independently
+
+# Use cumulative strategy with intermediate summaries
+python -m ius summarize --input outputs/chunks/bmds_fixed_count_3 \
+  --strategy concat_and_summarize --intermediate
+
+# Custom model and prompt with manual output naming
+python -m ius summarize --input outputs/chunks/bmds_fixed_count_3 \
+  --model gpt-4 --prompt custom-detective-prompt --output detective_analysis
+
+# Summarize single item file directly
+python -m ius summarize --input outputs/chunks/bmds_fixed_count_3/items/ADP02.json
+```
+
+### Summarization Strategies
+
+**Cumulative Strategy (`concat_and_summarize`)** - Default
+- `--intermediate` flag: Creates progressive summaries (chunk1, chunk1+2, chunk1+2+3...)
+- `final_only` (default): Creates single summary of all chunks combined
+
+**Independent Strategy (`summarize_chunks_independently`)**
+- Always creates separate summary for each chunk individually
+- Useful for analyzing chunk-level content and patterns
 
 ### CLI Features
 
@@ -154,9 +197,13 @@ python -m ius chunk --dataset bmds --strategy fixed_size --size 2048 \
 - **📝 Verbose Logging**: Detailed timestamps and module info with `--verbose`
 - **✅ Input Validation**: Comprehensive error checking with helpful messages
 - **💾 Flexible Output**: Custom output paths or automatic naming
+- **🎯 Auto-generated Names**: Intelligent naming based on input, strategy, model, and options
+- **⚡ Multiple Strategies**: Support for cumulative and independent summarization approaches
+- **💰 Cost Tracking**: Real-time cost estimation and usage reporting
 
 ### Example Output
 
+**Chunking:**
 ```bash
 $ python -m ius chunk --dataset bmds --strategy fixed_count --count 4 --verbose
 
@@ -179,9 +226,36 @@ $ python -m ius chunk --dataset bmds --strategy fixed_count --count 4 --verbose
 2024-01-15 23:09:31 - ius.cli.chunk - INFO - Chunking completed successfully!
 ```
 
+**Summarization:**
+```bash
+$ python -m ius summarize --input outputs/chunks/bmds_fixed_count_4 --item ADP02 --preview
+
+🎯 Auto-generated output name: bmds_fixed_count_4_ADP02_concat_default-concat-prompt_final
+🤖 Starting summarization...
+📥 Input: outputs/chunks/bmds_fixed_count_4
+📤 Output: outputs/summaries/bmds_fixed_count_4_ADP02_concat_default-concat-prompt_final
+⚡ Strategy: concat_and_summarize
+🧠 Model: gpt-4.1-mini
+📝 Prompt: default-concat-prompt
+📋 Processing specified item: ADP02
+
+🔄 Processing ADP02...
+📦 Loaded 4 chunks (34,810 chars)
+👀 First chunk preview: WAS it a specter?
+For days I could not answer this question...
+
+💰 Estimated Cost: $0.005046
+💰 Actual API Cost: $0.004849
+🎉 Summarization completed!
+⏱️  Total time: 8.2s
+💰 Total cost: $0.004849
+🔢 Total tokens: 9,491
+📁 Results saved to: outputs/summaries/bmds_fixed_count_4_ADP02_concat_default-concat-prompt_final
+```
+
 ## Summarization Usage
 
-The IUS framework provides LLM-based summarization with comprehensive experimental tracking and cost monitoring. Currently available through Python API (CLI coming soon).
+The IUS framework provides LLM-based summarization with comprehensive experimental tracking and cost monitoring. Available through both CLI commands (see above) and Python API.
 
 ### Basic Summarization
 
@@ -605,11 +679,14 @@ export OPENAI_API_KEY="your-api-key-here"
 # List available datasets  
 python -m ius chunk --list-datasets
 
-# Try basic chunking
-python -m ius chunk --dataset bmds --strategy fixed_size --size 1500 --dry-run
+# Try basic chunking (size = characters, not words)
+python -m ius chunk --dataset bmds --strategy fixed_size --size 8000 --dry-run
 
 # Run actual chunking with progress tracking
 python -m ius chunk --dataset bmds --strategy fixed_count --count 4 --verbose
+
+# Try summarization (requires OPENAI_API_KEY)
+python -m ius summarize --input outputs/chunks/bmds_fixed_count_4 --item ADP02 --preview
 ```
 
 ### 2. Python API Usage
@@ -813,7 +890,8 @@ The framework has been significantly enhanced with production-ready features:
 
 ### ✅ Recently Completed
 - **LLM-based Summarization**: OpenAI integration with cost tracking and experimental management
-- **Multiple Strategies**: No-op baseline, concat-and-summarize, with iterative strategies planned
+- **Summarization CLI**: Command-line interface with multiple strategies, auto-naming, and comprehensive options
+- **Multiple Strategies**: Cumulative (concat_and_summarize) and independent (summarize_chunks_independently) approaches
 - **Flexible Scope Handling**: Single item, full dataset, and document range summarization
 - **Improved Data Structure**: New directory-based chunked output format with collection.json + items/
 - **Object-Oriented Data Access**: Dataset and ChunkedDataset classes for clean data handling
@@ -821,7 +899,6 @@ The framework has been significantly enhanced with production-ready features:
 - **Enhanced Error Handling**: Graceful delimiter mismatch handling and detailed error reporting
 
 ### 🚧 In Progress  
-- **Summarization CLI**: Command-line interface for summarization workflows
 - **Evaluation Framework**: Metrics for content preservation, summary quality, and computational efficiency
 
 ### 📋 Planned Features

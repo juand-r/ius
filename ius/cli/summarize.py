@@ -16,17 +16,60 @@ from typing import Any, Dict, List
 from ius.data import ChunkedDataset
 from ius.exceptions import DatasetError, ValidationError
 from ius.logging_config import get_logger, setup_logging
-from ius.summarization import concat_and_summarize, save_summaries
+from ius.summarization import concat_and_summarize, summarize_chunks_independently, save_summaries
 
 
 # Set up logger for this module
 logger = get_logger(__name__)
 
 
+def _generate_output_name(
+    input_path: str,
+    item_id: str | None,
+    strategy: str,
+    prompt_name: str,
+    final_only: bool
+) -> str:
+    """Generate automatic output directory name based on input parameters."""
+    input_path_obj = Path(input_path)
+    
+    # Get base name from input
+    if input_path_obj.is_file():
+        # Single file: use item name from filename
+        base_name = input_path_obj.stem
+        scope = "single"
+    else:
+        # Directory: use directory name
+        base_name = input_path_obj.name
+        scope = "all" if item_id is None else item_id
+    
+    # Clean strategy name (shorten to key parts)
+    if strategy == "concat_and_summarize":
+        strategy_short = "concat"
+    elif strategy == "summarize_chunks_independently":
+        strategy_short = "independent"
+    else:
+        strategy_short = strategy
+    
+    # Clean prompt name (remove path separators)
+    clean_prompt = prompt_name.replace("/", "-").replace("\\", "-")
+    
+    # Build name components
+    components = [base_name]
+    if scope != "single":
+        components.append(scope)
+    components.append(strategy_short)
+    components.append(clean_prompt)
+    components.append("final" if final_only else "intermediate")
+    
+    return "_".join(components)
+
+
 def summarize_chunks(
     input_path: str,
-    output_name: str,
+    output_name: str | None = None,
     item_id: str | None = None,
+    strategy: str = "concat_and_summarize",
     model: str = "gpt-4.1-mini",
     prompt_name: str = "default-concat-prompt",
     final_only: bool = True,
@@ -37,8 +80,9 @@ def summarize_chunks(
 
     Args:
         input_path: Path to chunked dataset directory or specific item JSON
-        output_name: Name for the experiment output directory  
+        output_name: Name for the experiment output directory (auto-generated if None)
         item_id: Specific item ID to process (optional, processes all if None)
+        strategy: Summarization strategy ("concat_and_summarize" or "summarize_chunks_independently")
         model: LLM model to use for summarization
         prompt_name: Name of prompt template to use
         final_only: Whether to return only final summary or intermediate ones too
@@ -49,9 +93,15 @@ def summarize_chunks(
     """
     start_time = time.time()
     
+    # Generate output name if not provided
+    if output_name is None:
+        output_name = _generate_output_name(input_path, item_id, strategy, prompt_name, final_only)
+        print(f"🎯 Auto-generated output name: {output_name}")
+    
     print(f"🤖 Starting summarization...")
     print(f"📥 Input: {input_path}")
     print(f"📤 Output: outputs/summaries/{output_name}")
+    print(f"⚡ Strategy: {strategy}")
     print(f"🧠 Model: {model}")
     print(f"📝 Prompt: {prompt_name}")
     
@@ -94,22 +144,59 @@ def summarize_chunks(
             preview_text = chunks[0][:200] + "..." if len(chunks[0]) > 200 else chunks[0]
             print(f"👀 First chunk preview: {preview_text}")
         
-        # Run summarization
-        result = concat_and_summarize(
-            chunks=chunks,
-            final_only=final_only,
-            prompt_name=prompt_name,
-            model=model
-        )
-        
-        # Extract summaries
-        if final_only:
-            summaries = [result["response"]]
+        # Run summarization based on strategy
+        if strategy == "concat_and_summarize":
+            concat_result = concat_and_summarize(
+                chunks=chunks,
+                final_only=final_only,
+                prompt_name=prompt_name,
+                model=model
+            )
+            
+            if final_only:
+                # Single result dict
+                summaries = [concat_result["response"]]
+                result = concat_result  # Use the single result for metadata
+            else:
+                # List of result dicts (like independent strategy)
+                summaries = [r["response"] for r in concat_result]
+                # Aggregate metadata from list
+                result = {
+                    "processing_time": sum(r.get("processing_time", 0) for r in concat_result),
+                    "usage": {
+                        "total_cost": sum(r.get("usage", {}).get("total_cost", 0) for r in concat_result),
+                        "total_tokens": sum(r.get("usage", {}).get("total_tokens", 0) for r in concat_result)
+                    }
+                }
+            
+            summary_type = "cumulative summary"
+            
+        elif strategy == "summarize_chunks_independently":  
+            chunk_results = summarize_chunks_independently(
+                chunks=chunks,
+                final_only=final_only,
+                prompt_name=prompt_name,
+                model=model
+            )
+            # Extract summaries from list of results (one per chunk)
+            summaries = [r["response"] for r in chunk_results]
+            # Combine metadata from all chunk results
+            result = {
+                "processing_time": sum(r.get("processing_time", 0) for r in chunk_results),
+                "usage": {
+                    "total_cost": sum(r.get("usage", {}).get("total_cost", 0) for r in chunk_results),
+                    "total_tokens": sum(r.get("usage", {}).get("total_tokens", 0) for r in chunk_results)
+                }
+            }
+            summary_type = "chunk summary"
+            
         else:
-            summaries = result.get("intermediate_summaries", [result["response"]])
+            raise ValueError(f"Unknown strategy: {strategy}")
         
         # Save results
         experiment_metadata = {
+            "strategy_function": strategy,
+            "summary_type": summary_type,
             "model": model,
             "prompt_name": prompt_name,
             "final_only": final_only,
@@ -191,17 +278,23 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Summarize all items in a chunked dataset
-  python -m ius summarize --input outputs/chunks/ipython_test --output my_experiment
+  # Summarize all items with cumulative strategy (default)
+  python -m ius summarize --input outputs/chunks/ipython_test
   
-  # Summarize a specific item
-  python -m ius summarize --input outputs/chunks/ipython_test --item ADP02 --output test_run
+  # Summarize each chunk independently  
+  python -m ius summarize --input outputs/chunks/ipython_test --strategy summarize_chunks_independently
+  
+  # Summarize a specific item with auto-generated output name
+  python -m ius summarize --input outputs/chunks/ipython_test --item ADP02
+  
+  # Summarize with custom output name and strategy
+  python -m ius summarize --input outputs/chunks/ipython_test --strategy summarize_chunks_independently --output my_experiment
   
   # Summarize a single item file directly
-  python -m ius summarize --input outputs/chunks/ipython_test/items/ADP02.json --output single_test
+  python -m ius summarize --input outputs/chunks/ipython_test/items/ADP02.json
   
-  # Use different model and prompt
-  python -m ius summarize --input outputs/chunks/ipython_test --output gpt4_test --model gpt-4 --prompt custom-prompt
+  # Use different model, strategy, and prompt with intermediate summaries
+  python -m ius summarize --input outputs/chunks/ipython_test --strategy concat_and_summarize --model gpt-4 --prompt custom-prompt --intermediate
         """
     )
     
@@ -213,13 +306,19 @@ Examples:
     
     parser.add_argument(
         "--output", "-o", 
-        required=True,
-        help="Name for the experiment output directory (will be saved to outputs/summaries/<name>)"
+        help="Name for the experiment output directory (auto-generated if not provided)"
     )
     
     parser.add_argument(
         "--item",
         help="Specific item ID to process (optional, processes all items if not specified)"
+    )
+    
+    parser.add_argument(
+        "--strategy", "-s",
+        default="concat_and_summarize",
+        choices=["concat_and_summarize", "summarize_chunks_independently"],
+        help="Summarization strategy (default: concat_and_summarize)"
     )
     
     parser.add_argument(
@@ -267,6 +366,7 @@ Examples:
             input_path=args.input,
             output_name=args.output,
             item_id=args.item,
+            strategy=args.strategy,
             model=args.model,
             prompt_name=args.prompt,
             final_only=not args.intermediate,

@@ -48,6 +48,49 @@ def no_op(chunks: list[str], **kwargs) -> dict[str, Any]:
     }
 
 
+def summarize_chunks_independently(chunks: list[str],
+                         final_only: bool = False,
+                         prompt_name: str = "default-concat-prompt",
+                         model: str = "gpt-4.1-mini",
+                         ask_user_confirmation: bool = False,
+                         **kwargs) -> dict[str, Any]:
+    """
+    Summarize chunks independently.
+
+    Args:
+        chunks: List of text chunks to summarize
+        final_only: Whether to summarize only the final chunk
+        prompt_name: Name of the prompt to use
+        model: LLM model to use
+        ask_user_confirmation: Whether to ask user confirmation before API call
+        **kwargs: Additional parameters for LLM call
+
+    Returns:
+        Dict with summary and metadata
+    """
+    # load system and user prompt from prompts/
+    system_prompt = Path(f"prompts/summarization/{prompt_name}/system.txt").read_text()
+    user_prompt = Path(f"prompts/summarization/{prompt_name}/user.txt").read_text()
+
+    system_and_user_prompt = {
+        "system": system_prompt,
+        "user": user_prompt
+    }
+
+    results = []
+    for ii in range(len(chunks)):
+        print(f"Summarizing chunk {ii+1}")
+        full_text = chunks[ii]
+        result = call_llm(full_text, model, system_and_user_prompt, template_vars={"text": full_text}, ask_user_confirmation=ask_user_confirmation, **kwargs)
+        result["method"] = "summarize_chunks_independently"
+        result["input_chunks"] = len(chunks)
+        result["final_only"] = False
+        result["chunk_index"] = ii
+        result["prompt_name"] = prompt_name
+        result["summary_content"] = "cumulative content"
+        results.append(result)
+    return results
+
 def concat_and_summarize(chunks: list[str],
                          final_only: bool = False,
                          prompt_name: str = "default-concat-prompt",
@@ -86,6 +129,8 @@ def concat_and_summarize(chunks: list[str],
         result["method"] = "concat_and_summarize"
         result["input_chunks"] = len(chunks)
         result["final_only"] = True
+        result["prompt_name"] = prompt_name
+        result["summary_content"] = "cumulative content"
         return result
     else:
         results = []
@@ -97,6 +142,8 @@ def concat_and_summarize(chunks: list[str],
             result["input_chunks"] = len(chunks)
             result["final_only"] = False
             result["chunk_index"] = ii
+            result["prompt_name"] = prompt_name
+            result["summary_content"] = "cumulative content"
             results.append(result)
         return results
 

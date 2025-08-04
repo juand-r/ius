@@ -57,7 +57,7 @@ def print_help():
     print()
     print("Examples:")
     print("  python -m ius chunk --dataset bmds --strategy fixed_size --size 2048")
-    print("  python -m ius summarize --input outputs/chunks/ipython_test --output my_experiment")
+    print("  python -m ius summarize --input outputs/chunks/ipython_test")
     print("  python -m ius help")
     print()
     print("For command-specific help:")
