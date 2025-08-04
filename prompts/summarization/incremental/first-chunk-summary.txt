@@ -1,0 +1,5 @@
+Summarize the following {domain} excerpt. This is part {chunk_num} of {total_chunks} segments.
+
+{text}
+
+Provide a comprehensive {optional_summary_length}summary of the key events, information, and important details from this document."""
