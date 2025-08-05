@@ -242,6 +242,7 @@ def iterative_summarize(chunks: list[str],
                 "text": chunk,
                 "optional_summary_length": ""
             }
+
         else:
             # Subsequent chunks - use incremental prompt with previous context
             user_prompt = prompts["summarize-chunk-with-previous-summary-context"]
@@ -260,10 +261,10 @@ def iterative_summarize(chunks: list[str],
         }
         
         print(f"Incremental summarization step {chunk_num}/{len(chunks)}")
-        
+
         result = call_llm(chunk, model, system_and_user_prompt, template_vars=template_vars, 
                          ask_user_confirmation=ask_user_confirmation, **kwargs)
-        
+
         # Add iterative-specific metadata
         result["method"] = "iterative_summarize"
         result["step"] = chunk_num
