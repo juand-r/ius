@@ -52,6 +52,13 @@ def chunk_dataset(
     Returns:
         Dictionary with chunking results and metadata
     """
+    # Capture the command that generated this chunked dataset for reproducibility
+    # Replace the full path to __main__.py with user-friendly "python -m ius" format
+    argv_copy = sys.argv.copy()
+    if argv_copy[0].endswith("__main__.py"):
+        argv_copy[0] = "python -m ius"
+    command_run = " ".join(argv_copy)
+    
     # Load and validate dataset
     dataset = _load_and_validate_dataset(dataset_name)
     if not dataset:
@@ -76,7 +83,7 @@ def chunk_dataset(
 
     # Prepare chunked items and collection in new format
     chunked_items, chunked_collection = _prepare_chunked_data_for_saving(
-        dataset_name, strategy, overall_stats, results, items_dict, dataset.metadata
+        dataset_name, strategy, overall_stats, results, items_dict, dataset.metadata, command_run
     )
 
     # Save chunked collection and items if path specified
@@ -285,7 +292,7 @@ def _calculate_overall_statistics(results: dict, errors: dict) -> dict[str, Any]
 
 def _prepare_chunked_data_for_saving(
     dataset_name: str, strategy: str, overall_stats: dict, results: dict, 
-    original_items: dict, original_collection_metadata: dict
+    original_items: dict, original_collection_metadata: dict, command_run: str
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """
     Prepare chunked collection and items in the new format that matches original dataset structure.
@@ -297,6 +304,7 @@ def _prepare_chunked_data_for_saving(
         results: Chunking results per item
         original_items: Original item data to preserve metadata
         original_collection_metadata: Original collection metadata
+        command_run: Command that generated this chunked dataset (for reproducibility)
         
     Returns:
         Tuple of (chunked_items, chunked_collection)
@@ -308,6 +316,7 @@ def _prepare_chunked_data_for_saving(
             "strategy": strategy,
             "overall_stats": overall_stats,
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "command_run": command_run
         }
     }
     
@@ -341,6 +350,7 @@ def _prepare_chunked_data_for_saving(
                     "chunking_stats": {
                         **chunk_group["stats"],
                         "original_length": len(original_doc.get("content", "")),
+                        "command_run": command_run
                     }
                 }
             }

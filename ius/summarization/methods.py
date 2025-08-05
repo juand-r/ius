@@ -249,9 +249,8 @@ def iterative_summarize(chunks: list[str],
                 "domain": "detective story",  # TODO: Could be parameterized
                 "chunk_num": str(chunk_num),
                 "total_chunks": str(len(chunks)),
-                "chunk_num-1": str(chunk_num - 1),  # For "parts 1-{chunk_num-1}"
                 "previous_summary": previous_summary,
-                "chunk_text": chunk,
+                "text": chunk,
                 "optional_summary_length": ""
             }
         
@@ -380,6 +379,9 @@ def save_summaries(
         # Load existing collection metadata
         with open(collection_file, "r", encoding="utf-8") as f:
             collection_data = json.load(f)
+        # Update collection_metadata if provided (e.g., for command_run updates)
+        if collection_metadata:
+            collection_data["summarization_info"]["collection_metadata"].update(collection_metadata)
     else:
         # Create new collection metadata
         collection_data = {

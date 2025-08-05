@@ -1,9 +1,9 @@
 Continue summarizing this {domain}. You already summarized the previous parts. This is part {chunk_num} of {total_chunks} segments.
 
-## Previous summary (summarizing parts 1-{chunk_num-1}):
+## Previous summary (summarizing parts 1-{chunk_num}):
 {previous_summary}
 
 ## Current segment text (part {chunk_num}):
-{chunk_text}
+{text}
 
 Provide a comprehensive {optional_summary_length}summary of everything (key events, information, and important details) that happened up to this point, updating the previous summary with new information from this segment. Include both the new events and the previous ones to maintain continuity.

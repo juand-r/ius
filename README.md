@@ -239,6 +239,7 @@ Default strategy: concat_and_summarize
 - **💰 Cost Tracking**: Real-time cost estimation and usage reporting
 - **🔄 Skip/Overwrite Control**: Automatically skip existing results (default) or force overwrite with `--overwrite`
 - **📋 Strategy Discovery**: List and compare available strategies with `--list-strategies`
+- **🔗 Command Reproducibility**: Full command history stored in metadata for perfect experiment reproduction
 
 ### Example Output
 
@@ -938,6 +939,7 @@ The framework has been significantly enhanced with production-ready features:
 - **Enhanced Error Handling**: Graceful delimiter mismatch handling and detailed error reporting
 - **Skip/Overwrite Control**: Intelligent result caching with `--overwrite` flag for cost-effective incremental processing
 - **Strategy Discovery**: Built-in `--list-strategies` command for easy exploration of available approaches
+- **Command Reproducibility**: Complete command tracking in both chunking and summarization metadata for scientific transparency
 
 ### 🚧 In Progress  
 - **Evaluation Framework**: Metrics for content preservation, summary quality, and computational efficiency

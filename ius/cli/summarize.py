@@ -117,6 +117,13 @@ def summarize_chunks(
     Returns:
         Dictionary with summarization results and metadata
     """
+    # Capture the command that generated this experiment for reproducibility
+    # Replace the full path to __main__.py with user-friendly "python -m ius" format
+    argv_copy = sys.argv.copy()
+    if argv_copy[0].endswith("__main__.py"):
+        argv_copy[0] = "python -m ius"
+    command_run = " ".join(argv_copy)
+    
     start_time = time.time()
     
     # Generate output name if not provided
@@ -175,6 +182,13 @@ def summarize_chunks(
         
         # Load chunks for this item
         item_data = chunked_dataset.load_item(current_item_id)
+        
+        # Add chunk_file information to chunking_stats for traceability
+        chunk_file_path = f"{chunked_dataset.collection_path}/items/{current_item_id}.json"
+        for doc in item_data["documents"]:
+            if "metadata" in doc and "chunking_stats" in doc["metadata"]:
+                doc["metadata"]["chunking_stats"]["chunk_file"] = chunk_file_path
+        
         chunks = []
         for doc in item_data["documents"]:
             chunks.extend(doc["chunks"])  # Use "chunks" (plural) not "chunk"
@@ -219,7 +233,7 @@ def summarize_chunks(
                 result = concat_result  # Use the single result for metadata
                 summary_type = concat_result.get("summary_type", "--")
                 prompts_used = concat_result.get("prompts_used", {})
-                final_prompts_used = concat_result.get("final_prompts_used", {})
+                final_prompts_used = [concat_result.get("final_prompts_used", {})]  # Wrap in list for consistency
                 template_vars = concat_result.get("template_vars", {})
                 actual_prompt_name = concat_result.get("prompt_name", prompt_name)
             else:
@@ -236,7 +250,7 @@ def summarize_chunks(
                 # Extract summary_type and prompts from first result (all should be the same)
                 summary_type = concat_result[0].get("summary_type", "--") if concat_result else "--"
                 prompts_used = concat_result[0].get("prompts_used", {}) if concat_result else {}
-                final_prompts_used = concat_result[0].get("final_prompts_used", {}) if concat_result else {}
+                final_prompts_used = [r.get("final_prompts_used", {}) for r in concat_result] if concat_result else []
                 template_vars = concat_result[0].get("template_vars", {}) if concat_result else {}
                 actual_prompt_name = concat_result[0].get("prompt_name", prompt_name) if concat_result else prompt_name
             
@@ -264,7 +278,7 @@ def summarize_chunks(
             # Extract summary_type and prompts from first result (all should be the same)
             summary_type = chunk_results[0].get("summary_type", "--") if chunk_results else "--"
             prompts_used = chunk_results[0].get("prompts_used", {}) if chunk_results else {}
-            final_prompts_used = chunk_results[0].get("final_prompts_used", {}) if chunk_results else {}
+            final_prompts_used = [r.get("final_prompts_used", {}) for r in chunk_results] if chunk_results else []
             template_vars = chunk_results[0].get("template_vars", {}) if chunk_results else {}
             actual_prompt_name = chunk_results[0].get("prompt_name", prompt_name) if chunk_results else prompt_name
             
@@ -292,7 +306,7 @@ def summarize_chunks(
             # Extract summary_type and prompts from first result (all should be the same)
             summary_type = iterative_results[0].get("summary_type", "--") if iterative_results else "--"
             prompts_used = iterative_results[0].get("prompts_used", {}) if iterative_results else {}
-            final_prompts_used = iterative_results[0].get("final_prompts_used", {}) if iterative_results else {}
+            final_prompts_used = [r.get("final_prompts_used", {}) for r in iterative_results] if iterative_results else []
             template_vars = iterative_results[0].get("template_vars", {}) if iterative_results else {}
             actual_prompt_name = iterative_results[0].get("prompt_name", prompt_name) if iterative_results else prompt_name
             
@@ -308,7 +322,8 @@ def summarize_chunks(
             "model": model,
             "prompt_name": actual_prompt_name,  # Use actual prompt name from function
             "prompts_used": prompts_used,  # Template prompts (collection-level)
-            "final_only": final_only
+            "final_only": final_only,
+            "command_run": command_run  # Full command for reproducibility
         }
         
         item_metadata = {
@@ -318,7 +333,8 @@ def summarize_chunks(
             "template_vars": _truncate_template_vars(template_vars),  # Item-specific (contains actual text)
             "processing_time": result.get("processing_time", 0),
             "cost": result.get("usage", {}).get("total_cost", 0),
-            "total_tokens": result.get("usage", {}).get("total_tokens", 0)
+            "total_tokens": result.get("usage", {}).get("total_tokens", 0),
+            "command_run": command_run  # Full command for reproducibility
         }
         
         # Save using the existing save_summaries function
