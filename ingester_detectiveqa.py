@@ -109,8 +109,8 @@ book_ids = dict([
     (40, "The Klein Bottle - Okajima Futari"),
     (53, "The Dutch Shoe Mystery - Ellery Queen"),
     (56, "Drury Lane's Last Case - Ellery Queen"),
-    (79, "Winged Darkness -- Maya Yutaka"),
-    (81, "The One-Eyed Girl -- Yutaka Maya"),
+    (79, "Winged Darkness - Maya Yutaka"),
+    (81, "The One-Eyed Girl - Yutaka Maya"),
     (82, "The Disease of Murder - Takemaru Abiko"),
     (83, "The Two-Headed Devil - Arisu Arisugawa"),
     (84, "The Decagon House Murders - Yukito Ayatsuji"),
@@ -134,6 +134,141 @@ def is_english(text):
 def is_murderer_question(question):
     """Check if question is about who the murderer/culprit is."""
     question_lower = question.lower()
+    
+    # Allowlist: Questions that should ALWAYS be considered murder questions
+    # even if they don't contain murder-related keywords
+    allowlist_phrases = [
+        # Add specific questions or phrases here that should be included
+        "Who kidnapped Donohue?",
+        "Who caused the death of Rosalind Claude?",
+        "Who is the real mastermind behind these murder cases in the text?",
+        "Who planned the death of Mrs. Simington?",
+        "Who was Ronnie DeFrancis killed by?",
+        "Who was Ruth killed by?",
+        "Which of the following individuals is most likely to be the instigator of the entire case?",
+        "Who pushed Castles off the cliff?",
+        "Who is the accomplice of Professor Grimmer?",
+        "Who is the mastermind behind the multiple murders that took place in the mansion according to Bog?",
+        "Who manipulates others through psychological suggestion to commit crimes in the text?",
+        "Who is the mastermind behind the murder of Mrs. Franklin?",
+        "The person who directly killed Harington Pace was",
+        "Who is the accomplice in the case of the deceased in a traffic accident?",
+        "Who was Anne Morris killed by?",
+        "Who poisoned Polly?",
+        "Who is involved in the murder of Colonel Prothero?",
+        "Who poisoned Marina's coffee?",
+        "According to Calgary's reasoning, who do you think killed Philip?",
+    ]
+    
+    # Check if question matches any allowlist phrase (force include)
+    for allowed_phrase in allowlist_phrases:
+        if allowed_phrase.lower() in question_lower:
+            return True
+    
+    # Blocklist: Questions that should NOT be considered murder questions
+    # even if they contain murder-related keywords
+    blocklist_phrases = [
+        # Add specific questions or phrases here that should be excluded
+        "How did the killer kill Richard Abernathy",
+        "Based on the current clues, who is the killer (",
+        "Who is the murderer of Mary?", # early suspect, not the actual murderer
+        "How did the killer leave the scene?",
+        "According to Calgary's reasoning, who do you think killed Philip?", # avoid "from perspective of..." questions
+        "Mr. Marshall believes that who killed Mrs. Aggles?", # avoid "from perspective of..." questions
+        "Who killed Mrs. Upward?", #Duplicate
+        "What is the true identity of the killer?", #Duplicate
+        "From the perspective of the police inspector, who killed Mrs. Ascher?", # happens too early in the novel, and we don't want "from perspective of.. " questions
+        "The murderer of the deceased is (", #Duplicate
+        "Who was the murderer of Alfred and Harold?", # Duplicate
+        "Who killed Joyce?", #Duplicate
+        "Who is the mastermind behind the murder of Mrs. Franklin?", #Near Duplicate
+        "Who was the killer of Celia Austin?", # 'Who was the killer of Celia' is already there
+        "Based on the current clues, who is the killer (" #duplicate, checked only eliminates one
+        "Based on the existing clues, who is the perpetrator of the serial murder case (", #Duplicate, checked only eliminates one
+        "Who is the perpetrator of the serial murder case?", #Duplicate, checked only eliminates one
+        "The real culprit of the triple murder case 18 years ago was who?", #Malformed answer options, remove
+        "The murderer of Lily is", #Duplicate
+        "The killer of Helen is (", #Duplicate
+        "Who was the killer of Mrs. Boyle?", #Duplicate
+        "Who is the suspect of killing Heather?",
+        "Who killed Heather?", #Duplicate
+        "What is the purpose of the killer sending an invitation letter to the doctoral film screening?",
+        "What method did the killer plan to use to create an alibi after the crime?",
+        "Why was Yamamura Mariko injured by the murderer?",
+        " Who is the person who planned to use themselves as bait to lure the killer into revealing themselves?",
+        "Among the following professions, the one that matches the killer is",
+        "Who could not be the murderer?",
+        "Davenport suspects Gregory Dyson's attitude is",
+        "What was the motive behind the murderer's killing of Colonel Partridge?",
+        "Which of the following individuals is a suspect in the murder of Victoria?",
+        "Based on the current clues, the following person is not likely to be the killer",
+        "Who could not be the killer of Simon Lee",
+        "When investigating the theft of the diamond, who was the first suspect",
+        "Dr. Roberts believes the killer is",
+        "The murderer chose which game of bridge to commit the murder of Mr. Chaturvedi",
+        "Why is there no suspect in a murder scene but no one is suspected?",
+        "Where is the murderer hiding?",
+        'Who is the "one o\'clock" that Bond suspects?',
+        "Who does Detective Batter suspect of attempting to steal the files?",
+        "What did the perpetrator do after the incident?",
+        "Who is responsible for Moira's disappearance?",
+        "Who is not the killer of Senator Fudge?",
+        "Which hand did the killer use to stab the senator with the knife?",
+        "The number of suspects in this murder case is",
+        "Apart from the real culprit, another person involved in the novel is",
+        "In connection with the death of Inna Brennt, which of the following individuals is a suspect?",
+        "Based on the analysis of the crime scene, what is the inferred method of poisoning used by the perpetrator?",
+        "Who is the suspect in the murder of Rosemary?",
+        "In the anonymous letter of Little Chai brothers, what kind of criminal technique was mentioned?",
+        "How was it determined that the killer had a close connection with the Dutch Memorial Hospital?",
+        "Who is the nationality of the murderer?",
+        "Who could not be the killer of Mrs. Ladden?",
+        "Who is the suspect in the murder of Richard Lochhead?",
+        "Who was the person who called Mr. Poirot for help?",
+        "What was the motive of the criminal?",
+        "How did the murderer take Field's hat?",
+        "The motive of the killer leaving poisoned pears",
+        "Who was the actual witness of the murder case",
+        "Based on the current clues, who would definitely not be the killer of Joyce",
+        "Who was the person who actually witnessed the murder case",
+        "Based on the current clues, who could possibly not be the murderer",
+        "Who could not be the perpetrator of the murder that occurred at the Brougham Hotel",
+        "Who was the person who called Adwick Fenn with the intention of extortion",
+        "Who is not the killer in this serial murder case",
+        "When Mukae arrived at the Inari family, who was the chairman",
+        "Why did the killer kill Celia Austin?",
+        "What measures did the killer take to conceal their actions of murdering Celia Austin?",
+        "What is the purpose of the killer sending an invitation letter to the doctoral film screening?",
+        "What is the key factor that enables the killer to commit the crime so smoothly?",
+        "The killer's criteria for selecting victims during the serial killings were:",
+        "The principle of selecting victims by ABC murderer should be:",
+        "How did the killer ABC choose the victims?",
+        "The reason why the killer mistakenly identified the target person was",
+        "What is the profession of the murderer?",
+        "After a murder case occurred in the cinema, who did the police suspect to be the killer?",
+        "Why didn't the killer arrange the victims in alphabetical order in the movie theater?",
+        "Why isn't Castor the killer in the Baxter case?",
+        "Miss Gilchrist is suspected of being involved in which incident in the novel?",
+        "Who couldn't possibly be the murderer when Horiuchi was killed?",
+        "Which of the following individuals is not likely to be the murderer of Mrs. Upward?",
+        "The person who pushed Polo off the railway platform, the impossible suspect is?",
+        "Where did the killer hide the body?",
+        "Who was the true identity of the deceased?",
+        "Police suspect the deceased to be linked to",
+        "Why did the killer choose to use a lighter for illumination?",
+        "The hideout of the criminal is",
+        "Hoyt wonders who killed Rachel?",
+        "Mr. Marshall thinks the killer is",
+        "Who does the police suspect killed Philip?",
+        "The initial conclusion states, who killed Mrs. Aggles?",
+    ]
+    
+    # Check if question matches any blocklist phrase
+    for blocked_phrase in blocklist_phrases:
+        if blocked_phrase.lower() in question_lower:
+            return False
+    
+    # Check for murder/culprit keywords
     murderer_keywords = [
         'murderer', 'killer', 'culprit', 'perpetrator', 'criminal',
         'who killed', 'who murdered', 'who committed', 'who did it',
@@ -147,15 +282,35 @@ def similarity(a, b):
     return SequenceMatcher(None, a, b).ratio()
 
 
+def clean_option_text(text):
+    """Clean corrupted option text by removing translation artifacts and long quotes."""
+    if not isinstance(text, str):
+        return text
+    
+    # Remove leading/trailing whitespace
+    text = text.strip()
+    
+    # If it contains "Translation:" pattern, extract just the name before the colon
+    if ': "' in text and "(Translation: \"I'm here to listen" in text:
+        # Extract just the name before the colon
+        name_part = text.split(':')[0].strip()
+        return name_part
+    
+#    # If it's very long (>50 chars) and contains quotes, likely corrupted
+    if len(text) > 50 and '"' in text:
+        # Try to extract just the first word/name
+        words = text.split()
+        if words:
+            # Take first word, remove any leading punctuation
+            first_word = words[0].lstrip(' "\'')
+            return first_word
+    
+    return text
+
+
 def main():
     """Main ingestion process."""
     print("🔍 Starting DetectiveQA ingestion...")
-    
-    # Load dataset
-    print("📥 Loading dataset...")
-    dataset = load_dataset("Phospheneser/DetectiveQA", streaming=True)
-    samples = list(dataset['train'].take(172))  # All 172 samples
-    print(f"✅ Loaded {len(samples)} samples")
     
     # Create output directories
     output_dir = Path("datasets/detectiveqa")
@@ -167,6 +322,57 @@ def main():
     murder_questions_file = open("murder_questions.txt", "w", encoding="utf-8")
     non_murder_questions_file = open("non_murder_questions.txt", "w", encoding="utf-8")
     warnings_file = open("ingestion_warnings.txt", "w", encoding="utf-8")
+    
+    # Load annotation files directly (bypassing streaming dataset corruption)
+    print("📥 Loading annotation files...")
+    annotation_dir = Path("data-source/detectiveqa-annotations")
+    aisup_dir = annotation_dir / "AIsup_anno"
+    human_dir = annotation_dir / "human_anno"
+    
+    if not annotation_dir.exists():
+        print("❌ Annotation files not found!")
+        print("💡 Run: python download_annotation_files.py first")
+        murder_questions_file.close()
+        non_murder_questions_file.close()
+        warnings_file.close()
+        return
+    
+    # Load all annotation files
+    samples = []
+    
+    # Load AIsup_anno files
+    aisup_files = list(aisup_dir.glob("*.json"))
+    print(f"📂 Found {len(aisup_files)} AIsup_anno files")
+    
+    for file_path in aisup_files:
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                file_data = json.load(f)
+                # The files contain arrays of objects, so extend the samples list
+                if isinstance(file_data, list):
+                    samples.extend(file_data)
+                else:
+                    samples.append(file_data)
+        except Exception as e:
+            warnings_file.write(f"ERROR: Could not load annotation file {file_path}: {e}\n")
+    
+    # Load human_anno files
+    human_files = list(human_dir.glob("*.json"))
+    print(f"📂 Found {len(human_files)} human_anno files")
+    
+    for file_path in human_files:
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                file_data = json.load(f)
+                # The files contain arrays of objects, so extend the samples list
+                if isinstance(file_data, list):
+                    samples.extend(file_data)
+                else:
+                    samples.append(file_data)
+        except Exception as e:
+            warnings_file.write(f"ERROR: Could not load annotation file {file_path}: {e}\n")
+    
+    print(f"✅ Loaded {len(samples)} samples from annotation files")
     
     # Group samples by novel_id
     print("📚 Grouping samples by novel...")
@@ -234,6 +440,12 @@ def main():
                     murder_questions += 1
                     murder_questions_file.write(f"Novel {novel_id}: {question_data['question']}\n")
                     
+                    # Clean options to remove corruption
+                    cleaned_options = {
+                        key: clean_option_text(value) 
+                        for key, value in question_data['options'].items()
+                    }
+                    
                     # Add to filtered questions
                     all_questions.append({
                         "question": question_data['question'],
@@ -241,7 +453,7 @@ def main():
                         "reasoning": question_data['reasoning'],
                         "answer_position": question_data['answer_position'],
                         "clue_position": question_data['clue_position'],
-                        "options": question_data['options'],
+                        "options": cleaned_options,
                         "distraction": question_data['distraction']
                     })
                 else:
@@ -262,7 +474,7 @@ def main():
             },
             "documents": [
                 {
-                    "doc_id": f"novel_{novel_id}",
+                    "doc_id": f"{novel_id}",
                     "content": novel_text,
                     "metadata": {
                         "title": book_ids[novel_id].split(" - ")[0],

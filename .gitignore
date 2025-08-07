@@ -1,5 +1,7 @@
 # Avoid pushing copyrighted or other non-public data
 data-source/*/
+datasets/booookscore/
+datasets/detectiveqa/
 
 .DS_Store
 
