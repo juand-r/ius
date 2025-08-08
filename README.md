@@ -151,10 +151,29 @@ python -m ius chunk --dataset bmds --strategy fixed_size --size 1500 --dry-run
 # Combine flags for detailed preview
 python -m ius chunk --dataset true-detective --strategy fixed_count --count 6 --dry-run --verbose
 
-# Save output to specific location  
+# Save output to specific location (specify directory, not filename)
 python -m ius chunk --dataset bmds --strategy fixed_size --size 10000 \
   --output outputs/chunks/bmds_large_chunks --preview
 ```
+
+### Important: Output Path Format
+
+⚠️ **The `--output` parameter expects a DIRECTORY path, not a file path:**
+
+```bash
+# ✅ CORRECT - specify directory only
+python -m ius chunk --dataset bmds --strategy fixed_size --size 8000 \
+  --output outputs/chunks/bmds_custom_chunks
+
+# ❌ WRONG - don't include collection.json in the path  
+python -m ius chunk --dataset bmds --strategy fixed_size --size 8000 \
+  --output outputs/chunks/bmds_custom_chunks/collection.json
+```
+
+The CLI will automatically create:
+- `collection.json` (dataset metadata)
+- `items/` directory with individual chunk files
+- Proper directory structure within the specified output path
 
 ### Summarization Commands
 
