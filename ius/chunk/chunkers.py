@@ -18,17 +18,24 @@ from .utils import analyze_chunks, validate_chunks
 logger = logging.getLogger(__name__)
 
 
-def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n") -> list[str]:
+def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n", _is_retry: bool = False) -> list[str]:
     """
     Split text into chunks of approximately fixed size, respecting delimiter boundaries.
+    
+    Automatically optimizes chunk sizes to minimize very small final chunks by either
+    merging tiny chunks or redistributing content across all chunks for better uniformity.
 
     Args:
         text: Input text to chunk
         chunk_size: Target size for each chunk (in characters)
         delimiter: Boundary delimiter to respect (default: newline)
+        _is_retry: Internal flag to prevent infinite recursion (do not use)
 
     Returns:
-        List of text chunks, each roughly chunk_size characters
+        List of text chunks with optimized sizes:
+        - Tiny final chunks (<500 chars) are merged with previous chunk
+        - Small final chunks (500-50% of chunk_size) trigger redistribution
+        - Reasonable final chunks (>50% of chunk_size) are kept as-is
 
     Raises:
         ChunkingError: If input parameters are invalid
@@ -36,7 +43,8 @@ def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n") -> list[
 
     Note:
         Chunks may be slightly larger or smaller than chunk_size to respect
-        delimiter boundaries and avoid splitting meaningful units.
+        delimiter boundaries and avoid splitting meaningful units. The algorithm
+        performs intelligent post-processing to ensure better size uniformity.
     """
     # Input validation
     if not isinstance(text, str):
@@ -114,6 +122,42 @@ def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n") -> list[
         raise ValidationError(
             "Content validation failed: chunks do not preserve original text"
         )
+
+    # Optimize chunk sizes to avoid very small final chunks (only on first pass)
+    if not _is_retry and len(chunks) > 1:
+        last_chunk_size = len(chunks[-1])
+        min_len = 400  # Minimum acceptable chunk size
+        small_threshold = 0.5 * chunk_size  # 50% of target chunk size
+        
+        # Case 1: Tiny final chunk - merge with previous chunk
+        if last_chunk_size < min_len:
+            logger.info(f"Merging tiny final chunk ({last_chunk_size} chars) with previous chunk")
+            chunks[-2] = chunks[-2] + delimiter + chunks[-1]
+            chunks.pop()
+            
+        # Case 2: Small final chunk - redistribute across all chunks
+        elif min_len <= last_chunk_size <= small_threshold:
+            num_complete_chunks = len(chunks) - 1  # Exclude the small final chunk
+            total_content_size = chunk_size * num_complete_chunks + last_chunk_size
+            new_chunk_size = int(total_content_size / num_complete_chunks)
+            
+            logger.info(f"Redistributing small final chunk ({last_chunk_size} chars) "
+                       f"across {num_complete_chunks} chunks. New target size: {new_chunk_size}")
+            
+            # Re-chunk with optimized size
+            optimized_chunks = chunk_fixed_size(text, new_chunk_size, delimiter, _is_retry=True)
+            
+            # Final safety check: if we still have a tiny final chunk, merge it
+            if len(optimized_chunks) > 1 and len(optimized_chunks[-1]) < 1.5*min_len:
+                logger.info(f"Final safety check: merging remaining tiny chunk ({len(optimized_chunks[-1])} chars)")
+                optimized_chunks[-2] = optimized_chunks[-2] + delimiter + optimized_chunks[-1]
+                optimized_chunks.pop()
+            
+            return optimized_chunks
+            
+        # Case 3: Reasonable final chunk - keep as-is
+        else:
+            logger.debug(f"Final chunk size ({last_chunk_size} chars) is reasonable, keeping as-is")
 
     return chunks
 
