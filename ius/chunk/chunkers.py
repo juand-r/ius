@@ -18,6 +18,31 @@ from .utils import analyze_chunks, validate_chunks
 logger = logging.getLogger(__name__)
 
 
+def _extract_reveal_segment(item_data: dict[str, Any]) -> str | None:
+    """
+    Extract reveal segment from BMDS dataset item.
+    
+    Args:
+        item_data: Item data dictionary
+        
+    Returns:
+        Reveal segment text or None if not found
+    """
+    try:
+        documents = item_data.get("documents", [])
+        if not documents:
+            return None
+            
+        metadata = documents[0].get("metadata", {})
+        detection = metadata.get("detection", {})
+        reveal_segment = detection.get("reveal_segment", "")
+        
+        return reveal_segment if reveal_segment else None
+        
+    except (KeyError, IndexError, AttributeError):
+        return None
+
+
 def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n", _is_retry: bool = False) -> list[str]:
     """
     Split text into chunks of approximately fixed size, respecting delimiter boundaries.
@@ -356,6 +381,7 @@ def process_dataset_items(
     chunk_size: int | None = None,
     num_chunks: int | None = None,
     delimiter: str = "\n",
+    reveal_add_on: bool = False,
 ) -> dict[str, Any]:
     """
     Core logic to chunk all items in a dataset.
@@ -369,6 +395,7 @@ def process_dataset_items(
         chunk_size: Target chunk size (for fixed_size strategy)
         num_chunks: Number of chunks (for fixed_count strategy)
         delimiter: Boundary delimiter for splitting
+        reveal_add_on: Whether to add reveal segment as final chunk (BMDS only)
 
     Returns:
         Dictionary of item_id -> chunking results
@@ -469,6 +496,18 @@ def process_dataset_items(
                     "avg_chunk_size": round(avg_chunk_size, 1),
                 }
 
+                # Add reveal segment as final chunk if requested
+                if reveal_add_on:
+                    reveal_segment = _extract_reveal_segment(item_data)
+                    if reveal_segment:
+                        logger.info(f"Adding reveal segment as final chunk for {item_id} ({len(reveal_segment)} chars)")
+                        
+                        # Add reveal segment to all documents' chunks
+                        for chunk_group in chunks_array:
+                            chunk_group["chunks"].append(reveal_segment)
+                    else:
+                        logger.warning(f"Reveal segment not found for {item_id}, skipping reveal add-on")
+
                 results[item_id] = {
                     "item_id": item_id,
                     "original_length": total_original_length,
@@ -481,6 +520,7 @@ def process_dataset_items(
                         "delimiter": delimiter,
                         **({"chunk_size": chunk_size} if chunk_size else {}),
                         **({"num_chunks": num_chunks} if num_chunks else {}),
+                        **({"reveal_add_on": reveal_add_on} if reveal_add_on else {}),
                     },
                 }
 
@@ -518,10 +558,24 @@ def process_dataset_items(
                     "total_chunks": stats["num_chunks"],
                     "avg_chunk_size": stats["avg_chunk_size"],
                 }
+                
+                original_length = len(text)
+
+                # Add reveal segment as final chunk if requested
+                if reveal_add_on:
+                    reveal_segment = _extract_reveal_segment(item_data)
+                    if reveal_segment:
+                        logger.info(f"Adding reveal segment as final chunk for {item_id} ({len(reveal_segment)} chars)")
+                        
+                        # Add reveal segment to all documents' chunks
+                        for chunk_group in chunks_array:
+                            chunk_group["chunks"].append(reveal_segment)
+                    else:
+                        logger.warning(f"Reveal segment not found for {item_id}, skipping reveal add-on")
 
                 results[item_id] = {
                     "item_id": item_id,
-                    "original_length": len(text),
+                    "original_length": original_length,
                     "chunks": chunks_array,
                     "overall_stats": overall_stats,
                     "validation_passed": True,  # Validation happens in chunking functions
@@ -531,6 +585,7 @@ def process_dataset_items(
                         "delimiter": delimiter,
                         **({"chunk_size": chunk_size} if chunk_size else {}),
                         **({"num_chunks": num_chunks} if num_chunks else {}),
+                        **({"reveal_add_on": reveal_add_on} if reveal_add_on else {}),
                     },
                 }
 

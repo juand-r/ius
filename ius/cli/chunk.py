@@ -36,6 +36,7 @@ def chunk_dataset(
     delimiter: str = "\n",
     output_path: str | None = None,
     preview: bool = False,
+    reveal_add_on: bool = False,
 ) -> dict[str, Any]:
     """
     CLI wrapper for chunking datasets with progress printing and file I/O.
@@ -48,6 +49,7 @@ def chunk_dataset(
         delimiter: Boundary delimiter for splitting
         output_path: Path to save chunked results
         preview: Whether to show chunk previews
+        reveal_add_on: Whether to add reveal segment as final chunk (BMDS only)
 
     Returns:
         Dictionary with chunking results and metadata
@@ -72,7 +74,7 @@ def chunk_dataset(
 
     # Process items with chunking
     results, errors = _process_items_with_chunking(
-        items_dict, strategy, chunk_size, num_chunks, delimiter, preview
+        items_dict, strategy, chunk_size, num_chunks, delimiter, preview, reveal_add_on
     )
     if results is None:  # Processing failed
         return {}
@@ -177,6 +179,7 @@ def _process_items_with_chunking(
     num_chunks: int | None,
     delimiter: str,
     preview: bool,
+    reveal_add_on: bool = False,
 ) -> tuple[dict, dict] | tuple[None, None]:
     """
     Process items with chunking and handle progress display.
@@ -194,6 +197,7 @@ def _process_items_with_chunking(
             chunk_size=chunk_size,
             num_chunks=num_chunks,
             delimiter=delimiter,
+            reveal_add_on=reveal_add_on,
         )
 
         results = processing_results["results"]
@@ -487,6 +491,12 @@ Examples:
         help="Show what would be processed without actually doing it",
     )
 
+    parser.add_argument(
+        "--reveal-add-on",
+        action="store_true",
+        help="Add reveal segment as final chunk (only works with BMDS dataset)",
+    )
+
     args = parser.parse_args()
 
     # Validate required arguments for each strategy
@@ -556,6 +566,7 @@ Examples:
             delimiter=args.delimiter,
             output_path=args.output,
             preview=args.preview,
+            reveal_add_on=args.reveal_add_on,
         )
 
         if results:

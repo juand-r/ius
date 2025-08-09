@@ -154,6 +154,10 @@ python -m ius chunk --dataset true-detective --strategy fixed_count --count 6 --
 # Save output to specific location (specify directory, not filename)
 python -m ius chunk --dataset bmds --strategy fixed_size --size 10000 \
   --output outputs/chunks/bmds_large_chunks --preview
+
+# Add reveal segment as final chunk (BMDS only)
+python -m ius chunk --dataset bmds --strategy fixed_size --size 8000 \
+  --reveal-add-on --output outputs/chunks/bmds_with_reveals
 ```
 
 ### Important: Output Path Format
@@ -174,6 +178,26 @@ The CLI will automatically create:
 - `collection.json` (dataset metadata)
 - `items/` directory with individual chunk files
 - Proper directory structure within the specified output path
+
+### BMDS-Specific: Reveal Segment Add-On
+
+For the BMDS (detective stories) dataset, you can append the reveal segment as the final chunk using the `--reveal-add-on` flag:
+
+```bash
+# Add reveal segment to chunked stories
+python -m ius chunk --dataset bmds --strategy fixed_size --size 8000 --reveal-add-on
+```
+
+**What this does:**
+- Performs normal chunking on the story text using your chosen strategy
+- Extracts the reveal segment from each story's metadata
+- Appends the reveal segment as the very last chunk
+- Ensures complete story coverage including the solution/reveal
+
+**Use cases:**
+- Training models that need access to both story content and reveals
+- Ensuring no detective story content is lost during chunking
+- Creating datasets where the final chunk always contains the solution
 
 ### Summarization Commands
 
