@@ -98,7 +98,8 @@ def summarize_chunks_independently(chunks: list[str],
         result["prompt_name"] = prompt_name
         result["prompts_used"] = prompts  # Save all prompt templates
         result["template_vars"] = template_vars  # Save template variables used
-        result["summary_type"] = "chunk summary"
+        result["summary_content_type"] = "chunk summary"
+        result["step_k_inputs"] = "chunks(s): k"
         # final_prompts_used (with variables replaced) comes from call_llm result
         results.append(result)
     return results
@@ -153,7 +154,9 @@ def concat_and_summarize(chunks: list[str],
         result["prompt_name"] = prompt_name
         result["prompts_used"] = prompts  # Save all prompt templates
         result["template_vars"] = template_vars  # Save template variables used
-        result["summary_type"] = "cumulative summary"
+        result["summary_content_type"] = "cumulative summary"
+        result["step_k_inputs"] = "chunks(s): 1 to k"
+   
         # final_prompts_used (with variables replaced) comes from call_llm result
         return result
     else:
@@ -172,10 +175,9 @@ def concat_and_summarize(chunks: list[str],
             result["final_only"] = False
             result["chunk_index"] = ii
             result["prompt_name"] = prompt_name
-            result["summary_content"] = "cumulative summary"
             result["prompts_used"] = prompts  # Save all prompt templates
             result["template_vars"] = template_vars  # Save template variables used
-            result["summary_type"] = "cumulative summary"
+            result["summary_content_type"] = "cumulative summary"
             # final_prompts_used (with variables replaced) comes from call_llm result
             results.append(result)
         return results
@@ -273,7 +275,8 @@ def iterative_summarize(chunks: list[str],
         result["prompt_name"] = prompt_name
         result["prompts_used"] = prompts  # Save all prompt templates
         result["template_vars"] = template_vars  # Save template variables used
-        result["summary_type"] = "incremental summary"
+        result["summary_content_type"] = "cumulative summary"
+        result["step_k_inputs"] = "chunks(s): k ,summary(ies): k-1"
         
         # Update previous_summary for next iteration
         previous_summary = result["response"]

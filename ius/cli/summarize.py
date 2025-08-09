@@ -231,7 +231,8 @@ def summarize_chunks(
                 # Single result dict
                 summaries = [concat_result["response"]]
                 result = concat_result  # Use the single result for metadata
-                summary_type = concat_result.get("summary_type", "--")
+                summary_content_type = concat_result.get("summary_content_type", "--")
+                step_k_inputs = concat_result.get("step_k_inputs", "--")
                 prompts_used = concat_result.get("prompts_used", {})
                 final_prompts_used = [concat_result.get("final_prompts_used", {})]  # Wrap in list for consistency
                 template_vars = concat_result.get("template_vars", {})
@@ -247,8 +248,10 @@ def summarize_chunks(
                         "total_tokens": sum(r.get("usage", {}).get("total_tokens", 0) for r in concat_result)
                     }
                 }
-                # Extract summary_type and prompts from first result (all should be the same)
-                summary_type = concat_result[0].get("summary_type", "--") if concat_result else "--"
+                
+                # Extract summary_content_type and prompts from first result (all should be the same)
+                summary_content_type = concat_result[0].get("summary_content_type", "--") if concat_result else "--"
+                step_k_inputs = concat_result[0].get("step_k_inputs", "--") if concat_result else "--"
                 prompts_used = concat_result[0].get("prompts_used", {}) if concat_result else {}
                 final_prompts_used = [r.get("final_prompts_used", {}) for r in concat_result] if concat_result else []
                 template_vars = concat_result[0].get("template_vars", {}) if concat_result else {}
@@ -275,8 +278,10 @@ def summarize_chunks(
                     "total_tokens": sum(r.get("usage", {}).get("total_tokens", 0) for r in chunk_results)
                 }
             }
-            # Extract summary_type and prompts from first result (all should be the same)
-            summary_type = chunk_results[0].get("summary_type", "--") if chunk_results else "--"
+            
+            # Extract summary_content_type, step_k_inputs, and prompts from first result (all should be the same)
+            summary_content_type = chunk_results[0].get("summary_content_type", "--") if chunk_results else "--"
+            step_k_inputs = chunk_results[0].get("step_k_inputs", "--") if chunk_results else "--"
             prompts_used = chunk_results[0].get("prompts_used", {}) if chunk_results else {}
             final_prompts_used = [r.get("final_prompts_used", {}) for r in chunk_results] if chunk_results else []
             template_vars = chunk_results[0].get("template_vars", {}) if chunk_results else {}
@@ -303,8 +308,10 @@ def summarize_chunks(
                     "total_tokens": sum(r.get("usage", {}).get("total_tokens", 0) for r in iterative_results)
                 }
             }
-            # Extract summary_type and prompts from first result (all should be the same)
-            summary_type = iterative_results[0].get("summary_type", "--") if iterative_results else "--"
+            
+            # Extract summary_content_type, step_k_inputs, and prompts from first result (all should be the same)
+            summary_content_type = iterative_results[0].get("summary_content_type", "--") if iterative_results else "--"
+            step_k_inputs = iterative_results[0].get("step_k_inputs", "--") if iterative_results else "--"
             prompts_used = iterative_results[0].get("prompts_used", {}) if iterative_results else {}
             final_prompts_used = [r.get("final_prompts_used", {}) for r in iterative_results] if iterative_results else []
             template_vars = iterative_results[0].get("template_vars", {}) if iterative_results else {}
@@ -318,7 +325,8 @@ def summarize_chunks(
         # Separate collection-level vs item-level metadata
         collection_metadata = {
             "strategy_function": strategy,
-            "summary_type": summary_type,
+            "summary_content_type": summary_content_type,
+            "step_k_inputs": step_k_inputs,
             "model": model,
             "prompt_name": actual_prompt_name,  # Use actual prompt name from function
             "prompts_used": prompts_used,  # Template prompts (collection-level)
@@ -328,7 +336,8 @@ def summarize_chunks(
         
         item_metadata = {
             "strategy_function": strategy,  # For item-level completeness
-            "summary_type": summary_type,   # For item-level completeness
+            "summary_content_type": summary_content_type,   # For item-level completeness
+            "step_k_inputs": step_k_inputs,  # For item-level completeness
             "final_prompts_used": final_prompts_used,  # Item-specific (contains actual text)
             "template_vars": _truncate_template_vars(template_vars),  # Item-specific (contains actual text)
             "processing_time": result.get("processing_time", 0),
