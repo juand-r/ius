@@ -146,21 +146,15 @@ def concat_and_summarize(chunks: list[str],
 
         logger.info(f"Summarizing {len(chunks)} chunks ({len(full_text.split())} words) with {model}")
 
-
         template_vars = {"text": full_text,
                         "domain": domain,
                         "optional_summary_length": optional_summary_length}
 
         result = call_llm(full_text, model, system_and_user_prompt, template_vars=template_vars, ask_user_confirmation=ask_user_confirmation, **kwargs)
-        result["method"] = "concat_and_summarize"
-        result["input_chunks"] = len(chunks)
         result["final_only"] = True
-        result["prompt_name"] = prompt_name
-        result["prompts_used"] = prompts  # Save all prompt templates
-        result["template_vars"] = template_vars  # Save template variables used
-        result["summary_content_type"] = "cumulative summary"
-        result["step_k_inputs"] = "chunks(s): 1 to k"
-   
+        
+        _add_common_metadata(result, chunks, prompt_name, prompts, template_vars)
+        
         # final_prompts_used (with variables replaced) comes from call_llm result
         return result
     else:
@@ -174,17 +168,25 @@ def concat_and_summarize(chunks: list[str],
                             "optional_summary_length": optional_summary_length}
 
             result = call_llm(full_text, model, system_and_user_prompt, template_vars=template_vars, ask_user_confirmation=ask_user_confirmation, **kwargs)
-            result["method"] = "concat_and_summarize"
-            result["input_chunks"] = len(chunks)
             result["final_only"] = False
             result["chunk_index"] = ii
-            result["prompt_name"] = prompt_name
-            result["prompts_used"] = prompts  # Save all prompt templates
-            result["template_vars"] = template_vars  # Save template variables used
-            result["summary_content_type"] = "cumulative summary"
+            
+            _add_common_metadata(result, chunks, prompt_name, prompts, template_vars)
+            
             # final_prompts_used (with variables replaced) comes from call_llm result
             results.append(result)
         return results
+
+
+def _add_common_metadata(result: dict, chunks: list[str], prompt_name: str, prompts: dict, template_vars: dict):
+    """Add common metadata fields to result dictionary."""
+    result["method"] = "concat_and_summarize"
+    result["input_chunks"] = len(chunks)
+    result["prompt_name"] = prompt_name
+    result["prompts_used"] = prompts  # Save all prompt templates
+    result["template_vars"] = template_vars  # Save template variables used
+    result["summary_content_type"] = "cumulative summary"
+    result["step_k_inputs"] = "chunks(s): 1 to k"
 
 
 def iterative_summarize(chunks: list[str], 
@@ -291,6 +293,7 @@ def iterative_summarize(chunks: list[str],
     
     # Return based on final_only flag
     if final_only:
+        raise ValueError("final_only is not supported for iterative_summarize")
         return [results[-1]]  # Return only the final summary as a list for consistency
     else:
         return results  # Return all incremental summaries
