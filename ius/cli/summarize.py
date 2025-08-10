@@ -39,9 +39,19 @@ def _generate_output_name(
     item_id: str | None,
     strategy: str,
     prompt_name: str | None,  # Can be None
-    final_only: bool
+    final_only: bool,
+    model: str = "gpt-4.1-mini",
+    optional_summary_length: str = "summary"
 ) -> str:
-    """Generate automatic output directory name based on input parameters."""
+    """Generate automatic output directory name based on input parameters.
+    
+    Uses hash-based naming to keep directory names short while storing
+    full parameters in config.json.
+    
+    Format: {base_name}_{scope}_{strategy}_{hash}_{final_or_intermediate}
+    """
+    import hashlib
+    
     input_path_obj = Path(input_path)
     
     # Get base name from input
@@ -75,16 +85,23 @@ def _generate_output_name(
         else:
             prompt_name = "default"
     
-    # Clean prompt name (remove path separators)
-    clean_prompt = prompt_name.replace("/", "-").replace("\\", "-")
+    # Create hash from variable parameters that would make names too long
+    # These will be stored in config.json for full transparency
+    hash_components = [
+        prompt_name,
+        model,
+        optional_summary_length,
+        "final" if final_only else "intermediate"
+    ]
+    hash_string = "|".join(str(c) for c in hash_components)
+    param_hash = hashlib.md5(hash_string.encode()).hexdigest()[:6]  # 6-char hash
     
-    # Build name components
+    # Build name components (keep core structure readable)
     components = [base_name]
     if scope != "single":
         components.append(scope)
     components.append(strategy_short)
-    components.append(clean_prompt)
-    components.append("final" if final_only else "intermediate")
+    components.append(param_hash)  # Replace long parameter list with hash
     
     return "_".join(components)
 
@@ -129,7 +146,7 @@ def summarize_chunks(
     
     # Generate output name if not provided
     if output_name is None:
-        output_name = _generate_output_name(input_path, item_id, strategy, prompt_name, final_only)
+        output_name = _generate_output_name(input_path, item_id, strategy, prompt_name, final_only, model, optional_summary_length)
         print(f"🎯 Auto-generated output name: {output_name}")
     
     print(f"🤖 Starting summarization...")
@@ -341,9 +358,18 @@ def summarize_chunks(
             "step_k_inputs": step_k_inputs,
             "model": model,
             "prompt_name": actual_prompt_name,  # Use actual prompt name from function
+            "optional_summary_length": optional_summary_length,  # New parameter
             "prompts_used": prompts_used,  # Template prompts (collection-level)
             "final_only": final_only,
-            "command_run": command_run  # Full command for reproducibility
+            "command_run": command_run,  # Full command for reproducibility
+            # Hash breakdown for transparency (what the hash in directory name represents)
+            "hash_parameters": {
+                "prompt_name": actual_prompt_name,
+                "model": model,
+                "optional_summary_length": optional_summary_length,
+                "final_only": final_only,
+                "hash_note": "Directory name contains 6-char MD5 hash of these parameters to keep names short"
+            }
         }
         
         item_metadata = {
@@ -530,7 +556,7 @@ Examples:
     parser.add_argument(
         "--summary-length",
         default="summary",
-        help="Optional summary length specification (e.g., 'brief summary', 'detailed summary', 'one-paragraph summary', 'summary in less than 100 words') (default: summary)"
+        help="Optional summary length specification (e.g., 'brief summary', 'detailed summary', 'one-paragraph summary') (default: summary)"
     )
     
     parser.add_argument(
