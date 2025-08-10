@@ -99,6 +99,7 @@ def summarize_chunks(
     final_only: bool = True,
     preview: bool = False,
     overwrite: bool = False,
+    optional_summary_length: str = "",
 ) -> Dict[str, Any]:
     """
     CLI wrapper for summarizing chunks with progress printing and file I/O.
@@ -226,7 +227,8 @@ def summarize_chunks(
                 "chunks": chunks,
                 "final_only": final_only,
                 "model": model,
-                "domain": domain
+                "domain": domain,
+                "optional_summary_length": optional_summary_length
             }
             if prompt_name is not None:
                 kwargs["prompt_name"] = prompt_name
@@ -269,7 +271,8 @@ def summarize_chunks(
                 "chunks": chunks,
                 "final_only": final_only,
                 "model": model,
-                "domain": domain
+                "domain": domain,
+                "optional_summary_length": optional_summary_length
             }
             if prompt_name is not None:
                 kwargs["prompt_name"] = prompt_name
@@ -300,7 +303,8 @@ def summarize_chunks(
                 "chunks": chunks,
                 "final_only": final_only,
                 "model": model,
-                "domain": domain
+                "domain": domain,
+                "optional_summary_length": optional_summary_length
             }
             if prompt_name is not None:
                 kwargs["prompt_name"] = prompt_name
@@ -524,6 +528,12 @@ Examples:
     )
     
     parser.add_argument(
+        "--summary-length",
+        default="",
+        help="Optional summary length specification (e.g., 'brief', 'detailed', 'one-paragraph') (default: empty)"
+    )
+    
+    parser.add_argument(
         "--intermediate",
         action="store_true",
         help="Generate intermediate summaries for each chunk (default: final summary only)"
@@ -581,7 +591,8 @@ Examples:
             "model": args.model,
             "final_only": not args.intermediate,
             "preview": args.preview,
-            "overwrite": args.overwrite
+            "overwrite": args.overwrite,
+            "optional_summary_length": args.summary_length
         }
         
         # Only pass prompt_name if user specified it, let function defaults handle None

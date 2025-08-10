@@ -54,6 +54,7 @@ def summarize_chunks_independently(chunks: list[str],
                          model: str = "gpt-4.1-mini",
                          ask_user_confirmation: bool = False,
                          domain: str = "story",
+                         optional_summary_length: str = "",
                          **kwargs) -> dict[str, Any]:
     """
     Summarize chunks independently.
@@ -89,7 +90,7 @@ def summarize_chunks_independently(chunks: list[str],
 
         template_vars = {"text": full_text,
                         "domain": domain,
-                        "optional_summary_length": ""}
+                        "optional_summary_length": optional_summary_length}
 
         result = call_llm(full_text, model, system_and_user_prompt, template_vars=template_vars, ask_user_confirmation=ask_user_confirmation, **kwargs)
         result["method"] = "summarize_chunks_independently"
@@ -111,6 +112,7 @@ def concat_and_summarize(chunks: list[str],
                          model: str = "gpt-4.1-mini",
                          ask_user_confirmation: bool = False,
                          domain: str = "story",
+                         optional_summary_length: str = "",
                          **kwargs) -> dict[str, Any]:
     """
     Concatenate chunks and send to LLM for summarization.
@@ -147,7 +149,7 @@ def concat_and_summarize(chunks: list[str],
 
         template_vars = {"text": full_text,
                         "domain": domain,
-                        "optional_summary_length": ""}
+                        "optional_summary_length": optional_summary_length}
 
         result = call_llm(full_text, model, system_and_user_prompt, template_vars=template_vars, ask_user_confirmation=ask_user_confirmation, **kwargs)
         result["method"] = "concat_and_summarize"
@@ -169,7 +171,7 @@ def concat_and_summarize(chunks: list[str],
 
             template_vars = {"text": full_text,
                             "domain": domain,
-                            "optional_summary_length": ""}
+                            "optional_summary_length": optional_summary_length}
 
             result = call_llm(full_text, model, system_and_user_prompt, template_vars=template_vars, ask_user_confirmation=ask_user_confirmation, **kwargs)
             result["method"] = "concat_and_summarize"
@@ -191,6 +193,7 @@ def iterative_summarize(chunks: list[str],
                         model: str = "gpt-4.1-mini",
                         ask_user_confirmation: bool = False,
                         domain: str = "story",
+                        optional_summary_length: str = "",
                         **kwargs) -> list[dict[str, Any]]:
     """
     Iterative summarization strategy - builds summaries incrementally using previous context.
@@ -245,7 +248,7 @@ def iterative_summarize(chunks: list[str],
                 "chunk_num": str(chunk_num),
                 "total_chunks": str(len(chunks)),
                 "text": chunk,
-                "optional_summary_length": ""
+                "optional_summary_length": optional_summary_length
             }
 
         else:
@@ -257,7 +260,7 @@ def iterative_summarize(chunks: list[str],
                 "total_chunks": str(len(chunks)),
                 "previous_summary": previous_summary,
                 "text": chunk,
-                "optional_summary_length": ""
+                "optional_summary_length": optional_summary_length
             }
         
         system_and_user_prompt = {
