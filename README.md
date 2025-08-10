@@ -201,7 +201,9 @@ python -m ius chunk --dataset bmds --strategy fixed_size --size 8000 --reveal-ad
 
 ### Summarization Commands
 
-The CLI provides comprehensive summarization capabilities with multiple strategies and automatic output naming.
+The CLI provides comprehensive summarization capabilities with multiple strategies, automatic output naming, and customizable summary specifications.
+
+#### Basic Usage
 
 ```bash
 # Basic summarization (auto-generated output name)
@@ -218,21 +220,61 @@ python -m ius summarize --input outputs/chunks/bmds_fixed_count_3 \
 python -m ius summarize --input outputs/chunks/bmds_fixed_count_3 \
   --strategy concat_and_summarize --intermediate
 
-# Custom model and prompt with manual output naming
-python -m ius summarize --input outputs/chunks/bmds_fixed_count_3 \
-  --model gpt-4 --prompt custom-detective-prompt --output detective_analysis
-
 # Summarize single item file directly
 python -m ius summarize --input outputs/chunks/bmds_fixed_count_3/items/ADP02.json
 
 # List available summarization strategies
 python -m ius summarize --list-strategies
+```
+
+#### Summary Length Control
+
+The `--summary-length` parameter allows you to specify the desired summary characteristics. This gets incorporated into the LLM prompt to guide summary generation:
+
+```bash
+# Default behavior (uses "summary")
+python -m ius summarize --input outputs/chunks/bmds_fixed_count_3 --item ADP02
+
+# Brief summary
+python -m ius summarize --input outputs/chunks/bmds_fixed_count_3 --item ADP02 \
+  --summary-length "brief summary"
+
+# Detailed analysis
+python -m ius summarize --input outputs/chunks/bmds_fixed_count_3 --item ADP02 \
+  --summary-length "detailed summary"
+
+# Specific length constraint
+python -m ius summarize --input outputs/chunks/bmds_fixed_count_3 --item ADP02 \
+  --summary-length "one-paragraph summary"
+
+# Word count specification
+python -m ius summarize --input outputs/chunks/bmds_fixed_count_3 --item ADP02 \
+  --summary-length "summary in less than 100 words"
+
+# Custom summary style
+python -m ius summarize --input outputs/chunks/bmds_fixed_count_3 --item ADP02 \
+  --summary-length "bullet-point summary"
+```
+
+**How it works:** The `--summary-length` value gets inserted into the LLM prompt template. For example, `--summary-length "brief summary"` results in prompts like "Provide a comprehensive **brief summary** of the key events..." This allows fine-grained control over summary characteristics without requiring custom prompt templates.
+
+#### Advanced Options
+
+```bash
+# Custom model and prompt with manual output naming
+python -m ius summarize --input outputs/chunks/bmds_fixed_count_3 \
+  --model gpt-4 --prompt custom-detective-prompt --output detective_analysis
 
 # Skip existing results (default behavior)
 python -m ius summarize --input outputs/chunks/bmds_fixed_count_3 --item ADP02
 
 # Overwrite existing results
 python -m ius summarize --input outputs/chunks/bmds_fixed_count_3 --item ADP02 --overwrite
+
+# Combine multiple options
+python -m ius summarize --input outputs/chunks/bmds_fixed_count_3 \
+  --item ADP02 --strategy concat_and_summarize \
+  --summary-length "detailed summary" --model gpt-4.1-mini --preview
 ```
 
 ### Discovering Available Strategies
@@ -279,6 +321,8 @@ Default strategy: concat_and_summarize
 - **💾 Flexible Output**: Custom output paths or automatic naming
 - **🎯 Auto-generated Names**: Intelligent naming based on input, strategy, model, and options
 - **⚡ Multiple Strategies**: Support for cumulative and independent summarization approaches
+- **📏 Summary Length Control**: Customize summary characteristics with `--summary-length` (brief, detailed, word count, etc.)
+- **🎨 Dynamic Domain Adaptation**: Automatically adapts prompts based on dataset domain (detective stories, sci-fi, etc.)
 - **💰 Cost Tracking**: Real-time cost estimation and usage reporting
 - **🔄 Skip/Overwrite Control**: Automatically skip existing results (default) or force overwrite with `--overwrite`
 - **📋 Strategy Discovery**: List and compare available strategies with `--list-strategies`
@@ -635,9 +679,11 @@ chunks = ["First chunk text...", "Second chunk text...", "Third chunk..."]
 result = concat_and_summarize(
     chunks=chunks,
     model="gpt-4o-mini", 
+    domain="detective_stories",  # Automatically adapts prompts to domain
+    optional_summary_length="brief summary",  # Customize summary characteristics
     system_and_user_prompt={
         "system": "You are a helpful summarization assistant.",
-        "user": "Summarize the following text concisely:\n\n{text}"
+        "user": "Summarize the following {domain} text concisely:\n\n{text}\n\nProvide a comprehensive {optional_summary_length} of the key events."
     },
     temperature=0.0,
     max_tokens=300
