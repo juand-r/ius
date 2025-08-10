@@ -2,4 +2,4 @@ Summarize the following {domain} excerpt:
 
 {text}
 
-Do not comment on the incompleteness of the text or speculate about how it fits in to the previous or subsequent document. Provide a comprehensive {optional_summary_length}summary of the key events, information, and important details from this text."""
+Do not comment on the incompleteness of the text or speculate about how it fits in to the previous or subsequent document. Provide a comprehensive {optional_summary_length} of the key events, information, and important details from this text."""

@@ -6,4 +6,4 @@ Continue summarizing this {domain}. You already summarized the previous parts. T
 ## Current segment text (part {chunk_num}):
 {text}
 
-Provide a comprehensive {optional_summary_length}summary of everything (key events, information, and important details) that happened up to this point, updating the previous summary with new information from this segment. Include both the new events and the previous ones to maintain continuity.
+Provide a comprehensive {optional_summary_length} of everything (key events, information, and important details) that happened up to this point, updating the previous summary with new information from this segment. Include both the new events and the previous ones to maintain continuity.

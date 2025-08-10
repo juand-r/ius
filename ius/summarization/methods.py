@@ -54,7 +54,7 @@ def summarize_chunks_independently(chunks: list[str],
                          model: str = "gpt-4.1-mini",
                          ask_user_confirmation: bool = False,
                          domain: str = "story",
-                         optional_summary_length: str = "",
+                         optional_summary_length: str = "summary",
                          **kwargs) -> dict[str, Any]:
     """
     Summarize chunks independently.
@@ -112,7 +112,7 @@ def concat_and_summarize(chunks: list[str],
                          model: str = "gpt-4.1-mini",
                          ask_user_confirmation: bool = False,
                          domain: str = "story",
-                         optional_summary_length: str = "",
+                         optional_summary_length: str = "summary",
                          **kwargs) -> dict[str, Any]:
     """
     Concatenate chunks and send to LLM for summarization.
@@ -193,7 +193,7 @@ def iterative_summarize(chunks: list[str],
                         model: str = "gpt-4.1-mini",
                         ask_user_confirmation: bool = False,
                         domain: str = "story",
-                        optional_summary_length: str = "",
+                        optional_summary_length: str = "summary",
                         **kwargs) -> list[dict[str, Any]]:
     """
     Iterative summarization strategy - builds summaries incrementally using previous context.

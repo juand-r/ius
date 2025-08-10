@@ -99,7 +99,7 @@ def summarize_chunks(
     final_only: bool = True,
     preview: bool = False,
     overwrite: bool = False,
-    optional_summary_length: str = "",
+    optional_summary_length: str = "summary",
 ) -> Dict[str, Any]:
     """
     CLI wrapper for summarizing chunks with progress printing and file I/O.
@@ -529,8 +529,8 @@ Examples:
     
     parser.add_argument(
         "--summary-length",
-        default="",
-        help="Optional summary length specification (e.g., 'brief', 'detailed', 'one-paragraph') (default: empty)"
+        default="summary",
+        help="Optional summary length specification (e.g., 'brief summary', 'detailed summary', 'one-paragraph summary', 'summary in less than 100 words') (default: summary)"
     )
     
     parser.add_argument(

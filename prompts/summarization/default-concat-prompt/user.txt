@@ -1,5 +1,5 @@
-Summarize the following {domain} text:
+Summarize the following {domain}:
 
 {text}
 
-Provide a comprehensive {optional_summary_length}summary of the key events, information, and important details from this document."""
+Provide a comprehensive {optional_summary_length} of the key events, information, and important details from this document."""
