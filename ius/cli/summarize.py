@@ -160,6 +160,11 @@ def summarize_chunks(
             items_to_process = chunked_dataset.item_ids
             print(f"📋 Processing {len(items_to_process)} items: {', '.join(items_to_process)}")
     
+    # Extract domain from collection metadata (fallback to "story" if not found)
+    collection_metadata = chunked_dataset.metadata
+    domain = collection_metadata.get("domain", "story")
+    print(f"📚 Dataset domain: {domain}")
+    
     results = {}
     total_cost = 0.0
     total_tokens = 0
@@ -220,7 +225,8 @@ def summarize_chunks(
             kwargs = {
                 "chunks": chunks,
                 "final_only": final_only,
-                "model": model
+                "model": model,
+                "domain": domain
             }
             if prompt_name is not None:
                 kwargs["prompt_name"] = prompt_name
@@ -249,7 +255,7 @@ def summarize_chunks(
                     }
                 }
                 
-                # Extract summary_content_type and prompts from first result (all should be the same)
+                # Extract summary_content_type, step_k_inputs, and prompts from first result (all should be the same)
                 summary_content_type = concat_result[0].get("summary_content_type", "--") if concat_result else "--"
                 step_k_inputs = concat_result[0].get("step_k_inputs", "--") if concat_result else "--"
                 prompts_used = concat_result[0].get("prompts_used", {}) if concat_result else {}
@@ -262,7 +268,8 @@ def summarize_chunks(
             kwargs = {
                 "chunks": chunks,
                 "final_only": final_only,
-                "model": model
+                "model": model,
+                "domain": domain
             }
             if prompt_name is not None:
                 kwargs["prompt_name"] = prompt_name
@@ -292,7 +299,8 @@ def summarize_chunks(
             kwargs = {
                 "chunks": chunks,
                 "final_only": final_only,
-                "model": model
+                "model": model,
+                "domain": domain
             }
             if prompt_name is not None:
                 kwargs["prompt_name"] = prompt_name
