@@ -47,7 +47,7 @@ def call_llm(text: str, model: str = "gpt-4.1-mini", system_and_user_prompt: dic
 
 def _call_openai(text: str, model: str, system_and_user_prompt: dict[str, str] = None,
                 template_vars: dict[str, str] = None, ask_user_confirmation: bool = False, 
-                temperature: float = 0.0, max_tokens: int = 1000, **kwargs) -> dict[str, Any]:
+                temperature: float = 0.0, max_tokens: int = 5000, **kwargs) -> dict[str, Any]:
     """
     Call OpenAI API with pre-call cost estimation and usage tracking (synchronous).
     Handles different model parameter requirements automatically.
