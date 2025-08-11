@@ -47,7 +47,7 @@ def call_llm(text: str, model: str = "gpt-4.1-mini", system_and_user_prompt: dic
 
 def _call_openai(text: str, model: str, system_and_user_prompt: dict[str, str] = None,
                 template_vars: dict[str, str] = None, ask_user_confirmation: bool = False, 
-                temperature: float = 0.0, max_tokens: int = 5000, **kwargs) -> dict[str, Any]:
+                temperature: float = 0.0, max_completion_tokens: int = 5000, **kwargs) -> dict[str, Any]:
     """
     Call OpenAI API with pre-call cost estimation and usage tracking (synchronous).
     Handles different model parameter requirements automatically.
@@ -59,7 +59,7 @@ def _call_openai(text: str, model: str, system_and_user_prompt: dict[str, str] =
         template_vars: Dict of variables for prompt template substitution
         ask_user_confirmation: Whether to ask user confirmation before API calls
         temperature: Model temperature parameter
-        max_tokens: Maximum output tokens
+        max_completion_tokens: Maximum output tokens
         **kwargs: Additional model parameters
 
     Returns:
@@ -105,7 +105,7 @@ def _call_openai(text: str, model: str, system_and_user_prompt: dict[str, str] =
 
     # Estimate cost before making the call
     estimated_input_tokens = _estimate_token_count(messages)
-    estimated_output_tokens = max_tokens if _model_supports_max_tokens(model) else 1000
+    estimated_output_tokens = max_completion_tokens if _model_supports_max_completion_tokens(model) else 1000
     estimated_cost = _estimate_openai_cost(model, estimated_input_tokens, estimated_output_tokens)
 
     # Always print cost estimate
@@ -130,8 +130,8 @@ def _call_openai(text: str, model: str, system_and_user_prompt: dict[str, str] =
     if _model_supports_temperature(model):
         request_params["temperature"] = temperature
 
-    if _model_supports_max_tokens(model):
-        request_params["max_tokens"] = max_tokens
+    if _model_supports_max_completion_tokens(model):
+        request_params["max_completion_tokens"] = max_completion_tokens
 
     # Add any additional kwargs directly (let OpenAI handle unsupported parameters)
     request_params.update(kwargs)
@@ -279,9 +279,9 @@ def _model_supports_temperature(model: str) -> bool:
     return not model.startswith(("o1", "o3", "o4"))
 
 
-def _model_supports_max_tokens(model: str) -> bool:
-    """Check if model supports max_tokens parameter."""
-    # Most other models support max_tokens
+def _model_supports_max_completion_tokens(model: str) -> bool:
+    """Check if model supports max_completion_tokens parameter."""
+    # Most other models support max_completion_tokens
     return True
 
 
