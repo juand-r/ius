@@ -25,6 +25,15 @@ from .common import (
 logger = get_logger(__name__)
 
 
+def _validate_input_path(input_path: str) -> None:
+    """Validate that input path exists and is a directory."""
+    path = Path(input_path)
+    if not path.exists():
+        raise ValidationError(f"Input path does not exist: {input_path}")
+    if not path.is_dir():
+        raise ValidationError(f"Input path must be a directory: {input_path}")
+
+
 def evaluate_whodunit_dataset(
     input_path: str,
     range_spec: str = "all",
@@ -57,10 +66,7 @@ def evaluate_whodunit_dataset(
     Returns:
         Dictionary with evaluation results and metadata
     """
-    if verbose:
-        setup_logging(log_level="DEBUG")
-    else:
-        setup_logging(log_level="INFO")
+    # Logging is set up by the main() function
     
     logger.info(f"Starting whodunit evaluation from: {input_path}")
     logger.info(f"Range: {range_spec}, Model: {model}, Prompt: {prompt_name}, Scope: {scope}")
@@ -212,50 +218,56 @@ Examples:
     )
     
     parser.add_argument(
+        "--log-level",
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="Set logging level (default: INFO)"
+    )
+    
+    parser.add_argument(
         "--verbose", "-v",
         action="store_true",
-        help="Enable verbose logging"
+        help="Enable verbose logging (equivalent to --log-level DEBUG)"
     )
     
     args = parser.parse_args()
     
-    # Validate input path
-    input_path = Path(args.input)
-    if not input_path.exists():
-        logger.error(f"Input path does not exist: {args.input}")
-        sys.exit(1)
-    
-    if not input_path.is_dir():
-        logger.error(f"Input path must be a directory: {args.input}")
-        sys.exit(1)
-    
-    # Validate scope and item_ids
-    if args.scope == "item" and not args.item_ids:
-        logger.error("--item-ids is required when scope is 'item'")
-        sys.exit(1)
+    # Set up logging (verbose flag overrides log-level)
+    log_level = "DEBUG" if args.verbose else args.log_level
+    setup_logging(log_level=log_level)
     
     try:
-        # Run the evaluation
-        result = evaluate_whodunit_dataset(
-            input_path=str(input_path),
-            range_spec=args.range,
-            prompt_name=args.prompt,
-            model=args.model,
-            temperature=args.temperature,
-            max_tokens=args.max_tokens,
-            scope=args.scope,
-            item_ids=args.item_ids,
-            output_path=args.output,
-            ask_user_confirmation=args.confirm,
-            verbose=args.verbose
-        )
+        # Validate input path
+        _validate_input_path(args.input)
         
+        # Run the evaluation
+        kwargs = {
+            "input_path": args.input,
+            "range_spec": args.range,
+            "prompt_name": args.prompt,
+            "model": args.model,
+            "temperature": args.temperature,
+            "max_tokens": args.max_tokens,
+            "scope": args.scope,
+            "item_ids": args.item_ids,
+            "output_path": args.output,
+            "ask_user_confirmation": args.confirm,
+            "verbose": args.verbose
+        }
+        
+        result = evaluate_whodunit_dataset(**kwargs)
+        
+        logger.info(f"Whodunit evaluation completed successfully: {result['collection_metadata']['whodunit_evaluation_info']['processing_stats']['successful_items']} items processed")
+        
+    except (ValidationError) as e:
+        logger.error(f"Validation error: {e}")
+        sys.exit(1)
     except KeyboardInterrupt:
         logger.info("Evaluation interrupted by user")
         sys.exit(1)
     except Exception as e:
-        logger.error(f"Evaluation failed: {e}")
-        if args.verbose:
+        logger.error(f"Unexpected error during evaluation: {e}")
+        if args.verbose or log_level == "DEBUG":
             import traceback
             traceback.print_exc()
         sys.exit(1)

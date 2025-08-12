@@ -166,7 +166,7 @@ def select_text_segments(segments: List[str], range_spec: str) -> Tuple[str, Lis
     selected_texts = [segments[i - 1] for i in selected_indices]
     
     # Concatenate with double newlines
-    concatenated_text = "\n\n".join(selected_texts)
+    concatenated_text = "\n".join(selected_texts)
     
     return concatenated_text, selected_indices
 
@@ -197,20 +197,6 @@ def load_prompts(prompt_dir: Path) -> Tuple[str, str]:
     
     return system_prompt, user_prompt_template
 
-
-def build_user_prompt(user_template: str, text: str, reveal_chunk: str) -> str:
-    """
-    Build user prompt by substituting placeholders.
-    
-    Args:
-        user_template: User prompt template with {text} and {reveal_chunk} placeholders
-        text: Selected text segments
-        reveal_chunk: Reveal segment
-        
-    Returns:
-        Complete user prompt
-    """
-    return user_template.format(text=text, reveal_chunk=reveal_chunk)
 
 
 def parse_llm_response(response: str) -> Dict[str, str]:
@@ -371,20 +357,22 @@ def run_whodunit_evaluation(
             logger.info(f"Using reveal segment (first 300 chars): {reveal_preview}")
             logger.info(f"Selected range: {range_spec} -> segments {selected_indices} of {len(segments)}")
             
-            # Build prompts
-            user_prompt = build_user_prompt(user_template, selected_text, reveal_segment)
-            
-            # Call LLM
-            if ask_user_confirmation:
-                # TODO: Add cost estimation and confirmation
-                pass
+            # Call LLM (template substitution handled by call_llm)
             
             llm_result = call_llm(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
+                text=selected_text,
                 model=model,
+                system_and_user_prompt={
+                    "system": system_prompt,
+                    "user": user_template
+                },
+                template_vars={
+                    "text": selected_text,
+                    "reveal_chunk": reveal_segment
+                },
                 temperature=temperature,
-                max_tokens=max_tokens
+                max_completion_tokens=max_tokens,
+                ask_user_confirmation=ask_user_confirmation
             )
             
             # Parse response
