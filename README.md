@@ -41,6 +41,7 @@ ius/                    # Main project code
 ├── logging_config.py  # Structured logging setup
 ├── cli/              # Command-line interfaces
 │   ├── chunk.py      # Chunking CLI with --verbose, --dry-run flags
+│   ├── claim_extract.py # Claim extraction CLI
 │   └── common.py     # Shared CLI utilities
 ├── chunk/            # Text chunking strategies ✅ IMPLEMENTED
 │   ├── chunkers.py   # Fixed-size, fixed-count, custom chunking
@@ -50,6 +51,7 @@ ius/                    # Main project code
 │   ├── datasets.py   # Dataset and ChunkedDataset classes for object-oriented data access
 │   └── __init__.py   # Data loading convenience functions
 ├── eval/             # Evaluation and experiment tracking (TODO)  
+├── claim_extract.py  # Claim extraction from summaries ✅ IMPLEMENTED
 └── summarization/    # LLM-based summarization with experimental tracking ✅ IMPLEMENTED
 
 datasets/             # Standardized datasets
@@ -68,7 +70,9 @@ tests/                # Comprehensive test suite (128 tests)
 └── test_logging_config.py  # Logging configuration tests
 
 outputs/              # Generated output files
-└── chunks/          # Chunking results in JSON format
+├── chunks/          # Chunking results in JSON format
+├── summaries/       # Summarization results
+└── summaries-claims/ # Claim extraction results
 
 data-source/          # Raw data for ingestion
 ```
@@ -143,6 +147,12 @@ python -m ius summarize --input outputs/chunks/bmds_fixed_count_3 --item ADP02 -
 
 # Update incremental summarization (focuses on new information)
 python -m ius summarize --input outputs/chunks/bmds_fixed_count_3 --item ADP02 --strategy update_incremental_summarize --intermediate
+
+# Extract claims from summaries
+python -m ius claim-extract --input outputs/summaries/bmds_summaries
+
+# Extract claims from specific items only
+python -m ius claim-extract --input outputs/summaries/squality_summaries --scope item --item-ids 23942 24192
 ```
 
 ### Advanced Features
@@ -204,6 +214,27 @@ python -m ius chunk --dataset bmds --strategy fixed_size --size 8000 --reveal-ad
 - Training models that need access to both story content and reveals
 - Ensuring no detective story content is lost during chunking
 - Creating datasets where the final chunk always contains the solution
+
+### Claim Extraction Commands
+
+The CLI provides claim extraction capabilities to identify concrete, verifiable claims from generated summaries.
+
+```bash
+# Extract claims from all summaries in a collection
+python -m ius claim-extract --input outputs/summaries/bmds_summaries
+
+# Extract claims from specific items only
+python -m ius claim-extract --input outputs/summaries/squality_summaries --scope item --item-ids 23942 24192
+
+# Use a different model and prompt
+python -m ius claim-extract --input outputs/summaries/detective_summaries --model gpt-4 --prompt custom-claims
+
+# Enable verbose logging and user confirmation
+python -m ius claim-extract --input outputs/summaries/bmds_summaries --verbose --confirm
+
+# Custom output directory
+python -m ius claim-extract --input outputs/summaries/bmds_summaries --output outputs/claims/custom_claims
+```
 
 ### Summarization Commands
 
@@ -345,6 +376,7 @@ Default strategy: concat_and_summarize
 - **🔄 Skip/Overwrite Control**: Automatically skip existing results (default) or force overwrite with `--overwrite`
 - **📋 Strategy Discovery**: List and compare available strategies with `--list-strategies`
 - **🔗 Command Reproducibility**: Full command history stored in metadata for perfect experiment reproduction
+- **🔍 Claim Extraction**: Extract concrete, verifiable claims from generated summaries using LLMs
 
 ### Example Output
 
@@ -1047,6 +1079,7 @@ The framework has been significantly enhanced with production-ready features:
 - **Skip/Overwrite Control**: Intelligent result caching with `--overwrite` flag for cost-effective incremental processing
 - **Strategy Discovery**: Built-in `--list-strategies` command for easy exploration of available approaches
 - **Command Reproducibility**: Complete command tracking in both chunking and summarization metadata for scientific transparency
+- **Claim Extraction**: LLM-based extraction of concrete, verifiable claims from generated summaries with structured JSON output
 
 ### 🚧 In Progress  
 - **Evaluation Framework**: Metrics for content preservation, summary quality, and computational efficiency
