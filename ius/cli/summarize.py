@@ -16,7 +16,7 @@ from typing import Any, Dict, List
 from ius.data import ChunkedDataset
 from ius.exceptions import DatasetError, ValidationError
 from ius.logging_config import get_logger, setup_logging
-from ius.summarization import concat_and_summarize, summarize_chunks_independently, iterative_summarize, save_summaries
+from ius.summarization import concat_and_summarize, summarize_chunks_independently, iterative_summarize, update_incremental_summarize, save_summaries
 
 
 # Set up logger for this module
@@ -346,6 +346,38 @@ def summarize_chunks(
             template_vars = iterative_results[0].get("template_vars", {}) if iterative_results else {}
             actual_prompt_name = iterative_results[0].get("prompt_name", prompt_name) if iterative_results else prompt_name
             
+        elif strategy == "update_incremental_summarize":
+            # Only pass prompt_name if user specified one
+            kwargs = {
+                "chunks": chunks,
+                "final_only": final_only,
+                "model": model,
+                "domain": domain,
+                "optional_summary_length": optional_summary_length
+            }
+            if prompt_name is not None:
+                kwargs["prompt_name"] = prompt_name
+                
+            update_incremental_results = update_incremental_summarize(**kwargs)
+            # Extract summaries from list of results (one per step)
+            summaries = [r["response"] for r in update_incremental_results]
+            # Combine metadata from all step results
+            result = {
+                "processing_time": sum(r.get("processing_time", 0) for r in update_incremental_results),
+                "usage": {
+                    "total_cost": sum(r.get("usage", {}).get("total_cost", 0) for r in update_incremental_results),
+                    "total_tokens": sum(r.get("usage", {}).get("total_tokens", 0) for r in update_incremental_results)
+                }
+            }
+            
+            # Extract summary_content_type, step_k_inputs, and prompts from first result (all should be the same)
+            summary_content_type = update_incremental_results[0].get("summary_content_type", "--") if update_incremental_results else "--"
+            step_k_inputs = update_incremental_results[0].get("step_k_inputs", "--") if update_incremental_results else "--"
+            prompts_used = update_incremental_results[0].get("prompts_used", {}) if update_incremental_results else {}
+            final_prompts_used = [r.get("final_prompts_used", {}) for r in update_incremental_results] if update_incremental_results else []
+            template_vars = update_incremental_results[0].get("template_vars", {}) if update_incremental_results else {}
+            actual_prompt_name = update_incremental_results[0].get("prompt_name", prompt_name) if update_incremental_results else prompt_name
+            
         else:
             raise ValueError(f"Unknown strategy: {strategy}")
         
@@ -537,7 +569,7 @@ Examples:
     parser.add_argument(
         "--strategy", "-s",
         default="concat_and_summarize",
-        choices=["concat_and_summarize", "summarize_chunks_independently", "iterative_summarize"],
+        choices=["concat_and_summarize", "summarize_chunks_independently", "iterative_summarize", "update_incremental_summarize"],
         help="Summarization strategy (default: concat_and_summarize)"
     )
     

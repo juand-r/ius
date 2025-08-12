@@ -1,0 +1,9 @@
+Continue summarizing this {domain}. You already summarized the previous parts. This is part {chunk_num} of {total_chunks} segments.
+
+## Previous update summary (summarizing the new information in chunk {chunk_num_previous}):
+{previous_summary}
+
+## Current segment text (part {chunk_num}):
+{text}
+
+Provide a comprehensive {optional_summary_length} of everything (key events, information, and important details) in this text segment which is not in the previous update summary. Provide only an update, assuming the reader has already read the previous summary and does not want redundancy, i.e., include only new information, events, and details which are novel.

@@ -1,0 +1,6 @@
+Summarize the following {domain} excerpt. This is part {chunk_num} of {total_chunks} segments.
+
+## Current segment text (part {chunk_num}):
+{text}
+
+Provide a comprehensive {optional_summary_length} of the key events, information, and important details from this document."""

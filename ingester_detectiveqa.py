@@ -497,7 +497,7 @@ def main():
     
     # Create collection.json
     collection_data = {
-        "domain": "detective_stories",
+        "domain": "detective novel",
         "source": "DetectiveQA dataset - Phospheneser/DetectiveQA from Hugging Face",
         "created": datetime.now().isoformat(),
         "num_items": len(processed_novels),

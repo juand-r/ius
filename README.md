@@ -137,6 +137,12 @@ python -m ius summarize --input outputs/chunks/bmds_fixed_count_3
 
 # Summarize with specific strategy and item
 python -m ius summarize --input outputs/chunks/bmds_fixed_count_3 --item ADP02 --strategy summarize_chunks_independently
+
+# Incremental summarization (builds summaries step-by-step)
+python -m ius summarize --input outputs/chunks/bmds_fixed_count_3 --item ADP02 --strategy iterative_summarize --intermediate
+
+# Update incremental summarization (focuses on new information)
+python -m ius summarize --input outputs/chunks/bmds_fixed_count_3 --item ADP02 --strategy update_incremental_summarize --intermediate
 ```
 
 ### Advanced Features
@@ -311,6 +317,18 @@ Default strategy: concat_and_summarize
 **Independent Strategy (`summarize_chunks_independently`)**
 - Always creates separate summary for each chunk individually
 - Useful for analyzing chunk-level content and patterns
+
+**Iterative Strategy (`iterative_summarize`)**
+- Requires `--intermediate` flag (builds incremental summaries step-by-step)
+- Each step: summarizes current chunk + incorporates previous summary
+- Creates chain of evolving summaries that build upon each other
+- Useful for studying how summaries develop incrementally
+
+**Update Incremental Strategy (`update_incremental_summarize`)**
+- Requires `--intermediate` flag (builds incremental summaries step-by-step)  
+- Each step: focuses on NEW information in current chunk, avoiding redundancy with previous summary
+- Designed to minimize repetition and focus on fresh content
+- Useful for studying efficient incremental updates
 
 ### CLI Features
 
@@ -1036,7 +1054,7 @@ The framework has been significantly enhanced with production-ready features:
 ### 📋 Planned Features
 - **Multi-document datasets**: News sequences, TV show episodes, book series
 - **Advanced chunking**: Semantic and structure-aware chunking strategies  
-- **Incremental strategies**: Various approaches to update summaries efficiently (iterative_summarize)
+- **Additional incremental strategies**: More approaches to update summaries efficiently
 - **Local LLM support**: Integration with local models (Ollama, Hugging Face)
 - **Interactive tools**: Visualization and analysis of incremental summarization results
 

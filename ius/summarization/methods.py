@@ -259,6 +259,7 @@ def iterative_summarize(chunks: list[str],
             template_vars = {
                 "domain": domain,
                 "chunk_num": str(chunk_num),
+                "chunk_num_previous": str(chunk_num - 1),
                 "total_chunks": str(len(chunks)),
                 "previous_summary": previous_summary,
                 "text": chunk,
@@ -299,6 +300,116 @@ def iterative_summarize(chunks: list[str],
         return results  # Return all incremental summaries
 
 
+
+def update_incremental_summarize(chunks: list[str], 
+                        final_only: bool = False,
+                        prompt_name: str = "update-incremental",
+                        model: str = "gpt-4.1-mini",
+                        ask_user_confirmation: bool = False,
+                        domain: str = "story",
+                        optional_summary_length: str = "summary",
+                        **kwargs) -> list[dict[str, Any]]:
+    """
+    Update incremental summarization strategy - summarizes updates, i.e., new information in a chunk
+    trying to avoid redundancy with previous summary.
+    
+    First chunk gets summarized using "first-chunk-summary.txt" prompt.
+    Each subsequent chunk uses the previous summary as context with 
+    "summarize-chunk-without-previous-summary-context.txt" prompt.
+    
+    Args:
+        chunks: List of text chunks to summarize iteratively
+        final_only: If True, return only the final summary. If False, return all n summaries
+        prompt_name: Name of prompt directory to use (default: "incremental")
+        model: LLM model name
+        ask_user_confirmation: Whether to ask for confirmation before API calls
+        **kwargs: Additional parameters passed to call_llm
+        
+    Returns:
+        List of result dictionaries, one for each incremental step
+    """
+    if not chunks:
+        return []
+    
+    # Load prompt templates
+    prompts_dir = Path(f"prompts/summarization/{prompt_name}")
+    if not prompts_dir.exists():
+        raise ValueError(f"Prompt directory not found: {prompts_dir}")
+    
+    prompts = {}
+    for prompt_file in prompts_dir.glob("*.txt"):
+        prompt_key = prompt_file.stem
+        with open(prompt_file, 'r', encoding='utf-8') as f:
+            prompts[prompt_key] = f.read().strip()
+    
+    if "system" not in prompts:
+        raise ValueError(f"Missing 'system.txt' in {prompts_dir}")
+    if "first-chunk-summary" not in prompts:
+        raise ValueError(f"Missing 'first-chunk-summary.txt' in {prompts_dir}")
+    if "summarize-chunk-without-previous-summary-context" not in prompts:
+        raise ValueError(f"Missing 'summarize-chunk-without-previous-summary-context.txt' in {prompts_dir}")
+    
+    results = []
+    previous_summary = None
+    
+    for i, chunk in enumerate(chunks):
+        chunk_num = i + 1  # 1-indexed for human readability
+        
+        if i == 0:
+            # First chunk - use first-chunk-summary prompt
+            user_prompt = prompts["first-chunk-summary"]
+            template_vars = {
+                "domain": domain,
+                "chunk_num": str(chunk_num),
+                "total_chunks": str(len(chunks)),
+                "text": chunk,
+                "optional_summary_length": optional_summary_length
+            }
+
+        else:
+            # Subsequent chunks - use update incremental prompt with previous summary
+            user_prompt = prompts["summarize-chunk-without-previous-summary-context"]
+            template_vars = {
+                "domain": domain,
+                "chunk_num": str(chunk_num),
+                "chunk_num_previous": str(chunk_num - 1),
+                "total_chunks": str(len(chunks)),
+                "previous_summary": previous_summary,
+                "text": chunk,
+                "optional_summary_length": optional_summary_length
+            }
+        
+        system_and_user_prompt = {
+            "system": prompts["system"],
+            "user": user_prompt
+        }
+        
+        print(f"Incremental summarization step {chunk_num}/{len(chunks)}")
+
+        result = call_llm(chunk, model, system_and_user_prompt, template_vars=template_vars, 
+                         ask_user_confirmation=ask_user_confirmation, **kwargs)
+
+        # Add iterative-specific metadata
+        result["method"] = "update_incremental_summarize"
+        result["step"] = chunk_num
+        result["total_steps"] = len(chunks)
+        result["is_first_chunk"] = (i == 0)
+        result["prompt_name"] = prompt_name
+        result["prompts_used"] = prompts  # Save all prompt templates
+        result["template_vars"] = template_vars  # Save template variables used
+        result["summary_content_type"] = "chunk summary"
+        result["step_k_inputs"] = "chunks(s): k ,summary(ies): k-1"
+        
+        # Update previous_summary for next iteration
+        previous_summary = result["response"]
+        
+        results.append(result)
+    
+    # Return based on final_only flag
+    if final_only:
+        raise ValueError("final_only is not supported for update_incremental_summarize")
+    else:
+        return results  # Return all incremental summaries
 
 
 
