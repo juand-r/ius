@@ -35,6 +35,10 @@ def main():
         from ius.cli.summarize import main as summarize_main
 
         summarize_main()
+    elif command == "claim-extract" or command == "claims":
+        from ius.cli.claim_extract import main as claim_extract_main
+
+        claim_extract_main()
     elif command == "help" or command == "-h" or command == "--help":
         print_help()
     else:
@@ -51,18 +55,21 @@ def print_help():
     print("  python -m ius <command> [options]")
     print()
     print("Available commands:")
-    print("  chunk       Chunk documents for summarization")
-    print("  summarize   Generate summaries from chunked data")
-    print("  help        Show this help message")
+    print("  chunk         Chunk documents for summarization")
+    print("  summarize     Generate summaries from chunked data")
+    print("  claim-extract Extract claims from summaries")
+    print("  help          Show this help message")
     print()
     print("Examples:")
     print("  python -m ius chunk --dataset bmds --strategy fixed_size --size 2048")
     print("  python -m ius summarize --input outputs/chunks/ipython_test")
+    print("  python -m ius claim-extract --input outputs/summaries/bmds_summaries")
     print("  python -m ius help")
     print()
     print("For command-specific help:")
     print("  python -m ius chunk --help")
     print("  python -m ius summarize --help")
+    print("  python -m ius claim-extract --help")
 
 
 if __name__ == "__main__":

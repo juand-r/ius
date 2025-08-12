@@ -1,0 +1,14 @@
+Please extract all specific claims from the following {domain} summary:
+
+{text}
+
+Extract concrete, verifiable claims such as:
+- Factual assertions about events, characters, or situations
+- Specific details about what happened, when, where, how, or why
+- Causal relationships and explanations
+- Character motivations, actions, and descriptions
+- Setting details and contextual information
+
+Present each claim as a separate bullet point. Focus on claims that are explicitly stated or clearly implied in the summary. Avoid speculation or interpretations that go beyond what is presented.
+
+Claims:

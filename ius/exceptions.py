@@ -34,3 +34,9 @@ class ConfigurationError(IUSError):
     """Configuration-related errors (invalid settings, missing required config)."""
 
     pass
+
+
+class ClaimExtractionError(IUSError):
+    """Claim extraction-related errors (invalid parameters, processing failures)."""
+
+    pass
