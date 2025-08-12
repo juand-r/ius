@@ -74,26 +74,11 @@ def evaluate_whodunit_dataset(
     start_time = time.time()
     
     try:
-        # Build the command that was run
-        command_parts = ["python -m ius whodunit", f"--input {input_path}", f"--range {range_spec}"]
-        if prompt_name != "default-whodunit-culprits-and-accomplices":
-            command_parts.append(f"--prompt {prompt_name}")
-        if model != "gpt-4o-mini":
-            command_parts.append(f"--model {model}")
-        if temperature != 0.1:
-            command_parts.append(f"--temperature {temperature}")
-        if max_tokens != 2000:
-            command_parts.append(f"--max-tokens {max_tokens}")
-        if scope == "item":
-            command_parts.extend(["--scope item", f"--item-ids {' '.join(item_ids)}"])
-        if output_path:
-            command_parts.append(f"--output {output_path}")
-        if ask_user_confirmation:
-            command_parts.append("--confirm")
-        if verbose:
-            command_parts.append("--verbose")
-        
-        command_run = " ".join(command_parts)
+        # Capture the actual command that was run
+        argv_copy = sys.argv.copy()
+        if argv_copy[0].endswith("__main__.py"):
+            argv_copy[0] = "python -m ius"
+        command_run = " ".join(argv_copy)
         
         # Run the evaluation
         result = run_whodunit_evaluation(
@@ -105,18 +90,10 @@ def evaluate_whodunit_dataset(
             max_tokens=max_tokens,
             item_ids=item_ids if scope == "item" else None,
             output_dir=output_path,
+            command_run=command_run,
             ask_user_confirmation=ask_user_confirmation,
             verbose=verbose
         )
-        
-        # Add command_run to the results
-        if "collection_metadata" in result:
-            result["collection_metadata"]["whodunit_evaluation_info"]["collection_metadata"]["command_run"] = command_run
-        
-        # Add command_run to individual item results
-        for item_result in result.get("results", []):
-            if "evaluation_metadata" in item_result:
-                item_result["evaluation_metadata"]["command_run"] = command_run
         
         processing_time = time.time() - start_time
         

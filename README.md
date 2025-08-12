@@ -42,6 +42,7 @@ ius/                    # Main project code
 ├── cli/              # Command-line interfaces
 │   ├── chunk.py      # Chunking CLI with --verbose, --dry-run flags
 │   ├── claim_extract.py # Claim extraction CLI
+│   ├── whodunit.py   # Whodunit evaluation CLI
 │   └── common.py     # Shared CLI utilities
 ├── chunk/            # Text chunking strategies ✅ IMPLEMENTED
 │   ├── chunkers.py   # Fixed-size, fixed-count, custom chunking
@@ -50,7 +51,9 @@ ius/                    # Main project code
 │   ├── loader.py     # Standard dataset loader with error handling
 │   ├── datasets.py   # Dataset and ChunkedDataset classes for object-oriented data access
 │   └── __init__.py   # Data loading convenience functions
-├── eval/             # Evaluation and experiment tracking (TODO)  
+├── eval/             # Evaluation and experiment tracking ✅ IMPLEMENTED
+│   └── extrinsic/    # Extrinsic evaluation methods
+│       └── whodunit.py # Detective story whodunit evaluation  
 ├── claim_extract.py  # Claim extraction from summaries ✅ IMPLEMENTED
 └── summarization/    # LLM-based summarization with experimental tracking ✅ IMPLEMENTED
 
@@ -72,7 +75,9 @@ tests/                # Comprehensive test suite (128 tests)
 outputs/              # Generated output files
 ├── chunks/          # Chunking results in JSON format
 ├── summaries/       # Summarization results
-└── summaries-claims/ # Claim extraction results
+├── summaries-claims/ # Claim extraction results
+└── eval/            # Evaluation results
+    └── extrinsic/   # Extrinsic evaluation results
 
 data-source/          # Raw data for ingestion
 ```
@@ -153,6 +158,12 @@ python -m ius claim-extract --input outputs/summaries/bmds_summaries
 
 # Extract claims from specific items only
 python -m ius claim-extract --input outputs/summaries/squality_summaries --scope item --item-ids 23942 24192
+
+# Evaluate detective stories (whodunit analysis)
+python -m ius whodunit --input outputs/summaries/bmds_summaries
+
+# Evaluate using specific range of chunks/summaries
+python -m ius whodunit --input outputs/chunks/bmds_fixed_size2_8000 --range 1-3
 ```
 
 ### Advanced Features
@@ -234,6 +245,34 @@ python -m ius claim-extract --input outputs/summaries/bmds_summaries --verbose -
 
 # Custom output directory
 python -m ius claim-extract --input outputs/summaries/bmds_summaries --output outputs/claims/custom_claims
+```
+
+### Whodunit Evaluation Commands
+
+The CLI provides extrinsic evaluation capabilities for detective stories using whodunit analysis prompts to assess how well summaries preserve crucial information for solving mysteries.
+
+```bash
+# Evaluate all summaries using all available text
+python -m ius whodunit --input outputs/summaries/bmds_summaries
+
+# Evaluate using specific range of chunks/summaries
+python -m ius whodunit --input outputs/chunks/bmds_fixed_size2_8000 --range 1-3
+
+# Evaluate specific items only using the last chunk/summary
+python -m ius whodunit --input outputs/summaries/squality_summaries --scope item --item-ids 23942 24192 --range last
+
+# Use different range specifications
+python -m ius whodunit --input outputs/summaries/bmds_summaries --range penultimate  # Second to last
+python -m ius whodunit --input outputs/summaries/bmds_summaries --range 1-4         # First 4 chunks/summaries
+
+# Use a different model and prompt
+python -m ius whodunit --input outputs/summaries/detective_summaries --model gpt-4 --prompt custom-whodunit
+
+# Enable verbose logging and user confirmation
+python -m ius whodunit --input outputs/summaries/bmds_summaries --verbose --confirm
+
+# Custom output directory
+python -m ius whodunit --input outputs/summaries/bmds_summaries --output outputs/eval/custom_whodunit
 ```
 
 ### Summarization Commands
@@ -377,6 +416,7 @@ Default strategy: concat_and_summarize
 - **📋 Strategy Discovery**: List and compare available strategies with `--list-strategies`
 - **🔗 Command Reproducibility**: Full command history stored in metadata for perfect experiment reproduction
 - **🔍 Claim Extraction**: Extract concrete, verifiable claims from generated summaries using LLMs
+- **🕵️ Whodunit Evaluation**: Extrinsic evaluation of detective stories using whodunit analysis prompts
 
 ### Example Output
 
@@ -1080,9 +1120,10 @@ The framework has been significantly enhanced with production-ready features:
 - **Strategy Discovery**: Built-in `--list-strategies` command for easy exploration of available approaches
 - **Command Reproducibility**: Complete command tracking in both chunking and summarization metadata for scientific transparency
 - **Claim Extraction**: LLM-based extraction of concrete, verifiable claims from generated summaries with structured JSON output
+- **Whodunit Evaluation**: Extrinsic evaluation framework for detective stories using whodunit analysis prompts to assess summary quality
 
 ### 🚧 In Progress  
-- **Evaluation Framework**: Metrics for content preservation, summary quality, and computational efficiency
+- **Additional Evaluation Metrics**: Intrinsic metrics for content preservation, summary quality, and computational efficiency
 
 ### 📋 Planned Features
 - **Multi-document datasets**: News sequences, TV show episodes, book series

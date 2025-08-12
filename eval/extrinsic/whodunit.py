@@ -279,6 +279,7 @@ def run_whodunit_evaluation(
     max_tokens: int = 2000,
     item_ids: Optional[List[str]] = None,
     output_dir: Optional[str] = None,
+    command_run: Optional[str] = None,
     ask_user_confirmation: bool = False,
     verbose: bool = False
 ) -> Dict[str, Any]:
@@ -294,6 +295,7 @@ def run_whodunit_evaluation(
         max_tokens: Maximum tokens for LLM response
         item_ids: Specific item IDs to process (None for all)
         output_dir: Custom output directory (None for auto-generated)
+        command_run: Command that was run (for reproducibility)
         ask_user_confirmation: Whether to ask for user confirmation
         verbose: Enable verbose logging
         
@@ -411,6 +413,7 @@ def run_whodunit_evaluation(
                         "system": system_prompt,
                         "user": user_template
                     },
+                    "command_run": command_run,
                     "processing_time": llm_result.get("processing_time", 0),
                     "usage": llm_result["usage"]
                 },
@@ -449,6 +452,7 @@ def run_whodunit_evaluation(
                     "user": user_template
                 },
                 "source_collection": str(input_path),
+                "command_run": command_run,
                 "hash_parameters": hash_params,
                 "hash_note": "Directory name contains 6-char MD5 hash of these parameters",
                 "hash_value": output_hash
