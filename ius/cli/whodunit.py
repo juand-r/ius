@@ -38,9 +38,10 @@ def evaluate_whodunit_dataset(
     input_path: str,
     range_spec: str = "all",
     prompt_name: str = "default-whodunit-culprits-and-accomplices",
-    model: str = "gpt-4o-mini",
+    scoring_prompt_name: str | None = None,
+    model: str = "gpt-4.1-mini",
     temperature: float = 0.1,
-    max_tokens: int = 2000,
+    max_completion_tokens: int = 2000,
     scope: str = "all",
     item_ids: list[str] | None = None,
     output_path: str | None = None,
@@ -57,7 +58,7 @@ def evaluate_whodunit_dataset(
         prompt_name: Name of the prompt directory to use
         model: LLM model to use
         temperature: LLM temperature
-        max_tokens: Maximum tokens for LLM response
+        max_completion_tokens: Maximum tokens for LLM response
         scope: Processing scope ("all" or "item")
         item_ids: List of specific item IDs to process
         output_path: Path to save evaluation results
@@ -104,9 +105,10 @@ def evaluate_whodunit_dataset(
             input_dir=input_path,
             range_spec=range_spec,
             prompt_name=prompt_name,
+            scoring_prompt_name=scoring_prompt_name,
             model=model,
             temperature=temperature,
-            max_tokens=max_tokens,
+            max_completion_tokens=max_completion_tokens,
             item_ids=item_ids if scope == "item" else None,
             output_dir=output_path,
             overwrite=overwrite,
@@ -222,6 +224,11 @@ Examples:
     )
     
     parser.add_argument(
+        "--scoring-prompt",
+        help="Scoring prompt directory name (if not provided, Phase 2 scoring will be skipped)"
+    )
+    
+    parser.add_argument(
         "--temperature",
         type=float,
         default=0.1,
@@ -290,9 +297,10 @@ Examples:
             "input_path": args.input,
             "range_spec": args.range,
             "prompt_name": args.prompt,
+            "scoring_prompt_name": args.scoring_prompt,
             "model": args.model,
             "temperature": args.temperature,
-            "max_tokens": args.max_tokens,
+            "max_completion_tokens": args.max_tokens,
             "scope": args.scope,
             "item_ids": args.item_ids,
             "output_path": args.output,

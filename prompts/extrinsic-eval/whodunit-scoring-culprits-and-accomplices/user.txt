@@ -1,0 +1,63 @@
+You are evaluating an LLM's solution to a detective story mystery. Compare the LLM's identified culprit(s) and accomplice(s) against the ground truth and assess correctness.
+
+**Suspects:**
+Suspects: {suspects}
+
+**Ground Truth:**
+Culprits: {ground_truth_culprits}
+Accomplices: {ground_truth_accomplices}
+
+**LLM Solution:**
+Main Culprit(s): {llm_main_culprits}
+Accomplice(s): {llm_accomplices}
+
+Please evaluate the LLM's solution and provide a structured assessment. First focus on whether the LLM correctly identified the key suspects, even if names/aliases are not perfect.
+
+**Assessment Guidelines:**
+- "Culprit correct?" = Yes if LLM identified the right person(s) as culprit, even with name variations or incorrect first name.
+- Only mark "Yes" if LLM identified ONLY the culprit (or culprit + accomplice), not additional suspects
+- If only alias is provided when real name exists, that's incorrect
+
+You will provide your assessment, answering three questions each for culprit and accomplice: 
+1. Is the LM culprit correct ("culprit_correct")? 
+2. Figure out if there are any minor errors: if the culprit is correct, they may be missing an alias, have a wrong first name, or perhaps it included the accomplice in the list of culprits. These are "minor_errors"
+3. Figure out if there are any major errors (fundamental misidenfications): if the culprit is incorrect, then perhaps a different suspect (who is not an accomplice) was accused, or the accomplice was selected as the culprit, or only the alias was given when a real name was available, or it included other suspects in addition to the actual culprit. 
+
+Provide your assessment in this exact format:
+
+<ASSESSMENT>
+{{
+  "culprit": {{
+    "culprit_correct": "Yes/No",
+    "minor_errors": {{
+      "culprit_missing_alias": "Yes/No/N/A",
+      "hallucinated_part_of_name": "Yes/No",
+      "missing_part_of_name": "Yes/No", 
+      "included_accomplice": "Yes/No"
+    }},
+    "major_errors": {{
+      "different_suspect_not_accomplice": "Yes/No",
+      "confused_swapped_culprit_and_accomplice": "Yes/No",
+      "missing_real_name_only_has_alias": "Yes/No",
+      "included_other_non_accomplice_suspects": "Yes/No"
+    }}
+  }},
+  "accomplice": {{
+    "accomplice_correct": "Yes/No",
+    "minor_errors": {{
+      "accomplice_missing_alias": "Yes/No/N/A",
+      "hallucinated_part_of_name": "Yes/No",
+      "missing_part_of_name": "Yes/No",
+      "included_culprit": "Yes/No"
+    }},
+    "major_errors": {{
+      "different_suspect_not_culprit": "Yes/No", 
+      "confused_swapped_accomplice_and_culprit": "Yes/No",
+      "missing_real_name_only_has_alias": "Yes/No",
+      "included_other_non_culprit_suspects": "Yes/No"
+    }}
+  }}
+}}
+</ASSESSMENT>
+
+Provide your reasoning before the assessment, explaining your evaluation.

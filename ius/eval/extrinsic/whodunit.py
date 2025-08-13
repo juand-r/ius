@@ -199,6 +199,50 @@ def load_prompts(prompt_dir: Path) -> Tuple[str, str]:
 
 
 
+def extract_ground_truth(item_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Extract ground truth culprit and accomplice information from item metadata.
+    
+    Args:
+        item_data: Item JSON data
+        
+    Returns:
+        Dictionary with ground truth information
+    """
+    ground_truth = {
+        "culprits": None,
+        "culprits_post_reveal": None,
+        "accomplices": None
+    }
+    
+    try:
+        metadata = item_data["documents"][0]["metadata"]
+        
+        # Check if original_metadata exists (for BMDS, but not DetectiveQA)
+        if "original_metadata" in metadata:
+            original_metadata = metadata["original_metadata"]
+            
+            # Extract culprits
+            if "culprit(s), human annotated" in original_metadata:
+                ground_truth["culprits"] = original_metadata["culprit(s), human annotated"]
+            
+            # Extract post-reveal culprits
+            if "culprit(s), human annotated--post-reveal" in original_metadata:
+                ground_truth["culprits_post_reveal"] = original_metadata["culprit(s), human annotated--post-reveal"]
+            
+            # Extract accomplices
+            if "accomplice(s), human annotated" in original_metadata:
+                ground_truth["accomplices"] = original_metadata["accomplice(s), human annotated"]
+                
+        else:
+            logger.info("No original_metadata found in item - ground truth will be None")
+            
+    except (KeyError, IndexError) as e:
+        logger.warning(f"Could not extract ground truth: {e}")
+    
+    return ground_truth
+
+
 def parse_llm_response(response: str) -> Dict[str, str]:
     """
     Parse LLM response into structured sections.
@@ -239,6 +283,125 @@ def parse_llm_response(response: str) -> Dict[str, str]:
     return sections
 
 
+def parse_scoring_response(response: str) -> Dict[str, Any]:
+    """
+    Parse LLM scoring response into structured assessment.
+    
+    Args:
+        response: Raw LLM scoring response
+        
+    Returns:
+        Dictionary with parsed assessment
+    """
+    try:
+        # Extract JSON from <ASSESSMENT> tags
+        match = re.search(r"<ASSESSMENT>(.*?)</ASSESSMENT>", response, re.DOTALL)
+        if match:
+            json_str = match.group(1).strip()
+            return json.loads(json_str)
+        else:
+            logger.warning("Could not find <ASSESSMENT> tags in scoring response")
+            return None
+    except json.JSONDecodeError as e:
+        logger.warning(f"Could not parse scoring response as JSON: {e}")
+        return None
+
+
+def score_whodunit_solution(
+    llm_solution: Dict[str, str],
+    ground_truth: Dict[str, Any],
+    scoring_prompt_name: str,
+    range_spec: str = "all",
+    model: str = "gpt-4.1-mini",
+    temperature: float = 0.1,
+    max_completion_tokens: int = 1000,
+    ask_user_confirmation: bool = False
+) -> Dict[str, Any]:
+    """
+    Score a whodunit solution against ground truth using LLM.
+    
+    Args:
+        llm_solution: Parsed LLM solution
+        ground_truth: Ground truth data
+        range_spec: Range specification used for text selection
+        model: LLM model for scoring
+        temperature: LLM temperature
+        max_completion_tokens: Max tokens for scoring
+        ask_user_confirmation: Whether to ask for confirmation
+        
+    Returns:
+        Dictionary with scoring results
+    """
+    from ius.utils import call_llm
+    
+    # Load scoring prompts
+    scoring_prompt_dir = Path(f"prompts/extrinsic-eval/{scoring_prompt_name}")
+    
+    try:
+        system_prompt, user_prompt_template = load_prompts(scoring_prompt_dir)
+    except Exception as e:
+        logger.error(f"Could not load scoring prompts: {e}")
+        return {
+            "assessment": None,
+            "error": f"Could not load scoring prompts: {e}",
+            "raw_response": None,
+            "usage": {"total_cost": 0, "total_tokens": 0}
+        }
+    
+    # Simple ground truth selection: use post-reveal if range includes the end and it exists
+    if range_spec in ["last", "all"] and ground_truth.get("culprits_post_reveal"):
+        selected_culprits = ground_truth.get("culprits_post_reveal")
+    else:
+        selected_culprits = ground_truth.get("culprits")
+    
+    # Prepare template variables
+    template_vars = {
+        "suspects": llm_solution.get("suspects", "None"),
+        "ground_truth_culprits": selected_culprits or "None",
+        "ground_truth_accomplices": ground_truth.get("accomplices", "None"),
+        "llm_main_culprits": llm_solution.get("main_culprits", "None"),
+        "llm_accomplices": llm_solution.get("accomplices", "None")
+    }
+    
+    # Fill in the user prompt
+    user_prompt = user_prompt_template.format(**template_vars)
+    
+    logger.info("Making LLM call for solution scoring...")
+    
+    try:
+        # Make LLM call for scoring
+        scoring_result = call_llm(
+            text="",  # Not used for this prompt style
+            system_and_user_prompt={
+                "system": system_prompt,
+                "user": user_prompt
+            },
+            model=model,
+            temperature=temperature,
+            max_completion_tokens=max_completion_tokens,
+            ask_user_confirmation=ask_user_confirmation
+        )
+        
+        # Parse the scoring response
+        parsed_assessment = parse_scoring_response(scoring_result["response"])
+        
+        return {
+            "assessment": parsed_assessment,
+            "raw_response": scoring_result["response"],
+            "usage": scoring_result["usage"],
+            "error": None
+        }
+        
+    except Exception as e:
+        logger.error(f"Error during solution scoring: {e}")
+        return {
+            "assessment": None,
+            "error": str(e),
+            "raw_response": None,
+            "usage": {"total_cost": 0, "total_tokens": 0}
+        }
+
+
 def generate_output_hash(params: Dict[str, Any]) -> str:
     """
     Generate a short hash for output directory naming.
@@ -260,9 +423,10 @@ def run_whodunit_evaluation(
     input_dir: str,
     range_spec: str = "all",
     prompt_name: str = "default-whodunit-culprits-and-accomplices",
+    scoring_prompt_name: Optional[str] = None,
     model: str = "gpt-4o-mini",
     temperature: float = 0.1,
-    max_tokens: int = 2000,
+    max_completion_tokens: int = 2000,
     item_ids: Optional[List[str]] = None,
     output_dir: Optional[str] = None,
     overwrite: bool = False,
@@ -279,7 +443,7 @@ def run_whodunit_evaluation(
         prompt_name: Name of prompt directory
         model: LLM model to use
         temperature: LLM temperature
-        max_tokens: Maximum tokens for LLM response
+        max_completion_tokens: Maximum tokens for LLM response
         item_ids: Specific item IDs to process (None for all)
         output_dir: Custom output directory (None for auto-generated)
         overwrite: Whether to overwrite existing item results
@@ -315,7 +479,7 @@ def run_whodunit_evaluation(
             "prompt_name": prompt_name,
             "range_spec": range_spec,
             "temperature": temperature,
-            "max_tokens": max_tokens
+            "max_completion_tokens": max_completion_tokens
         }
         output_hash = generate_output_hash(hash_params)
         output_dir = f"outputs/eval/extrinsic/{input_name}_whodunit_{output_hash}"
@@ -348,90 +512,143 @@ def run_whodunit_evaluation(
         item_id = item_file.stem
         logger.info(f"[{i}/{len(item_files)}] Processing item: {item_id}")
         
-        # Check if item already exists and should be skipped
         item_output_file = items_output_dir / f"{item_id}.json"
-        if item_output_file.exists() and not overwrite:
-            logger.info(f"⏭️  Skipping {item_id} (already exists, use --overwrite to replace)")
-            skipped_items.append(item_id)
-            continue
         
         try:
-            # Load segments and reveal
-            segments, reveal_segment = load_item_segments(item_file, input_type)
-            
-            # Select text based on range
-            selected_text, selected_indices = select_text_segments(segments, range_spec)
-            
-            # Print reveal preview
-            reveal_preview = reveal_segment[:300] + "..." if len(reveal_segment) > 300 else reveal_segment
-            logger.info(f"Using reveal segment (first 300 chars): {reveal_preview}")
-            logger.info(f"Selected range: {range_spec} -> segments {selected_indices} of {len(segments)}")
-            
-            # Build the actual user prompt with template substitution
-            actual_user_prompt = user_template.format(
-                text=selected_text,
-                reveal_chunk=reveal_segment
-            )
-            
-            # Call LLM (template substitution handled by call_llm)
-            llm_result = call_llm(
-                text=selected_text,
-                model=model,
-                system_and_user_prompt={
-                    "system": system_prompt,
-                    "user": user_template
-                },
-                template_vars={
-                    "text": selected_text,
-                    "reveal_chunk": reveal_segment
-                },
-                temperature=temperature,
-                max_completion_tokens=max_tokens,
-                ask_user_confirmation=ask_user_confirmation
-            )
-            
-            # Parse response
-            parsed_sections = parse_llm_response(llm_result["response"])
-            
-
-            
-            # Create result
-            item_result = {
-                "item_metadata": {
-                    "item_id": item_id,
-                    "input_type": input_type,
-                    "selected_range": range_spec,
-                    "selected_indices": selected_indices,
-                    "selected_text_length": len(selected_text),
-                    "reveal_segment_length": len(reveal_segment),
-                    "reveal_preview": reveal_preview,
-                    "whodunit_timestamp": datetime.now().isoformat()
-                },
-                "evaluation_metadata": {
-                    "prompt_name": prompt_name,
-                    "model": model,
-                    "temperature": temperature,
-                    "max_tokens": max_tokens,
-                    "prompts_used": {
+            # PHASE 1: SOLVE (if needed)
+            if not item_output_file.exists() or overwrite:
+                logger.info(f"🔍 Solving mystery for {item_id}...")
+                
+                # Load segments and reveal
+                segments, reveal_segment = load_item_segments(item_file, input_type)
+                
+                # Select text based on range
+                selected_text, selected_indices = select_text_segments(segments, range_spec)
+                
+                # Print reveal preview
+                reveal_preview = reveal_segment[:300] + "..." if len(reveal_segment) > 300 else reveal_segment
+                logger.info(f"Using reveal segment (first 300 chars): {reveal_preview}")
+                logger.info(f"Selected range: {range_spec} -> segments {selected_indices} of {len(segments)}")
+                
+                # Build the actual user prompt with template substitution
+                actual_user_prompt = user_template.format(
+                    text=selected_text,
+                    reveal_chunk=reveal_segment
+                )
+                
+                # Call LLM for solving
+                llm_result = call_llm(
+                    text=selected_text,
+                    model=model,
+                    system_and_user_prompt={
                         "system": system_prompt,
-                        "user": actual_user_prompt
+                        "user": user_template
                     },
-                    "command_run": command_run,
-                    "processing_time": llm_result.get("processing_time", 0),
-                    "usage": llm_result["usage"]
-                },
-                "raw_response": llm_result["response"],
-                "parsed_response": parsed_sections
-            }
+                    template_vars={
+                        "text": selected_text,
+                        "reveal_chunk": reveal_segment
+                    },
+                    temperature=temperature,
+                    max_completion_tokens=max_completion_tokens,
+                    ask_user_confirmation=ask_user_confirmation
+                )
+                
+                # Parse response
+                parsed_sections = parse_llm_response(llm_result["response"])
+                
+                # Extract ground truth from original item
+                with open(item_file) as f:
+                    original_item_data = json.load(f)
+                ground_truth = extract_ground_truth(original_item_data)
+                
+                # Create result with solution_correctness_assessment set to None
+                item_result = {
+                    "item_metadata": {
+                        "item_id": item_id,
+                        "input_type": input_type,
+                        "selected_range": range_spec,
+                        "selected_indices": selected_indices,
+                        "selected_text_length": len(selected_text),
+                        "reveal_segment_length": len(reveal_segment),
+                        "reveal_preview": reveal_preview,
+                        "whodunit_timestamp": datetime.now().isoformat()
+                    },
+                    "evaluation_metadata": {
+                        "prompt_name": prompt_name,
+                        "model": model,
+                        "temperature": temperature,
+                        "max_completion_tokens": max_completion_tokens,
+                        "prompts_used": {
+                            "system": system_prompt,
+                            "user": actual_user_prompt
+                        },
+                        "command_run": command_run,
+                        "processing_time": llm_result.get("processing_time", 0),
+                        "usage": llm_result["usage"]
+                    },
+                    "ground_truth": ground_truth,
+                    "raw_response": llm_result["response"],
+                    "parsed_response": parsed_sections,
+                    "solution_correctness_assessment": None
+                }
+                
+                # Save item result
+                with open(item_output_file, 'w') as f:
+                    json.dump(item_result, f, indent=2)
+                
+                total_cost += llm_result["usage"]["total_cost"]
+                total_tokens += llm_result["usage"]["total_tokens"]
             
-            # Save item result
-            item_output_file = items_output_dir / f"{item_id}.json"
-            with open(item_output_file, 'w') as f:
-                json.dump(item_result, f, indent=2)
-            
-            results.append(item_result)
-            total_cost += llm_result["usage"]["total_cost"]
-            total_tokens += llm_result["usage"]["total_tokens"]
+            # PHASE 2: SCORE (if needed)
+            if item_output_file.exists():
+                # Load existing item
+                with open(item_output_file) as f:
+                    item_result = json.load(f)
+                
+                # Check if scoring is needed and scoring prompt is provided
+                if scoring_prompt_name and item_result.get("solution_correctness_assessment") is None:
+                    # Check if ground truth is available for scoring
+                    ground_truth = item_result.get("ground_truth", {})
+                    if not ground_truth.get("culprits"):
+                        logger.info(f"⏭️  No ground truth available for {item_id} - skipping scoring (can be done later)")
+                    else:
+                        logger.info(f"📊 Scoring solution for {item_id}...")
+                        
+                        # Score the solution
+                        scoring_result = score_whodunit_solution(
+                            llm_solution=item_result["parsed_response"],
+                            ground_truth=item_result["ground_truth"],
+                            scoring_prompt_name=scoring_prompt_name,
+                            range_spec=range_spec,
+                            model=model,
+                            temperature=temperature,
+                            max_completion_tokens=1000,
+                            ask_user_confirmation=ask_user_confirmation
+                        )
+                        
+                        # Update item with scoring results
+                        item_result["solution_correctness_assessment"] = scoring_result["assessment"]
+                        item_result["scoring_metadata"] = {
+                            "scoring_model": model,
+                            "scoring_temperature": temperature,
+                            "scoring_raw_response": scoring_result["raw_response"],
+                            "scoring_usage": scoring_result["usage"],
+                            "scoring_error": scoring_result["error"],
+                            "scoring_timestamp": datetime.now().isoformat()
+                        }
+                        
+                        # Save updated item
+                        with open(item_output_file, 'w') as f:
+                            json.dump(item_result, f, indent=2)
+                        
+                        total_cost += scoring_result["usage"]["total_cost"]
+                        total_tokens += scoring_result["usage"]["total_tokens"]
+                elif not scoring_prompt_name:
+                    logger.info(f"⏭️  No scoring prompt provided - skipping Phase 2 scoring for {item_id}")
+                else:
+                    logger.info(f"⏭️  Scoring already completed for {item_id}")
+                
+                results.append(item_result)
             
         except Exception as e:
             logger.error(f"Error processing item {item_id}: {e}")
@@ -450,7 +667,7 @@ def run_whodunit_evaluation(
                 "prompt_name": prompt_name,
                 "range_spec": range_spec,
                 "temperature": temperature,
-                "max_tokens": max_tokens,
+                "max_completion_tokens": max_completion_tokens,
                 "prompts_used": {
                     "system": system_prompt,
                     "user": user_template
