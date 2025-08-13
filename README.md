@@ -286,6 +286,18 @@ python -m ius whodunit --input outputs/chunks/bmds_fixed_size2_8000 --scoring-pr
 python -m ius whodunit --input outputs/summaries/bmds_summaries --overwrite
 ```
 
+#### ⚠️ Model-Specific Considerations
+
+**OpenAI o3 Model**: The o3 model uses internal reasoning tokens that count toward the token limit. If you see `finish_reason: "length"` in output JSONs with empty responses, increase the token limit significantly:
+
+```bash
+# For o3 model - use much higher token limits (100k+ recommended)
+python -m ius whodunit --input outputs/chunks/bmds_fixed_size2_8000 --model o3 --max-tokens 100000
+
+# Check finish_reason in output JSONs for debugging:
+# "stop" = normal completion, "length" = hit token limit
+```
+
 ### Summarization Commands
 
 The CLI provides comprehensive summarization capabilities with multiple strategies, automatic output naming, and customizable summary specifications.
