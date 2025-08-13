@@ -70,4 +70,8 @@ ACCOMPLICE MAJOR ERRORS:
   "included_other_non_culprit_suspects": "Yes or No"
 }}
 
+Edge Cases:
+- ground truth of "None" means "no human culprit", so if the LLM mentions animals, diseases or any other non-human cause of death, that should be "Yes", correct.
+- most mysteries involve a murder, but in some cases the culprit might be guilty of something else (depends on the story).
+
 IMPORTANT: Provide your reasoning first, then provide each JSON section exactly as shown above, in exactly that format.

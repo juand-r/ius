@@ -163,8 +163,8 @@ python -m ius claim-extract --input outputs/summaries/squality_summaries --scope
 # Evaluate detective stories (whodunit analysis)
 python -m ius whodunit --input outputs/summaries/bmds_summaries
 
-# Evaluate using specific range of chunks/summaries
-python -m ius whodunit --input outputs/chunks/bmds_fixed_size2_8000 --range 1-3
+# Evaluate using specific range of chunks/summaries with scoring
+python -m ius whodunit --input outputs/chunks/bmds_fixed_size2_8000 --range 1-3 --scoring-prompt whodunit-scoring-culprits-and-accomplices
 ```
 
 ### Advanced Features
@@ -250,7 +250,7 @@ python -m ius claim-extract --input outputs/summaries/bmds_summaries --output ou
 
 ### Whodunit Evaluation Commands
 
-The CLI provides extrinsic evaluation capabilities for detective stories using whodunit analysis prompts to assess how well summaries preserve crucial information for solving mysteries.
+The CLI provides extrinsic evaluation capabilities for detective stories using whodunit analysis prompts to assess how well summaries preserve crucial information for solving mysteries. The evaluation runs in two phases: (1) solving the mystery, and (2) scoring the solution against ground truth.
 
 ```bash
 # Evaluate all summaries using all available text
@@ -268,13 +268,22 @@ python -m ius whodunit --input outputs/summaries/bmds_summaries --range all-but-
 python -m ius whodunit --input outputs/summaries/bmds_summaries --range 1-4         # First 4 chunks/summaries
 
 # Use a different model and prompt
-python -m ius whodunit --input outputs/summaries/detective_summaries --model gpt-4 --prompt custom-whodunit
+python -m ius whodunit --input outputs/summaries/detective_summaries --model gpt-4.1-mini --prompt custom-whodunit
 
 # Enable verbose logging and user confirmation
 python -m ius whodunit --input outputs/summaries/bmds_summaries --verbose --confirm
 
 # Custom output directory
 python -m ius whodunit --input outputs/summaries/bmds_summaries --output outputs/eval/custom_whodunit
+
+# Run with scoring (two-phase: solve + score)
+python -m ius whodunit --input outputs/chunks/bmds_fixed_size2_8000 --scoring-prompt whodunit-scoring-culprits-and-accomplices
+
+# Re-score existing results (skip solving, only run scoring phase)
+python -m ius whodunit --input outputs/chunks/bmds_fixed_size2_8000 --scoring-prompt whodunit-scoring-culprits-and-accomplices --rescore
+
+# Overwrite existing results completely
+python -m ius whodunit --input outputs/summaries/bmds_summaries --overwrite
 ```
 
 ### Summarization Commands
@@ -506,7 +515,7 @@ result = summarize(
     dataset="bmds",
     scope="item", 
     item_id="ADP02",
-    model="gpt-4o-mini"
+    model="gpt-4.1-mini"
 )
 ```
 
@@ -570,7 +579,7 @@ result = summarize(
     dataset="bmds",
     scope="item",
     item_id="ADP02",
-    model="gpt-4o-mini",
+    model="gpt-4.1-mini",
     temperature=0.1,
     max_tokens=500
 )
@@ -598,7 +607,7 @@ result = summarize(
     scope="item",
     item_id="ADP02",
     system_and_user_prompt=custom_prompts,
-    model="gpt-4o-mini"
+    model="gpt-4.1-mini"
 )
 ```
 
@@ -770,7 +779,7 @@ chunks = ["First chunk text...", "Second chunk text...", "Third chunk..."]
 
 result = concat_and_summarize(
     chunks=chunks,
-    model="gpt-4o-mini", 
+    model="gpt-4.1-mini", 
     domain="detective_stories",  # Automatically adapts prompts to domain
     optional_summary_length="brief summary",  # Customize summary characteristics
     system_and_user_prompt={
@@ -970,7 +979,7 @@ result = summarize(
     dataset="bmds", 
     scope="dataset",
     system_and_user_prompt=detective_prompts,
-    model="gpt-4o-mini"
+    model="gpt-4.1-mini"
 )
 ```
 

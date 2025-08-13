@@ -15,6 +15,11 @@ try:
 except ImportError:
     raise ImportError("OpenAI package not installed. Run: pip install openai") from None
 
+try:
+    import tiktoken
+except ImportError:
+    raise ImportError("tiktoken package not installed. Run: pip install tiktoken") from None
+
 from .exceptions import ValidationError
 from .logging_config import get_logger
 
@@ -190,6 +195,7 @@ def _call_openai(text: str, model: str, system_and_user_prompt: dict[str, str] =
             },
             "model": model,
             "processing_time": processing_time,
+            "finish_reason": response.choices[0].finish_reason,
             "final_prompts_used": final_prompts  # Prompts with template variables replaced
         }
 

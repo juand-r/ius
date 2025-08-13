@@ -41,7 +41,7 @@ def evaluate_whodunit_dataset(
     scoring_prompt_name: str | None = None,
     model: str = "gpt-4.1-mini",
     temperature: float = 0.1,
-    max_completion_tokens: int = 2000,
+    max_completion_tokens: int = 100000,
     scope: str = "all",
     item_ids: list[str] | None = None,
     output_path: str | None = None,
@@ -240,8 +240,8 @@ Examples:
     parser.add_argument(
         "--max-tokens",
         type=int,
-        default=2000,
-        help="Maximum tokens for LLM response (default: 2000)"
+        default=100000,
+        help="Maximum tokens for LLM response (default: 100000)"
     )
     
     # Scope and item selection

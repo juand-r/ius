@@ -444,7 +444,7 @@ def score_whodunit_solution(
     range_spec: str = "all",
     model: str = "gpt-4o",
     temperature: float = 0.1,
-    max_completion_tokens: int = 1000,
+    max_completion_tokens: int = 2000,
     ask_user_confirmation: bool = False
 ) -> Dict[str, Any]:
     """
@@ -535,6 +535,7 @@ def score_whodunit_solution(
         return {
             "assessment": parsed_assessment,
             "raw_response": scoring_result["response"],
+            "finish_reason": scoring_result.get("finish_reason"),
             "usage": scoring_result.get("usage", {"total_cost": 0, "total_tokens": 0}),
             "final_prompts_used": scoring_result.get("final_prompts_used", {}),
             "error": None
@@ -546,6 +547,7 @@ def score_whodunit_solution(
             "assessment": None,
             "error": str(e),
             "raw_response": None,
+            "finish_reason": None,
             "usage": {"total_cost": 0, "total_tokens": 0}
         }
 
@@ -567,6 +569,33 @@ def generate_output_hash(params: Dict[str, Any]) -> str:
     return hashlib.md5(hash_input.encode()).hexdigest()[:6]
 
 
+def _update_collection_metadata(collection_file: Path, item_id: str, cost: float, tokens: int, success: bool, skipped: bool = False):
+    """Update collection.json with results from processing one item."""
+    with open(collection_file, 'r') as f:
+        collection_data = json.load(f)
+    
+    stats = collection_data["whodunit_evaluation_info"]["processing_stats"]
+    
+    # Update items_processed list
+    if item_id not in collection_data["whodunit_evaluation_info"]["items_processed"]:
+        collection_data["whodunit_evaluation_info"]["items_processed"].append(item_id)
+    
+    # Update stats
+    if success:
+        stats["successful_items"] += 1
+    elif skipped:
+        stats["skipped_items"] += 1
+    else:
+        stats["failed_items"] += 1
+    
+    stats["total_cost"] += cost
+    stats["total_tokens"] += tokens
+    
+    # Save updated collection
+    with open(collection_file, 'w') as f:
+        json.dump(collection_data, f, indent=2)
+
+
 def run_whodunit_evaluation(
     input_dir: str,
     range_spec: str = "all",
@@ -574,7 +603,7 @@ def run_whodunit_evaluation(
     scoring_prompt_name: Optional[str] = None,
     model: str = "gpt-4.1-mini",
     temperature: float = 0.1,
-    max_completion_tokens: int = 2000,
+    max_completion_tokens: int = 100000, # Absurdly high value to account for reasoning tokens
     item_ids: Optional[List[str]] = None,
     output_dir: Optional[str] = None,
     overwrite: bool = False,
@@ -638,6 +667,41 @@ def run_whodunit_evaluation(
     items_output_dir = output_path / "items"
     items_output_dir.mkdir(exist_ok=True)
     
+    # Create initial collection metadata
+    collection_data = {
+        "whodunit_evaluation_info": {
+            "collection_metadata": {
+                "evaluation_function": "run_whodunit_evaluation",
+                "content_type": "whodunit_analysis",
+                "input_type": input_type,
+                "model": model,
+                "prompt_name": prompt_name,
+                "range_spec": range_spec,
+                "temperature": temperature,
+                "max_completion_tokens": max_completion_tokens,
+                "prompts_used": {
+                    "system": system_prompt,
+                    "user": user_template
+                },
+                "source_collection": str(input_path),
+                "command_run": command_run,
+                "hash_parameters": hash_params,
+                "hash_note": "Directory name contains 6-char MD5 hash of these parameters",
+                "hash_value": output_hash
+            },
+            "timestamp": datetime.now().isoformat(),
+            "items_processed": [],
+            "processing_stats": {
+                "total_items": 0,  # Will be updated after we count item_files
+                "successful_items": 0,
+                "skipped_items": 0,
+                "failed_items": 0,
+                "total_cost": 0.0,
+                "total_tokens": 0
+            }
+        }
+    }
+    
     # Get list of items to process
     items_dir = input_path / "items"
     if item_ids:
@@ -650,6 +714,12 @@ def run_whodunit_evaluation(
         item_files = sorted(items_dir.glob("*.json"))
     
     logger.info(f"Processing {len(item_files)} items")
+    
+    # Update total_items count and save initial collection.json
+    collection_data["whodunit_evaluation_info"]["processing_stats"]["total_items"] = len(item_files)
+    collection_file = output_path / "collection.json"
+    with open(collection_file, 'w') as f:
+        json.dump(collection_data, f, indent=2)
     
     # Process each item
     results = []
@@ -664,8 +734,13 @@ def run_whodunit_evaluation(
         item_output_file = items_output_dir / f"{item_id}.json"
         
         try:
+            # Track whether we executed Phase 1 (solving)
+            phase1_executed = False
+            llm_result = None
+            
             # PHASE 1: SOLVE (if needed)
             if not item_output_file.exists() or overwrite:
+                phase1_executed = True
                 logger.info(f"🔍 Solving mystery for {item_id}...")
                 
                 # Load segments and reveal
@@ -702,6 +777,7 @@ def run_whodunit_evaluation(
                     ask_user_confirmation=ask_user_confirmation
                 )
                 
+                
                 # Parse response
                 parsed_sections = parse_llm_response(llm_result["response"])
                 
@@ -737,6 +813,7 @@ def run_whodunit_evaluation(
                     },
                     "ground_truth": ground_truth,
                     "raw_response": llm_result["response"],
+                    "finish_reason": llm_result["finish_reason"],
                     "parsed_response": parsed_sections,
                     "solution_correctness_assessment": None
                 }
@@ -747,6 +824,10 @@ def run_whodunit_evaluation(
                 
                 total_cost += llm_result["usage"]["total_cost"]
                 total_tokens += llm_result["usage"]["total_tokens"]
+            
+            # Handle skipped items (log message)
+            if not phase1_executed:
+                logger.info(f"⏭️  Skipping {item_id} (already exists, use --overwrite to regenerate)")
             
             # PHASE 2: SCORE (if needed)
             if item_output_file.exists():
@@ -763,10 +844,21 @@ def run_whodunit_evaluation(
                     ground_truth = item_result.get("ground_truth", {})
                     parsed_response = item_result.get("parsed_response")
                     
+                    # If no ground truth in item result, try to extract it again (including Google Sheets fallback)
+                    if not ground_truth.get("culprits"):
+                        logger.info(f"🔄 No ground truth found in item result for {item_id}, trying to extract again...")
+                        with open(item_file) as f:
+                            original_item_data = json.load(f)
+                        ground_truth = extract_ground_truth(original_item_data)
+                        # Update the item result with the newly extracted ground truth
+                        item_result["ground_truth"] = ground_truth
+                    
                     if not ground_truth.get("culprits"):
                         logger.info(f"⏭️  No ground truth available for {item_id} - skipping scoring (can be done later)")
                     elif not parsed_response or not isinstance(parsed_response, dict):
                         logger.warning(f"⏭️  No valid parsed response for {item_id} - skipping scoring")
+                    elif not parsed_response.get("suspects") or not parsed_response.get("main_culprits"):
+                        logger.info(f"⏭️  LLM solution incomplete for {item_id} (missing suspects or main_culprits) - skipping scoring")
                     else:
                         if rescore and item_result.get("solution_correctness_assessment") is not None:
                             logger.info(f"🔄 Re-scoring solution for {item_id}...")
@@ -791,6 +883,7 @@ def run_whodunit_evaluation(
                             "scoring_model": scoring_model,
                             "scoring_temperature": temperature,
                             "scoring_raw_response": scoring_result["raw_response"],
+                            "scoring_finish_reason": scoring_result.get("finish_reason"),
                             "scoring_usage": scoring_result["usage"],
                             "scoring_error": scoring_result["error"],
                             "scoring_timestamp": datetime.now().isoformat(),
@@ -810,61 +903,53 @@ def run_whodunit_evaluation(
                 
                 results.append(item_result)
             
+            # Update collection metadata incrementally after both phases
+            item_cost = 0
+            item_tokens = 0
+            
+            # Add main LLM costs if Phase 1 was executed
+            if phase1_executed and llm_result:
+                item_cost += llm_result["usage"]["total_cost"]
+                item_tokens += llm_result["usage"]["total_tokens"]
+            
+            # Add scoring costs if applicable (regardless of whether Phase 1 was executed)
+            if scoring_prompt_name and item_result.get("scoring_metadata"):
+                item_cost += item_result["scoring_metadata"]["scoring_usage"]["total_cost"]
+                item_tokens += item_result["scoring_metadata"]["scoring_usage"]["total_tokens"]
+            
+            # Determine if this was a skip or success
+            was_skipped = not phase1_executed
+            
+            _update_collection_metadata(
+                collection_file, 
+                item_id, 
+                item_cost,
+                item_tokens,
+                success=not was_skipped,
+                skipped=was_skipped
+            )
+            
         except Exception as e:
             logger.error(f"Error processing item {item_id}: {e}")
+            # Update collection metadata for failed item
+            _update_collection_metadata(collection_file, item_id, 0, 0, success=False, skipped=False)
             continue
+    # Load final collection metadata for return
+    with open(collection_file, 'r') as f:
+        final_collection_data = json.load(f)
     
-
-    
-    # Create collection metadata
-    collection_data = {
-        "whodunit_evaluation_info": {
-            "collection_metadata": {
-                "evaluation_function": "run_whodunit_evaluation",
-                "content_type": "whodunit_analysis",
-                "input_type": input_type,
-                "model": model,
-                "prompt_name": prompt_name,
-                "range_spec": range_spec,
-                "temperature": temperature,
-                "max_completion_tokens": max_completion_tokens,
-                "prompts_used": {
-                    "system": system_prompt,
-                    "user": user_template
-                },
-                "source_collection": str(input_path),
-                "command_run": command_run,
-                "hash_parameters": hash_params,
-                "hash_note": "Directory name contains 6-char MD5 hash of these parameters",
-                "hash_value": output_hash
-            },
-            "timestamp": datetime.now().isoformat(),
-            "items_processed": [r["item_metadata"]["item_id"] for r in results],
-            "processing_stats": {
-                "total_items": len(item_files),
-                "successful_items": len(results),
-                "skipped_items": len(skipped_items),
-                "failed_items": len(item_files) - len(results) - len(skipped_items),
-                "total_cost": total_cost,
-                "total_tokens": total_tokens
-            }
-        }
-    }
-    
-    # Save collection metadata
-    collection_file = output_path / "collection.json"
-    with open(collection_file, 'w') as f:
-        json.dump(collection_data, f, indent=2)
+    final_stats = final_collection_data["whodunit_evaluation_info"]["processing_stats"]
     
     logger.info(f"Evaluation completed. Results saved to: {output_path}")
-    logger.info(f"Processed {len(results)}/{len(item_files)} items successfully")
-    logger.info(f"Total cost: ${total_cost:.4f}")
-    logger.info(f"Total tokens: {total_tokens}")
+    logger.info(f"Processed {final_stats['successful_items']}/{final_stats['total_items']} items successfully")
+    logger.info(f"Skipped: {final_stats['skipped_items']}, Failed: {final_stats['failed_items']}")
+    logger.info(f"Total cost: ${final_stats['total_cost']:.4f}")
+    logger.info(f"Total tokens: {final_stats['total_tokens']}")
     
     return {
         "output_dir": str(output_path),
         "results": results,
-        "total_cost": total_cost,
-        "total_tokens": total_tokens,
-        "collection_metadata": collection_data
+        "total_cost": final_stats['total_cost'],
+        "total_tokens": final_stats['total_tokens'],
+        "collection_metadata": final_collection_data
     }
