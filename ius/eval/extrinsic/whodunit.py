@@ -10,6 +10,7 @@ import hashlib
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple, Any, Optional
+import pandas as pd
 
 from ius.utils import call_llm
 from ius.logging_config import setup_logging
@@ -203,9 +204,61 @@ def load_prompts(prompt_dir: Path) -> Tuple[str, str]:
 
 
 
+def get_ground_truth_from_sheets(story_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Get ground truth data from Google Sheets as a fallback.
+    
+    Args:
+        story_id: The story ID to look up
+        
+    Returns:
+        Dictionary with ground truth data or None if not found/error
+    """
+    try:
+        # Google Sheet configuration
+        SHEET_ID = "1awnPbTUjIfVOqqhd8vWXQm8iwPXRMXJ4D1-MWfwLNwM"
+        GID = "0"
+        
+        # Construct CSV export URL
+        csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={GID}"
+        
+        logger.debug(f"Fetching ground truth from Google Sheets for story_id: {story_id}")
+        
+        # Read the sheet (keep "N/A" as string, don't convert to NaN)
+        df = pd.read_csv(csv_url, keep_default_na=False, na_values=[''])
+        
+        # Look up the story
+        result = df[df['story_id'] == story_id]
+        if result.empty:
+            logger.debug(f"Story ID '{story_id}' not found in Google Sheets")
+            return None
+        
+        row = result.iloc[0]
+        
+        # Extract ground truth data
+        ground_truth = {
+            "culprits": row.get('Gold label (human): main culprit(s)  (PRE-REVEAL)', None),
+            "culprits_post_reveal": row.get('Gold label (human): main culprit(s), POST-REVEAL INFORMATION', None),
+            "accomplices": row.get('Gold label (human): accomplice(s)', None)
+        }
+        
+        # Convert pandas NaN, empty strings, and "N/A" to None
+        for key, value in ground_truth.items():
+            if pd.isna(value) or value == "" or value == "N/A":
+                ground_truth[key] = "None"
+        
+        logger.info(f"✅ Found ground truth in Google Sheets for {story_id}")
+        return ground_truth
+        
+    except Exception as e:
+        logger.warning(f"Failed to get ground truth from Google Sheets for {story_id}: {e}")
+        return None
+
+
 def extract_ground_truth(item_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Extract ground truth culprit and accomplice information from item metadata.
+    Falls back to Google Sheets if metadata is missing or empty.
     
     Args:
         item_data: Item JSON data
@@ -218,6 +271,21 @@ def extract_ground_truth(item_data: Dict[str, Any]) -> Dict[str, Any]:
         "culprits_post_reveal": None,
         "accomplices": None
     }
+    
+    # Get story_id for potential Google Sheets fallback
+    story_id = None
+    try:
+        # For whodunit evaluation items, the story_id is in item_metadata.item_id
+        if "item_metadata" in item_data and "item_id" in item_data["item_metadata"]:
+            story_id = item_data["item_metadata"]["item_id"]
+        # Fallback: try to get from documents metadata
+        elif "documents" in item_data and item_data["documents"]:
+            story_id = item_data["documents"][0]["metadata"].get("id")
+        # Last resort: try top-level id
+        else:
+            story_id = item_data.get("id")
+    except (KeyError, IndexError, TypeError):
+        pass
     
     try:
         metadata = item_data["documents"][0]["metadata"]
@@ -239,10 +307,27 @@ def extract_ground_truth(item_data: Dict[str, Any]) -> Dict[str, Any]:
                 ground_truth["accomplices"] = original_metadata["accomplice(s), human annotated"]
                 
         else:
-            logger.info("No original_metadata found in item - ground truth will be None")
+            logger.info("No original_metadata found in item - will try Google Sheets fallback")
             
     except (KeyError, IndexError) as e:
-        logger.warning(f"Could not extract ground truth: {e}")
+        logger.warning(f"Could not extract ground truth from metadata: {e}")
+    
+    # Check if we have any ground truth data, if not try Google Sheets fallback
+    has_ground_truth = any(value not in [None, "", []] for value in ground_truth.values())
+    
+    if not has_ground_truth and story_id:
+        logger.info(f"🔄 No ground truth found in metadata for {story_id}, trying Google Sheets fallback...")
+        sheets_ground_truth = get_ground_truth_from_sheets(story_id)
+        if sheets_ground_truth:
+            # Update ground_truth with data from sheets
+            for key, value in sheets_ground_truth.items():
+                if value not in [None, "", []]:
+                    ground_truth[key] = value
+            logger.info(f"📊 Using Google Sheets ground truth for {story_id}")
+        else:
+            logger.warning(f"❌ No ground truth found in Google Sheets for {story_id}")
+    elif not story_id:
+        logger.warning("Cannot use Google Sheets fallback - no story_id found")
     
     return ground_truth
 
@@ -290,24 +375,65 @@ def parse_llm_response(response: str) -> Dict[str, str]:
 def parse_scoring_response(response: str) -> Dict[str, Any]:
     """
     Parse LLM scoring response into structured assessment.
+    Handles the new flattened format with multiple JSON sections.
     
     Args:
         response: Raw LLM scoring response
         
     Returns:
-        Dictionary with parsed assessment
+        Dictionary with parsed assessment combining all sections
     """
+    import re
+    import json
+    
     try:
-        # Extract JSON from <ASSESSMENT> tags
-        match = re.search(r"<ASSESSMENT>(.*?)</ASSESSMENT>", response, re.DOTALL)
-        if match:
-            json_str = match.group(1).strip()
-            return json.loads(json_str)
-        else:
-            logger.warning("Could not find <ASSESSMENT> tags in scoring response")
+        # Initialize result structure
+        result = {
+            "culprit": {},
+            "accomplice": {}
+        }
+        
+        # Define section patterns and their target locations
+        # Handle both direct JSON and markdown code blocks
+        sections = {
+            r"CULPRIT ASSESSMENT:\s*(?:```json\s*)?(\{[^}]*\})(?:\s*```)?": ("culprit", "assessment"),
+            r"CULPRIT MINOR ERRORS:\s*(?:```json\s*)?(\{[^}]*\})(?:\s*```)?": ("culprit", "minor_errors"),
+            r"CULPRIT MAJOR ERRORS:\s*(?:```json\s*)?(\{[^}]*\})(?:\s*```)?": ("culprit", "major_errors"),
+            r"ACCOMPLICE ASSESSMENT:\s*(?:```json\s*)?(\{[^}]*\})(?:\s*```)?": ("accomplice", "assessment"),
+            r"ACCOMPLICE MINOR ERRORS:\s*(?:```json\s*)?(\{[^}]*\})(?:\s*```)?": ("accomplice", "minor_errors"),
+            r"ACCOMPLICE MAJOR ERRORS:\s*(?:```json\s*)?(\{[^}]*\})(?:\s*```)?": ("accomplice", "major_errors")
+        }
+        
+        sections_found = 0
+        
+        # Extract each section
+        for pattern, (category, section_name) in sections.items():
+            match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
+            if match:
+                try:
+                    json_str = match.group(1).strip()
+                    parsed_section = json.loads(json_str)
+                    
+                    if section_name == "assessment":
+                        # Merge assessment directly into the category
+                        result[category].update(parsed_section)
+                    else:
+                        # Add as a subsection
+                        result[category][section_name] = parsed_section
+                    
+                    sections_found += 1
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Could not parse {section_name} section: {e}")
+        
+        if sections_found == 0:
+            logger.warning("Could not find any JSON sections in scoring response")
             return None
-    except json.JSONDecodeError as e:
-        logger.warning(f"Could not parse scoring response as JSON: {e}")
+        
+        logger.info(f"Successfully parsed {sections_found} sections from scoring response")
+        return result
+        
+    except Exception as e:
+        logger.warning(f"Error parsing scoring response: {e}")
         return None
 
 
@@ -316,7 +442,7 @@ def score_whodunit_solution(
     ground_truth: Dict[str, Any],
     scoring_prompt_name: str,
     range_spec: str = "all",
-    model: str = "gpt-4.1-mini",
+    model: str = "gpt-4o",
     temperature: float = 0.1,
     max_completion_tokens: int = 1000,
     ask_user_confirmation: bool = False
@@ -367,32 +493,50 @@ def score_whodunit_solution(
         "llm_accomplices": llm_solution.get("accomplices", "None")
     }
     
-    # Fill in the user prompt
-    user_prompt = user_prompt_template.format(**template_vars)
-    
     logger.info("Making LLM call for solution scoring...")
     
     try:
         # Make LLM call for scoring
+        logger.debug(f"Making scoring LLM call with model: {model}")
+        logger.debug(f"Template vars: {template_vars}")
+
         scoring_result = call_llm(
             text="",  # Not used for this prompt style
             system_and_user_prompt={
                 "system": system_prompt,
-                "user": user_prompt
+                "user": user_prompt_template  # Pass template, not filled-in prompt
             },
+            template_vars=template_vars,  # Pass template variables
             model=model,
             temperature=temperature,
             max_completion_tokens=max_completion_tokens,
             ask_user_confirmation=ask_user_confirmation
         )
         
+        logger.debug(f"Scoring result type: {type(scoring_result)}")
+        logger.debug(f"Scoring result keys: {list(scoring_result.keys()) if scoring_result else 'None'}")
+        
+        # Check if scoring_result is valid
+        if not scoring_result:
+            raise ValueError("LLM call returned None")
+        
+        if "response" not in scoring_result:
+            raise ValueError(f"LLM call result missing 'response' key. Keys: {list(scoring_result.keys())}")
+        
         # Parse the scoring response
-        parsed_assessment = parse_scoring_response(scoring_result["response"])
+        raw_response = scoring_result["response"]
+        logger.debug(f"Raw scoring response type: {type(raw_response)}")
+        logger.debug(f"Raw scoring response (first 200 chars): {raw_response[:200] if raw_response else 'None'}")
+        
+        parsed_assessment = parse_scoring_response(raw_response)
+        logger.debug(f"Parsed assessment type: {type(parsed_assessment)}")
+        logger.debug(f"Parsed assessment: {parsed_assessment}")
         
         return {
             "assessment": parsed_assessment,
             "raw_response": scoring_result["response"],
-            "usage": scoring_result["usage"],
+            "usage": scoring_result.get("usage", {"total_cost": 0, "total_tokens": 0}),
+            "final_prompts_used": scoring_result.get("final_prompts_used", {}),
             "error": None
         }
         
@@ -428,7 +572,7 @@ def run_whodunit_evaluation(
     range_spec: str = "all",
     prompt_name: str = "default-whodunit-culprits-and-accomplices",
     scoring_prompt_name: Optional[str] = None,
-    model: str = "gpt-4o-mini",
+    model: str = "gpt-4.1-mini",
     temperature: float = 0.1,
     max_completion_tokens: int = 2000,
     item_ids: Optional[List[str]] = None,
@@ -606,6 +750,9 @@ def run_whodunit_evaluation(
             
             # PHASE 2: SCORE (if needed)
             if item_output_file.exists():
+                # Use a different model for scoring
+                scoring_model = "gpt-4o"
+
                 # Load existing item
                 with open(item_output_file) as f:
                     item_result = json.load(f)
@@ -614,8 +761,12 @@ def run_whodunit_evaluation(
                 if scoring_prompt_name and (item_result.get("solution_correctness_assessment") is None or rescore):
                     # Check if ground truth is available for scoring
                     ground_truth = item_result.get("ground_truth", {})
+                    parsed_response = item_result.get("parsed_response")
+                    
                     if not ground_truth.get("culprits"):
                         logger.info(f"⏭️  No ground truth available for {item_id} - skipping scoring (can be done later)")
+                    elif not parsed_response or not isinstance(parsed_response, dict):
+                        logger.warning(f"⏭️  No valid parsed response for {item_id} - skipping scoring")
                     else:
                         if rescore and item_result.get("solution_correctness_assessment") is not None:
                             logger.info(f"🔄 Re-scoring solution for {item_id}...")
@@ -628,7 +779,7 @@ def run_whodunit_evaluation(
                             ground_truth=item_result["ground_truth"],
                             scoring_prompt_name=scoring_prompt_name,
                             range_spec=range_spec,
-                            model=model,
+                            model=scoring_model, # ok to use gpt-4o for scoring
                             temperature=temperature,
                             max_completion_tokens=1000,
                             ask_user_confirmation=ask_user_confirmation
@@ -637,12 +788,13 @@ def run_whodunit_evaluation(
                         # Update item with scoring results
                         item_result["solution_correctness_assessment"] = scoring_result["assessment"]
                         item_result["scoring_metadata"] = {
-                            "scoring_model": model,
+                            "scoring_model": scoring_model,
                             "scoring_temperature": temperature,
                             "scoring_raw_response": scoring_result["raw_response"],
                             "scoring_usage": scoring_result["usage"],
                             "scoring_error": scoring_result["error"],
-                            "scoring_timestamp": datetime.now().isoformat()
+                            "scoring_timestamp": datetime.now().isoformat(),
+                            "scoring_prompts_used": scoring_result.get("final_prompts_used", {})
                         }
                         
                         # Save updated item

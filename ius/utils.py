@@ -55,7 +55,7 @@ def _call_openai(text: str, model: str, system_and_user_prompt: dict[str, str] =
     Args:
         text: Input text to process
         model: Model name
-        system_and_user_prompt: Dict with "system" and "user" prompt content
+        system_and_user_prompt: Dict with "system" and "user" prompt template strings -- NOT filled in content!
         template_vars: Dict of variables for prompt template substitution
         ask_user_confirmation: Whether to ask user confirmation before API calls
         temperature: Model temperature parameter
@@ -210,12 +210,17 @@ def _replace_template_vars(template: str, variables: dict[str, str]) -> str:
 def _build_messages_from_prompts(template_vars: dict[str, str], system_and_user_prompt: dict[str, str] = None) -> list[dict[str, str]]:
     """Build messages list from system and user prompts with template variable substitution."""
     if not system_and_user_prompt:
+        if not template_vars:
+            raise ValueError("Both system_and_user_prompt and template_vars cannot be None when using default prompts")
         # Default prompts - use text if available, otherwise empty
         text = template_vars.get("text", "")
         return [
             {"role": "system", "content": "You are a helpful assistant that analyzes documents and provides comprehensive summaries."},
             {"role": "user", "content": f"Please summarize the following text:\n\n{text}"}
         ]
+
+    if not template_vars:
+        raise ValueError("template_vars cannot be None when using custom system_and_user_prompt")
 
     if "system" not in system_and_user_prompt:
         raise ValueError("Missing 'system' key in system_and_user_prompt")

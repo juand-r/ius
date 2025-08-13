@@ -215,8 +215,8 @@ Examples:
     
     parser.add_argument(
         "--model", "-m",
-        default="gpt-4o-mini",
-        help="LLM model to use (default: gpt-4o-mini)"
+        default="gpt-4.1-mini",
+        help="LLM model to use (default: gpt-4.1-mini)"
     )
     
     parser.add_argument(
