@@ -51,7 +51,8 @@ ius/                    # Main project code
 │   ├── loader.py     # Standard dataset loader with error handling
 │   ├── datasets.py   # Dataset and ChunkedDataset classes for object-oriented data access
 │   └── __init__.py   # Data loading convenience functions
-├── eval/             # Evaluation and experiment tracking ✅ IMPLEMENTED
+├── ius/
+│   ├── eval/         # Evaluation and experiment tracking ✅ IMPLEMENTED
 │   └── extrinsic/    # Extrinsic evaluation methods
 │       └── whodunit.py # Detective story whodunit evaluation  
 ├── claim_extract.py  # Claim extraction from summaries ✅ IMPLEMENTED
@@ -76,7 +77,7 @@ outputs/              # Generated output files
 ├── chunks/          # Chunking results in JSON format
 ├── summaries/       # Summarization results
 ├── summaries-claims/ # Claim extraction results
-└── eval/            # Evaluation results
+└── eval/            # Evaluation results (whodunit, etc.)
     └── extrinsic/   # Extrinsic evaluation results
 
 data-source/          # Raw data for ingestion

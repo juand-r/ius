@@ -12,7 +12,7 @@ import time
 from typing import Any
 from pathlib import Path
 
-from eval.extrinsic.whodunit import run_whodunit_evaluation
+from ius.eval.extrinsic.whodunit import run_whodunit_evaluation
 from ius.exceptions import ValidationError
 from ius.logging_config import get_logger, setup_logging
 
