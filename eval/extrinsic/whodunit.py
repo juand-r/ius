@@ -265,6 +265,7 @@ def run_whodunit_evaluation(
     max_tokens: int = 2000,
     item_ids: Optional[List[str]] = None,
     output_dir: Optional[str] = None,
+    overwrite: bool = False,
     command_run: Optional[str] = None,
     ask_user_confirmation: bool = False,
     verbose: bool = False
@@ -281,6 +282,7 @@ def run_whodunit_evaluation(
         max_tokens: Maximum tokens for LLM response
         item_ids: Specific item IDs to process (None for all)
         output_dir: Custom output directory (None for auto-generated)
+        overwrite: Whether to overwrite existing item results
         command_run: Command that was run (for reproducibility)
         ask_user_confirmation: Whether to ask for user confirmation
         verbose: Enable verbose logging
@@ -338,12 +340,20 @@ def run_whodunit_evaluation(
     
     # Process each item
     results = []
+    skipped_items = []
     total_cost = 0.0
     total_tokens = 0
     
     for i, item_file in enumerate(item_files, 1):
         item_id = item_file.stem
         logger.info(f"[{i}/{len(item_files)}] Processing item: {item_id}")
+        
+        # Check if item already exists and should be skipped
+        item_output_file = items_output_dir / f"{item_id}.json"
+        if item_output_file.exists() and not overwrite:
+            logger.info(f"⏭️  Skipping {item_id} (already exists, use --overwrite to replace)")
+            skipped_items.append(item_id)
+            continue
         
         try:
             # Load segments and reveal
@@ -357,8 +367,13 @@ def run_whodunit_evaluation(
             logger.info(f"Using reveal segment (first 300 chars): {reveal_preview}")
             logger.info(f"Selected range: {range_spec} -> segments {selected_indices} of {len(segments)}")
             
-            # Call LLM (template substitution handled by call_llm)
+            # Build the actual user prompt with template substitution
+            actual_user_prompt = user_template.format(
+                text=selected_text,
+                reveal_chunk=reveal_segment
+            )
             
+            # Call LLM (template substitution handled by call_llm)
             llm_result = call_llm(
                 text=selected_text,
                 model=model,
@@ -399,12 +414,13 @@ def run_whodunit_evaluation(
                     "max_tokens": max_tokens,
                     "prompts_used": {
                         "system": system_prompt,
-                        "user": user_template
+                        "user": actual_user_prompt
                     },
                     "command_run": command_run,
                     "processing_time": llm_result.get("processing_time", 0),
                     "usage": llm_result["usage"]
                 },
+                "raw_response": llm_result["response"],
                 "parsed_response": parsed_sections
             }
             
@@ -450,7 +466,8 @@ def run_whodunit_evaluation(
             "processing_stats": {
                 "total_items": len(item_files),
                 "successful_items": len(results),
-                "failed_items": len(item_files) - len(results),
+                "skipped_items": len(skipped_items),
+                "failed_items": len(item_files) - len(results) - len(skipped_items),
                 "total_cost": total_cost,
                 "total_tokens": total_tokens
             }

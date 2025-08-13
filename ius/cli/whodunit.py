@@ -44,6 +44,7 @@ def evaluate_whodunit_dataset(
     scope: str = "all",
     item_ids: list[str] | None = None,
     output_path: str | None = None,
+    overwrite: bool = False,
     ask_user_confirmation: bool = False,
     verbose: bool = False,
 ) -> dict[str, Any]:
@@ -60,6 +61,7 @@ def evaluate_whodunit_dataset(
         scope: Processing scope ("all" or "item")
         item_ids: List of specific item IDs to process
         output_path: Path to save evaluation results
+        overwrite: Whether to overwrite existing item results
         ask_user_confirmation: Whether to ask for confirmation before API calls
         verbose: Enable verbose logging
         
@@ -68,14 +70,25 @@ def evaluate_whodunit_dataset(
     """
     # Logging is set up by the main() function
     
-    logger.info(f"Starting whodunit evaluation from: {input_path}")
-    logger.info(f"Range: {range_spec}, Model: {model}, Prompt: {prompt_name}, Scope: {scope}")
+    # Show auto-generated output name if not provided
+    if output_path is None:
+        print(f"🎯 Auto-generated output name will be created")
+    
+    print(f"🕵️ Starting whodunit evaluation...")
+    print(f"📥 Input: {input_path}")
+    print(f"📊 Range: {range_spec}")
+    print(f"🧠 Model: {model}")
+    print(f"📝 Prompt: {prompt_name}")
+    print(f"🎯 Scope: {scope}")
     
     if scope == "item" and not item_ids:
         raise ValidationError("--item-ids is required when scope is 'item'")
     
     if scope == "item":
-        logger.info(f"Processing {len(item_ids)} items for whodunit evaluation")
+        print(f"📋 Processing {len(item_ids)} specific items: {', '.join(item_ids)}")
+    
+    logger.info(f"Starting whodunit evaluation from: {input_path}")
+    logger.info(f"Range: {range_spec}, Model: {model}, Prompt: {prompt_name}, Scope: {scope}")
     
     start_time = time.time()
     
@@ -96,24 +109,50 @@ def evaluate_whodunit_dataset(
             max_tokens=max_tokens,
             item_ids=item_ids if scope == "item" else None,
             output_dir=output_path,
+            overwrite=overwrite,
             command_run=command_run,
             ask_user_confirmation=ask_user_confirmation,
             verbose=verbose
         )
         
+        # Show the actual auto-generated output name
+        if output_path is None:
+            output_dir_name = result['output_dir'].split('/')[-1]  # Get just the directory name
+            print(f"🎯 Auto-generated output name: {output_dir_name}")
+        
         processing_time = time.time() - start_time
         
+        # Extract statistics
+        stats = result['collection_metadata']['whodunit_evaluation_info']['processing_stats']
+        successful_items = stats['successful_items']
+        total_items = stats['total_items']
+        failed_items = stats['failed_items']
+        skipped_items = stats.get('skipped_items', 0)  # Get actual skipped count
+        
+        # Rich final statistics display
+        print(f"\n🎉 Whodunit evaluation completed!")
+        print(f"✅ Processed: {successful_items} items")
+        if skipped_items > 0:
+            print(f"⏭️  Skipped: {skipped_items} items (already existed)")
+        if failed_items > 0:
+            print(f"❌ Failed: {failed_items} items")
+        print(f"⏱️  Total time: {processing_time:.2f}s")
+        print(f"💰 Total cost: ${result['total_cost']:.6f}")
+        print(f"🔢 Total tokens: {result['total_tokens']:,}")
+        print(f"📁 Results saved to: {result['output_dir']}")
+        
+        # Keep the logger messages for detailed logging
         logger.info("=" * 60)
         logger.info("WHODUNIT EVALUATION COMPLETED")
         logger.info("=" * 60)
-        logger.info(f"Items processed: {result['collection_metadata']['whodunit_evaluation_info']['processing_stats']['successful_items']}/{result['collection_metadata']['whodunit_evaluation_info']['processing_stats']['total_items']}")
-        logger.info(f"Failed items: {result['collection_metadata']['whodunit_evaluation_info']['processing_stats']['failed_items']}")
+        logger.info(f"Items processed: {successful_items}/{total_items}")
+        logger.info(f"Failed items: {failed_items}")
         logger.info(f"Total cost: ${result['total_cost']:.4f}")
         logger.info(f"Total tokens: {result['total_tokens']}")
         logger.info(f"Processing time: {processing_time:.2f} seconds")
         logger.info(f"Output saved to: {result['output_dir']}")
         
-        if result['collection_metadata']['whodunit_evaluation_info']['processing_stats']['failed_items'] > 0:
+        if failed_items > 0:
             logger.warning("Some items failed processing. Check logs for details.")
         
         return result
@@ -225,6 +264,12 @@ Examples:
     )
     
     parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Overwrite existing item results (default: skip existing items)"
+    )
+    
+    parser.add_argument(
         "--verbose", "-v",
         action="store_true",
         help="Enable verbose logging (equivalent to --log-level DEBUG)"
@@ -251,6 +296,7 @@ Examples:
             "scope": args.scope,
             "item_ids": args.item_ids,
             "output_path": args.output,
+            "overwrite": args.overwrite,
             "ask_user_confirmation": args.confirm,
             "verbose": args.verbose
         }

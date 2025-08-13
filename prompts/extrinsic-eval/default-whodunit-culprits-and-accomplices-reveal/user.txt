@@ -8,9 +8,9 @@ Note the reveal happens at the end of the story, specifically revealed here:
 
 {reveal_chunk}
 
-Analyze all the clues and evidence presented in the story and identify who the culprit is. Explain your reasoning step by step, considering characters' motives, opportunities and physical evidence or alibis, or any other clues you find relevant.
+Analyze all the clues and evidence presented in the story and identify who the culprit is. Explain your reasoning step by step, considering characters' motives, means and opportunities,  physical evidence or alibis, or any other clues you find relevant.
 
-Most importantly: the culprit have been revealed in the reveal segment at the end of the story, so focus on that!
+Most importantly: the culprit(s) has been revealed in the reveal segment at the end of the story, so focus on that!
 
 Solve the mystery. Write down your thought process here.
 
