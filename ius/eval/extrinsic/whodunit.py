@@ -99,7 +99,7 @@ def parse_range_spec(range_spec: str, total_segments: int) -> List[int]:
     Parse range specification into list of 1-indexed segment numbers.
     
     Args:
-        range_spec: Range specification ('all', 'last', 'penultimate', '1', '1-3', etc.)
+        range_spec: Range specification ('all', 'last', 'penultimate', 'all-but-last', '1', '1-3', etc.)
         total_segments: Total number of available segments
         
     Returns:
@@ -119,6 +119,10 @@ def parse_range_spec(range_spec: str, total_segments: int) -> List[int]:
         if total_segments < 2:
             raise WhodunitError("Cannot use 'penultimate' - need at least 2 segments")
         return [total_segments - 1]
+    elif range_spec == "all-but-last":
+        if total_segments < 2:
+            raise WhodunitError("Cannot use 'all-but-last' - need at least 2 segments")
+        return list(range(1, total_segments))
     elif "-" in range_spec:
         # Range like "1-3"
         try:
@@ -430,6 +434,7 @@ def run_whodunit_evaluation(
     item_ids: Optional[List[str]] = None,
     output_dir: Optional[str] = None,
     overwrite: bool = False,
+    rescore: bool = False,
     command_run: Optional[str] = None,
     ask_user_confirmation: bool = False,
     verbose: bool = False
@@ -606,13 +611,16 @@ def run_whodunit_evaluation(
                     item_result = json.load(f)
                 
                 # Check if scoring is needed and scoring prompt is provided
-                if scoring_prompt_name and item_result.get("solution_correctness_assessment") is None:
+                if scoring_prompt_name and (item_result.get("solution_correctness_assessment") is None or rescore):
                     # Check if ground truth is available for scoring
                     ground_truth = item_result.get("ground_truth", {})
                     if not ground_truth.get("culprits"):
                         logger.info(f"⏭️  No ground truth available for {item_id} - skipping scoring (can be done later)")
                     else:
-                        logger.info(f"📊 Scoring solution for {item_id}...")
+                        if rescore and item_result.get("solution_correctness_assessment") is not None:
+                            logger.info(f"🔄 Re-scoring solution for {item_id}...")
+                        else:
+                            logger.info(f"📊 Scoring solution for {item_id}...")
                         
                         # Score the solution
                         scoring_result = score_whodunit_solution(

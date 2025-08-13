@@ -46,6 +46,7 @@ def evaluate_whodunit_dataset(
     item_ids: list[str] | None = None,
     output_path: str | None = None,
     overwrite: bool = False,
+    rescore: bool = False,
     ask_user_confirmation: bool = False,
     verbose: bool = False,
 ) -> dict[str, Any]:
@@ -112,6 +113,7 @@ def evaluate_whodunit_dataset(
             item_ids=item_ids if scope == "item" else None,
             output_dir=output_path,
             overwrite=overwrite,
+            rescore=rescore,
             command_run=command_run,
             ask_user_confirmation=ask_user_confirmation,
             verbose=verbose
@@ -202,7 +204,7 @@ Examples:
     parser.add_argument(
         "--range", "-r",
         default="all",
-        help="Range specification for text selection: 'all', 'last', 'penultimate', '1', '1-3', etc. (default: all)"
+        help="Range specification for text selection: 'all', 'last', 'penultimate', 'all-but-last', '1', '1-3', etc. (default: all)"
     )
     
     # Optional arguments
@@ -277,6 +279,12 @@ Examples:
     )
     
     parser.add_argument(
+        "--rescore",
+        action="store_true",
+        help="Force re-run Phase 2 scoring even if already completed"
+    )
+    
+    parser.add_argument(
         "--verbose", "-v",
         action="store_true",
         help="Enable verbose logging (equivalent to --log-level DEBUG)"
@@ -305,6 +313,7 @@ Examples:
             "item_ids": args.item_ids,
             "output_path": args.output,
             "overwrite": args.overwrite,
+            "rescore": args.rescore,
             "ask_user_confirmation": args.confirm,
             "verbose": args.verbose
         }

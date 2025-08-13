@@ -264,6 +264,7 @@ python -m ius whodunit --input outputs/summaries/squality_summaries --scope item
 
 # Use different range specifications
 python -m ius whodunit --input outputs/summaries/bmds_summaries --range penultimate  # Second to last
+python -m ius whodunit --input outputs/summaries/bmds_summaries --range all-but-last  # All except last
 python -m ius whodunit --input outputs/summaries/bmds_summaries --range 1-4         # First 4 chunks/summaries
 
 # Use a different model and prompt
