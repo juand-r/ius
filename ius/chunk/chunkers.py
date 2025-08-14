@@ -590,7 +590,7 @@ def process_dataset_items(
                     "strategy": strategy,
                     "document_handling": document_handling,
                     "parameters": {
-                        "delimiter": delimiter,
+                        "delimiter": None if sentence_mode else delimiter,
                         **({"chunk_size": chunk_size} if chunk_size else {}),
                         **({"num_chunks": num_chunks} if num_chunks else {}),
                         **({"reveal_add_on": reveal_add_on} if reveal_add_on else {}),
@@ -656,7 +656,7 @@ def process_dataset_items(
                     "strategy": strategy,
                     "document_handling": document_handling,
                     "parameters": {
-                        "delimiter": delimiter,
+                        "delimiter": None if sentence_mode else delimiter,
                         **({"chunk_size": chunk_size} if chunk_size else {}),
                         **({"num_chunks": num_chunks} if num_chunks else {}),
                         **({"reveal_add_on": reveal_add_on} if reveal_add_on else {}),
