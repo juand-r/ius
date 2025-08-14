@@ -442,7 +442,7 @@ def score_whodunit_solution(
     ground_truth: Dict[str, Any],
     scoring_prompt_name: str,
     range_spec: str = "all",
-    model: str = "gpt-4o",
+    scoring_model: str = "gpt-4o",
     temperature: float = 0.1,
     max_completion_tokens: int = 2000,
     ask_user_confirmation: bool = False
@@ -454,7 +454,7 @@ def score_whodunit_solution(
         llm_solution: Parsed LLM solution
         ground_truth: Ground truth data
         range_spec: Range specification used for text selection
-        model: LLM model for scoring
+        scoring_model: LLM model for scoring
         temperature: LLM temperature
         max_completion_tokens: Max tokens for scoring
         ask_user_confirmation: Whether to ask for confirmation
@@ -497,7 +497,7 @@ def score_whodunit_solution(
     
     try:
         # Make LLM call for scoring
-        logger.debug(f"Making scoring LLM call with model: {model}")
+        logger.debug(f"Making scoring LLM call with model: {scoring_model}")
         logger.debug(f"Template vars: {template_vars}")
 
         scoring_result = call_llm(
@@ -507,7 +507,7 @@ def score_whodunit_solution(
                 "user": user_prompt_template  # Pass template, not filled-in prompt
             },
             template_vars=template_vars,  # Pass template variables
-            model=model,
+            model=scoring_model,
             temperature=temperature,
             max_completion_tokens=max_completion_tokens,
             ask_user_confirmation=ask_user_confirmation
@@ -619,7 +619,7 @@ def run_whodunit_evaluation(
         input_dir: Path to input directory (chunks or summaries)
         range_spec: Range specification for text selection
         prompt_name: Name of prompt directory
-        model: LLM model to use
+        model: LLM model to use for solving
         temperature: LLM temperature
         max_completion_tokens: Maximum tokens for LLM response
         item_ids: Specific item IDs to process (None for all)
@@ -871,7 +871,7 @@ def run_whodunit_evaluation(
                             ground_truth=item_result["ground_truth"],
                             scoring_prompt_name=scoring_prompt_name,
                             range_spec=range_spec,
-                            model=scoring_model, # ok to use gpt-4o for scoring
+                            scoring_model=scoring_model,
                             temperature=temperature,
                             max_completion_tokens=1000,
                             ask_user_confirmation=ask_user_confirmation
