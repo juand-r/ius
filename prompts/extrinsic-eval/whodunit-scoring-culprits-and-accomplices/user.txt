@@ -1,11 +1,13 @@
 You are evaluating an LLM's solution to a detective story mystery. Compare the LLM's identified culprit(s) and accomplice(s) against the ground truth and assess correctness.
 
 **Suspects:**
-All suspects identified by the LLM: {suspects}
+These are some of the susepcts (not comprehensive): {suspects}
 
 **Ground Truth: these are the actual culprit(s) and accomplice(s)**
 Culprit(s): {ground_truth_culprits}
 Accomplice(s): {ground_truth_accomplices}
+
+Note "None" really means no *human* culprits (other causes of dead could include animals, nature, etc., these are still "None".
 
 **LLM Solution:**
 Main Culprit(s): {llm_main_culprits}
@@ -15,8 +17,9 @@ Evaluate the LLM's solution and provide a structured assessment. First focus on 
 
 **Assessment Guidelines for Main Culprit(s):**
 - "Culprit correct?" = Yes if LLM identified the right person(s) as culprit, even with name variations or a first name which may be incorrect.
-- Only mark "Yes" if LLM identified ONLY the culprit (or culprit + accomplice), not additional suspects. If additional (non-accomplice) suspects are included, write No.
+- Only mark "Yes" if LLM identified ONLY the culprit or culprit and accomplice, not additional innocent suspects. If additional (non-accomplice) suspects are included, write No.
 - Note if only alias is provided when a real name exists, that's incorrect
+- If the LLM gets one of the culprits corrects but misses some of them, still mark that as "Yes".
 
 You will provide your assessment, answering three questions each for the main culprits:
 1. Is the LLM predicted culprit correct ("culprit_correct")? 
