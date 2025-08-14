@@ -20,8 +20,18 @@ Evaluate the LLM's solution and provide a structured assessment. First focus on 
 
 You will provide your assessment, answering three questions each for the main culprits:
 1. Is the LM culprit correct ("culprit_correct")? 
-2. Figure out if there are any minor errors: if the culprit is correct, they may be (a) missing an alias, (b) have a wrong (hallucinated) first name, (c) be missing part of their name (first or middle name), and/or (d) included the accomplice in the list of main culprits. These are "minor_errors" and are not mutually exclusive.
-3. Figure out if there are any major errors (fundamental misidenfications). If the culprit is incorrect, then perhaps (a) a different suspect (who is not an accomplice) was accused, (b) the accomplice was selected as the culprit, (c) only the alias was given when a real name was available, and/or (c) other suspects are listed in addition to the actual culprit.  These errors are not mutually exclusive.
+
+2. Figure out if there are any minor errors: if the culprit is correct, they may be:
+ (a) missing an alias, or have the wrong alias,
+ (b) have a wrong (hallucinated) first name,
+ (c) be missing part of their name (first or middle name), and/or
+ (d) included the accomplice in the list of main culprits. These are "minor_errors" and are not mutually exclusive.
+
+3. Figure out if there are any major errors (fundamental misidenfications). If the culprit is incorrect, then perhaps
+ (a) a different suspect (who is not an accomplice) was accused,
+ (b) the accomplice was selected as the culprit,
+ (c) only the alias was given when a real name was available, and/or
+ (d) other suspects are listed in addition to the actual culprit.  These errors are not mutually exclusive.
 
 **Assessment Guidelines for Accomplice(s)**:
 You will also answer all these questions for the accomplice(s) in the json below under "accomplice", the questions are the same but pertain to accomplices instead of culprits.
