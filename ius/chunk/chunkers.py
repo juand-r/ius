@@ -13,17 +13,60 @@ from tqdm import tqdm
 from ..exceptions import ChunkingError, ValidationError
 from .utils import analyze_chunks, validate_chunks
 
+# NLTK imports for sentence segmentation
+try:
+    import nltk
+    from nltk.tokenize import sent_tokenize
+    NLTK_AVAILABLE = True
+except ImportError:
+    NLTK_AVAILABLE = False
+
 
 # Set up logger for this module
 logger = logging.getLogger(__name__)
 
 
-def _extract_reveal_segment(item_data: dict[str, Any]) -> str | None:
+def _get_text_units(text: str, sentence_mode: bool = False, delimiter: str = "\n") -> list[str]:
     """
-    Extract reveal segment from BMDS dataset item.
+    Get text units for chunking - either sentences (via NLTK) or delimiter-split units.
+    
+    Args:
+        text: Text to split into units
+        sentence_mode: Whether to use NLTK sentence segmentation
+        delimiter: Delimiter to use if not in sentence mode
+        
+    Returns:
+        List of text units
+        
+    Raises:
+        ChunkingError: If sentence mode is requested but NLTK is not available
+    """
+    if sentence_mode:
+        if not NLTK_AVAILABLE:
+            raise ChunkingError(
+                "NLTK is required for sentence mode but is not installed. "
+                "Please install it with: pip install nltk"
+            )
+        
+        # Ensure punkt tokenizer is downloaded
+        try:
+            nltk.data.find('tokenizers/punkt')
+        except LookupError:
+            logger.info("Downloading NLTK punkt tokenizer...")
+            nltk.download('punkt', quiet=True)
+        
+        return sent_tokenize(text)
+    else:
+        return text.split(delimiter)
+
+
+def _extract_reveal_segment(item_data: dict[str, Any], dataset_name: str) -> str | None:
+    """
+    Extract reveal segment from dataset item based on dataset type.
     
     Args:
         item_data: Item data dictionary
+        dataset_name: Name of the dataset (e.g., "bmds", "true-detective")
         
     Returns:
         Reveal segment text or None if not found
@@ -34,16 +77,27 @@ def _extract_reveal_segment(item_data: dict[str, Any]) -> str | None:
             return None
             
         metadata = documents[0].get("metadata", {})
-        detection = metadata.get("detection", {})
-        reveal_segment = detection.get("reveal_segment", "")
         
-        return reveal_segment if reveal_segment else None
+        if dataset_name == "bmds":
+            # BMDS path: metadata.detection.reveal_segment
+            detection = metadata.get("detection", {})
+            return detection.get("reveal_segment", "") or None
+            
+        elif dataset_name == "true-detective":
+            # True Detective path: metadata.original_metadata.puzzle_data.outcome
+            original_metadata = metadata.get("original_metadata", {})
+            puzzle_data = original_metadata.get("puzzle_data", {})
+            return puzzle_data.get("outcome", "") or None
+            
+        else:
+            logger.warning(f"Unknown dataset '{dataset_name}' for reveal segment extraction")
+            return None
         
     except (KeyError, IndexError, AttributeError):
         return None
 
 
-def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n", _is_retry: bool = False) -> list[str]:
+def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n", _is_retry: bool = False, sentence_mode: bool = False) -> list[str]:
     """
     Split text into chunks of approximately fixed size, respecting delimiter boundaries.
     
@@ -55,6 +109,7 @@ def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n", _is_retr
         chunk_size: Target size for each chunk (in characters)
         delimiter: Boundary delimiter to respect (default: newline)
         _is_retry: Internal flag to prevent infinite recursion (do not use)
+        sentence_mode: Whether to use NLTK sentence segmentation instead of delimiter
 
     Returns:
         List of text chunks with optimized sizes:
@@ -102,14 +157,18 @@ def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n", _is_retr
             "Consider using a smaller chunk_size for better results."
         )
 
-    if delimiter not in text:
+    if not sentence_mode and delimiter not in text:
         raise ChunkingError(
             f"Delimiter '{delimiter}' not found in text. "
             "Cannot split text that doesn't contain the specified delimiter."
         )
 
-    # Split text into units separated by delimiter
-    units = text.split(delimiter)
+    # Split text into units (sentences or delimiter-separated)
+    units = _get_text_units(text, sentence_mode, delimiter)
+    
+    # Determine the joiner for combining units back into chunks
+    joiner = " " if sentence_mode else delimiter
+    
     chunks = []
     current_chunk = []
     current_size = 0
@@ -125,8 +184,8 @@ def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n", _is_retr
 
     for unit in units_progress:
         unit_size = len(unit)
-        # Add delimiter length except for first unit in chunk
-        total_size = current_size + unit_size + (len(delimiter) if current_chunk else 0)
+        # Add joiner length except for first unit in chunk
+        total_size = current_size + unit_size + (len(joiner) if current_chunk else 0)
 
         if total_size <= chunk_size or not current_chunk:
             # Add unit to current chunk (always add at least one unit)
@@ -134,16 +193,16 @@ def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n", _is_retr
             current_size = total_size
         else:
             # Current chunk is full, start new chunk
-            chunks.append(delimiter.join(current_chunk))
+            chunks.append(joiner.join(current_chunk))
             current_chunk = [unit]
             current_size = unit_size
 
     # Add remaining chunk if any
     if current_chunk:
-        chunks.append(delimiter.join(current_chunk))
+        chunks.append(joiner.join(current_chunk))
 
-    # Validate content preservation
-    if not validate_chunks(text, chunks, delimiter):
+    # Validate content preservation (use flexible validation for sentence mode)
+    if not validate_chunks(text, chunks, joiner, normalize_whitespace=sentence_mode):
         raise ValidationError(
             "Content validation failed: chunks do not preserve original text"
         )
@@ -157,7 +216,7 @@ def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n", _is_retr
         # Case 1: Tiny final chunk - merge with previous chunk
         if last_chunk_size < min_len:
             logger.info(f"Merging tiny final chunk ({last_chunk_size} chars) with previous chunk")
-            chunks[-2] = chunks[-2] + delimiter + chunks[-1]
+            chunks[-2] = chunks[-2] + joiner + chunks[-1]
             chunks.pop()
             
         # Case 2: Small final chunk - redistribute across all chunks
@@ -170,12 +229,14 @@ def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n", _is_retr
                        f"across {num_complete_chunks} chunks. New target size: {new_chunk_size}")
             
             # Re-chunk with optimized size
-            optimized_chunks = chunk_fixed_size(text, new_chunk_size, delimiter, _is_retry=True)
+            optimized_chunks = chunk_fixed_size(text, new_chunk_size, delimiter, _is_retry=True, sentence_mode=sentence_mode)
             
             # Final safety check: if we still have a tiny final chunk, merge it
             if len(optimized_chunks) > 1 and len(optimized_chunks[-1]) < 1.5*min_len:
                 logger.info(f"Final safety check: merging remaining tiny chunk ({len(optimized_chunks[-1])} chars)")
-                optimized_chunks[-2] = optimized_chunks[-2] + delimiter + optimized_chunks[-1]
+                # Use the same joiner logic as the optimized chunks were created with
+                opt_joiner = " " if sentence_mode else delimiter
+                optimized_chunks[-2] = optimized_chunks[-2] + opt_joiner + optimized_chunks[-1]
                 optimized_chunks.pop()
             
             return optimized_chunks
@@ -187,7 +248,7 @@ def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n", _is_retr
     return chunks
 
 
-def chunk_fixed_count(text: str, num_chunks: int, delimiter: str = "\n") -> list[str]:
+def chunk_fixed_count(text: str, num_chunks: int, delimiter: str = "\n", sentence_mode: bool = False) -> list[str]:
     """
     Split text into a fixed number of chunks, respecting delimiter boundaries.
 
@@ -195,6 +256,7 @@ def chunk_fixed_count(text: str, num_chunks: int, delimiter: str = "\n") -> list
         text: Input text to chunk
         num_chunks: Target number of chunks
         delimiter: Boundary delimiter to respect (default: newline)
+        sentence_mode: Whether to use NLTK sentence segmentation instead of delimiter
 
     Returns:
         List of text chunks (may be fewer than num_chunks if not enough delimiters)
@@ -240,19 +302,22 @@ def chunk_fixed_count(text: str, num_chunks: int, delimiter: str = "\n") -> list
             "Consider using fewer chunks for better results."
         )
 
-    if delimiter not in text:
+    if not sentence_mode and delimiter not in text:
         raise ChunkingError(
             f"Delimiter '{delimiter}' not found in text. "
             "Cannot split text that doesn't contain the specified delimiter."
         )
 
-    # Split text into units separated by delimiter
-    units = text.split(delimiter)
+    # Split text into units (sentences or delimiter-separated)
+    units = _get_text_units(text, sentence_mode, delimiter)
+    
+    # Determine the joiner for combining units back into chunks
+    joiner = " " if sentence_mode else delimiter
 
     if len(units) < num_chunks:
         # Not enough units to create requested number of chunks
         # Return each unit as separate chunk
-        return [delimiter.join([unit]) if unit else unit for unit in units]
+        return [joiner.join([unit]) if unit else unit for unit in units]
 
     # Calculate target units per chunk
     units_per_chunk = len(units) // num_chunks
@@ -276,11 +341,11 @@ def chunk_fixed_count(text: str, num_chunks: int, delimiter: str = "\n") -> list
         end_idx = start_idx + chunk_size
 
         chunk_units = units[start_idx:end_idx]
-        chunks.append(delimiter.join(chunk_units))
+        chunks.append(joiner.join(chunk_units))
         start_idx = end_idx
 
-    # Validate content preservation
-    if not validate_chunks(text, chunks, delimiter):
+    # Validate content preservation (use flexible validation for sentence mode)
+    if not validate_chunks(text, chunks, joiner, normalize_whitespace=sentence_mode):
         raise ValidationError(
             "Content validation failed: chunks do not preserve original text"
         )
@@ -289,7 +354,7 @@ def chunk_fixed_count(text: str, num_chunks: int, delimiter: str = "\n") -> list
 
 
 def chunk_custom(
-    text: str, strategy: str, delimiter: str = "\n", **kwargs
+    text: str, strategy: str, delimiter: str = "\n", sentence_mode: bool = False, **kwargs
 ) -> list[str]:
     """
     Split text using custom strategy (placeholder for dataset-specific approaches).
@@ -298,6 +363,7 @@ def chunk_custom(
         text: Input text to chunk
         strategy: Custom strategy name (to be implemented later)
         delimiter: Boundary delimiter to respect (default: newline)
+        sentence_mode: Whether to use NLTK sentence segmentation instead of delimiter
         **kwargs: Additional strategy-specific parameters
 
     Returns:
@@ -334,6 +400,7 @@ def _apply_chunking_strategy(
     chunk_size: int | None,
     num_chunks: int | None,
     delimiter: str,
+    sentence_mode: bool = False,
 ) -> list[str]:
     """
     Apply the specified chunking strategy to text.
@@ -344,6 +411,7 @@ def _apply_chunking_strategy(
         chunk_size: Target chunk size (for fixed_size)
         num_chunks: Target number of chunks (for fixed_count)
         delimiter: Delimiter for chunking
+        sentence_mode: Whether to use NLTK sentence segmentation instead of delimiter
 
     Returns:
         List of text chunks
@@ -356,17 +424,17 @@ def _apply_chunking_strategy(
             raise ChunkingError(
                 "chunk_size required and must be positive for fixed_size strategy"
             )
-        return chunk_fixed_size(text, chunk_size, delimiter)
+        return chunk_fixed_size(text, chunk_size, delimiter, sentence_mode=sentence_mode)
 
     elif strategy == "fixed_count":
         if not num_chunks or num_chunks <= 0:
             raise ChunkingError(
                 "num_chunks required and must be positive for fixed_count strategy"
             )
-        return chunk_fixed_count(text, num_chunks, delimiter)
+        return chunk_fixed_count(text, num_chunks, delimiter, sentence_mode=sentence_mode)
 
     elif strategy == "custom":
-        return chunk_custom(text, "default", delimiter)
+        return chunk_custom(text, "default", delimiter, sentence_mode=sentence_mode)
 
     else:
         raise ChunkingError(
@@ -382,6 +450,8 @@ def process_dataset_items(
     num_chunks: int | None = None,
     delimiter: str = "\n",
     reveal_add_on: bool = False,
+    dataset_name: str | None = None,
+    sentence_mode: bool = False,
 ) -> dict[str, Any]:
     """
     Core logic to chunk all items in a dataset.
@@ -395,7 +465,9 @@ def process_dataset_items(
         chunk_size: Target chunk size (for fixed_size strategy)
         num_chunks: Number of chunks (for fixed_count strategy)
         delimiter: Boundary delimiter for splitting
-        reveal_add_on: Whether to add reveal segment as final chunk (BMDS only)
+        reveal_add_on: Whether to add reveal segment as final chunk
+        dataset_name: Name of the dataset (for reveal segment extraction)
+        sentence_mode: Whether to use NLTK sentence segmentation instead of delimiter
 
     Returns:
         Dictionary of item_id -> chunking results
@@ -460,11 +532,12 @@ def process_dataset_items(
 
                     # Apply chunking strategy to this document
                     doc_chunks = _apply_chunking_strategy(
-                        doc_text, strategy, chunk_size, num_chunks, delimiter
+                        doc_text, strategy, chunk_size, num_chunks, delimiter, sentence_mode
                     )
 
                     # Analyze chunks for this document
-                    doc_stats = analyze_chunks(doc_chunks, delimiter)
+                    joiner = " " if sentence_mode else delimiter
+                    doc_stats = analyze_chunks(doc_chunks, joiner)
 
                     chunks_array.append(
                         {
@@ -498,7 +571,7 @@ def process_dataset_items(
 
                 # Add reveal segment as final chunk if requested
                 if reveal_add_on:
-                    reveal_segment = _extract_reveal_segment(item_data)
+                    reveal_segment = _extract_reveal_segment(item_data, dataset_name)
                     if reveal_segment:
                         logger.info(f"Adding reveal segment as final chunk for {item_id} ({len(reveal_segment)} chars)")
                         
@@ -537,11 +610,12 @@ def process_dataset_items(
 
                 # Apply chunking strategy to concatenated text
                 concatenated_chunks = _apply_chunking_strategy(
-                    text, strategy, chunk_size, num_chunks, delimiter
+                    text, strategy, chunk_size, num_chunks, delimiter, sentence_mode
                 )
 
                 # Analyze chunks
-                stats = analyze_chunks(concatenated_chunks, delimiter)
+                joiner = " " if sentence_mode else delimiter
+                stats = analyze_chunks(concatenated_chunks, joiner)
 
                 # Create unified chunks structure (single pseudo-document)
                 chunks_array = [
@@ -563,7 +637,7 @@ def process_dataset_items(
 
                 # Add reveal segment as final chunk if requested
                 if reveal_add_on:
-                    reveal_segment = _extract_reveal_segment(item_data)
+                    reveal_segment = _extract_reveal_segment(item_data, dataset_name)
                     if reveal_segment:
                         logger.info(f"Adding reveal segment as final chunk for {item_id} ({len(reveal_segment)} chars)")
                         

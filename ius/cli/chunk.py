@@ -37,6 +37,7 @@ def chunk_dataset(
     output_path: str | None = None,
     preview: bool = False,
     reveal_add_on: bool = False,
+    sentence_mode: bool = False,
 ) -> dict[str, Any]:
     """
     CLI wrapper for chunking datasets with progress printing and file I/O.
@@ -50,6 +51,7 @@ def chunk_dataset(
         output_path: Path to save chunked results
         preview: Whether to show chunk previews
         reveal_add_on: Whether to add reveal segment as final chunk (BMDS only)
+        sentence_mode: Whether to use NLTK sentence segmentation instead of delimiter
 
     Returns:
         Dictionary with chunking results and metadata
@@ -74,7 +76,7 @@ def chunk_dataset(
 
     # Process items with chunking
     results, errors = _process_items_with_chunking(
-        items_dict, strategy, chunk_size, num_chunks, delimiter, preview, reveal_add_on
+        items_dict, strategy, chunk_size, num_chunks, delimiter, preview, reveal_add_on, dataset_name, sentence_mode
     )
     if results is None:  # Processing failed
         return {}
@@ -180,6 +182,8 @@ def _process_items_with_chunking(
     delimiter: str,
     preview: bool,
     reveal_add_on: bool = False,
+    dataset_name: str | None = None,
+    sentence_mode: bool = False,
 ) -> tuple[dict, dict] | tuple[None, None]:
     """
     Process items with chunking and handle progress display.
@@ -198,6 +202,8 @@ def _process_items_with_chunking(
             num_chunks=num_chunks,
             delimiter=delimiter,
             reveal_add_on=reveal_add_on,
+            dataset_name=dataset_name,
+            sentence_mode=sentence_mode,
         )
 
         results = processing_results["results"]
@@ -468,6 +474,12 @@ Examples:
     )
 
     parser.add_argument(
+        "--sentence",
+        action="store_true",
+        help="Use NLTK sentence segmentation instead of delimiter-based splitting",
+    )
+
+    parser.add_argument(
         "--output",
         help="Output file path (JSON format)",
     )
@@ -494,7 +506,7 @@ Examples:
     parser.add_argument(
         "--reveal-add-on",
         action="store_true",
-        help="Add reveal segment as final chunk (only works with BMDS dataset)",
+        help="Add reveal segment as final chunk (works with BMDS and True Detective datasets)",
     )
 
     args = parser.parse_args()
@@ -567,6 +579,7 @@ Examples:
             output_path=args.output,
             preview=args.preview,
             reveal_add_on=args.reveal_add_on,
+            sentence_mode=args.sentence,
         )
 
         if results:

@@ -673,7 +673,7 @@ class TestProgressBars(unittest.TestCase):
         mock_tqdm.side_effect = lambda iterable, **kwargs: iterable
 
         # Process items
-        process_dataset_items(items=mock_items, strategy="fixed_size", chunk_size=10)
+        process_dataset_items(items=mock_items, strategy="fixed_size", chunk_size=10, dataset_name="test", sentence_mode=False)
 
         # Should have called tqdm for items progress
         mock_tqdm.assert_called()
@@ -699,7 +699,7 @@ class TestProgressBars(unittest.TestCase):
         mock_tqdm.side_effect = lambda iterable, **kwargs: iterable
 
         # Process items
-        process_dataset_items(items=mock_items, strategy="fixed_size", chunk_size=10)
+        process_dataset_items(items=mock_items, strategy="fixed_size", chunk_size=10, dataset_name="test", sentence_mode=False)
 
         # Should have called tqdm but with disable=True for single item
         mock_tqdm.assert_called()
@@ -809,7 +809,7 @@ class TestProgressBars(unittest.TestCase):
         mock_tqdm.side_effect = lambda iterable, **kwargs: iterable
 
         # Process items
-        process_dataset_items(items=mock_items, strategy="fixed_size", chunk_size=10)
+        process_dataset_items(items=mock_items, strategy="fixed_size", chunk_size=10, dataset_name="test", sentence_mode=False)
 
         # Should have called tqdm multiple times (items + documents progress bars)
         self.assertGreater(mock_tqdm.call_count, 1)

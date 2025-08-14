@@ -4,7 +4,7 @@ Utilities for chunking validation and analysis.
 
 
 def validate_chunks(
-    original_text: str, chunks: list[str], delimiter: str = "\n"
+    original_text: str, chunks: list[str], delimiter: str = "\n", normalize_whitespace: bool = False
 ) -> bool:
     """
     Verify that chunks preserve all content when joined with delimiter.
@@ -13,6 +13,7 @@ def validate_chunks(
         original_text: Original text before chunking
         chunks: List of text chunks
         delimiter: Delimiter used for chunking
+        normalize_whitespace: If True, normalize whitespace for comparison (useful for sentence mode)
 
     Returns:
         True if chunks preserve all original content, False otherwise
@@ -21,7 +22,16 @@ def validate_chunks(
         return not original_text
 
     reconstructed = delimiter.join(chunks)
-    return reconstructed == original_text
+    
+    if normalize_whitespace:
+        # Normalize whitespace by removing all whitespace characters for comparison
+        # This handles cases where sentence tokenization changes spacing, newlines, etc.
+        import re
+        original_normalized = re.sub(r'\s+', '', original_text)
+        reconstructed_normalized = re.sub(r'\s+', '', reconstructed)
+        return original_normalized == reconstructed_normalized
+    else:
+        return reconstructed == original_text
 
 
 def analyze_chunks(chunks: list[str], delimiter: str = "\n") -> dict:
