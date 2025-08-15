@@ -40,7 +40,6 @@ def evaluate_whodunit_dataset(
     prompt_name: str = "default-whodunit-culprits-and-accomplices",
     scoring_prompt_name: str | None = None,
     model: str = "gpt-4.1-mini",
-    temperature: float = 0.1,
     max_completion_tokens: int = 100000,
     scope: str = "all",
     item_ids: list[str] | None = None,
@@ -58,7 +57,6 @@ def evaluate_whodunit_dataset(
         range_spec: Range specification for text selection
         prompt_name: Name of the prompt directory to use
         model: LLM model to use
-        temperature: LLM temperature
         max_completion_tokens: Maximum tokens for LLM response
         scope: Processing scope ("all" or "item")
         item_ids: List of specific item IDs to process
@@ -108,7 +106,6 @@ def evaluate_whodunit_dataset(
             prompt_name=prompt_name,
             scoring_prompt_name=scoring_prompt_name,
             model=model,
-            temperature=temperature,
             max_completion_tokens=max_completion_tokens,
             item_ids=item_ids if scope == "item" else None,
             output_dir=output_path,
@@ -230,13 +227,7 @@ Examples:
         help="Scoring prompt directory name (if not provided, Phase 2 scoring will be skipped)"
     )
     
-    parser.add_argument(
-        "--temperature",
-        type=float,
-        default=0.1,
-        help="LLM temperature (default: 0.1)"
-    )
-    
+   
     parser.add_argument(
         "--max-tokens",
         type=int,
@@ -307,7 +298,6 @@ Examples:
             "prompt_name": args.prompt,
             "scoring_prompt_name": args.scoring_prompt,
             "model": args.model,
-            "temperature": args.temperature,
             "max_completion_tokens": args.max_tokens,
             "scope": args.scope,
             "item_ids": args.item_ids,

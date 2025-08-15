@@ -239,7 +239,8 @@ def get_ground_truth_from_sheets(story_id: str) -> Optional[Dict[str, Any]]:
         ground_truth = {
             "culprits": row.get('Gold label (human): main culprit(s)  (PRE-REVEAL)', None),
             "culprits_post_reveal": row.get('Gold label (human): main culprit(s), POST-REVEAL INFORMATION', None),
-            "accomplices": row.get('Gold label (human): accomplice(s)', None)
+            "accomplices": row.get('Gold label (human): accomplice(s)', None),
+            "suspects": row.get('Gold suspects pre-reveal', None)
         }
         
         # Convert pandas NaN, empty strings, and "N/A" to None
@@ -255,7 +256,7 @@ def get_ground_truth_from_sheets(story_id: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def extract_ground_truth(item_data: Dict[str, Any]) -> Dict[str, Any]:
+def extract_ground_truth(item_data: Dict[str, Any], input_path: str = None) -> Dict[str, Any]:
     """
     Extract ground truth culprit and accomplice information from item metadata.
     Falls back to Google Sheets if metadata is missing or empty.
@@ -269,7 +270,8 @@ def extract_ground_truth(item_data: Dict[str, Any]) -> Dict[str, Any]:
     ground_truth = {
         "culprits": None,
         "culprits_post_reveal": None,
-        "accomplices": None
+        "accomplices": None,
+        "suspects": None
     }
     
     # Get story_id for potential Google Sheets fallback
@@ -312,22 +314,30 @@ def extract_ground_truth(item_data: Dict[str, Any]) -> Dict[str, Any]:
     except (KeyError, IndexError) as e:
         logger.warning(f"Could not extract ground truth from metadata: {e}")
     
-    # Check if we have any ground truth data, if not try Google Sheets fallback
-    has_ground_truth = any(value not in [None, "", []] for value in ground_truth.values())
+    # Detect dataset from input path - much cleaner than checking story_id prefixes
+    is_bmds = False
+    if input_path:
+        # Extract dataset name from path like "outputs/chunks/bmds_fixed_size2_8000/"
+        path_lower = input_path.lower()
+        if "/bmds" in path_lower or "bmds_" in path_lower:
+            is_bmds = True
     
-    if not has_ground_truth and story_id:
-        logger.info(f"🔄 No ground truth found in metadata for {story_id}, trying Google Sheets fallback...")
+    if is_bmds and story_id:
+        # This is BMDS - use Google Sheets as primary source
+        logger.info(f"📊 BMDS dataset detected from input path, using Google Sheets as primary source for {story_id}...")
         sheets_ground_truth = get_ground_truth_from_sheets(story_id)
         if sheets_ground_truth:
-            # Update ground_truth with data from sheets
-            for key, value in sheets_ground_truth.items():
-                if value not in [None, "", []]:
-                    ground_truth[key] = value
-            logger.info(f"📊 Using Google Sheets ground truth for {story_id}")
+            # Replace ground_truth with data from sheets
+            ground_truth = sheets_ground_truth
+            logger.info(f"✅ Using Google Sheets ground truth for BMDS story {story_id}")
         else:
-            logger.warning(f"❌ No ground truth found in Google Sheets for {story_id}")
-    elif not story_id:
-        logger.warning("Cannot use Google Sheets fallback - no story_id found")
+            logger.warning(f"❌ No ground truth found in Google Sheets for BMDS story {story_id}")
+    else:
+        # Non-BMDS dataset - use JSON metadata (already extracted above)
+        dataset_name = "unknown" if not input_path else input_path.split("/")[-2] if "/" in input_path else input_path
+        logger.info(f"📁 Non-BMDS dataset ({dataset_name}), using JSON metadata for ground truth")
+        if not story_id:
+            logger.warning("Cannot determine dataset type - no story_id found")
     
     return ground_truth
 
@@ -370,6 +380,377 @@ def parse_llm_response(response: str) -> Dict[str, str]:
             logger.warning(f"Could not find section '{section_name}' in LLM response")
     
     return sections
+
+
+def normalize_field_names(data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Normalize field names by replacing hyphens with underscores.
+    
+    Args:
+        data: Dictionary with potentially unnormalized field names
+        
+    Returns:
+        Dictionary with normalized field names
+    """
+    if not isinstance(data, dict):
+        return data
+    
+    normalized = {}
+    for key, value in data.items():
+        # Normalize the key by replacing hyphens with underscores
+        normalized_key = key.replace('-', '_')
+        
+        # Recursively normalize nested dictionaries
+        if isinstance(value, dict):
+            normalized[normalized_key] = normalize_field_names(value)
+        else:
+            normalized[normalized_key] = value
+    
+    return normalized
+
+
+def validate_scoring_response_fields(parsed_response: Dict[str, Any]) -> None:
+    """
+    Validate that the parsed scoring response contains exactly the expected fields.
+    The prompt asks for separate JSON objects, so we validate the flattened structure.
+    
+    Args:
+        parsed_response: Parsed scoring response from LLM (after combining separate JSONs)
+        
+    Raises:
+        ValueError: If any expected fields are missing or unexpected fields are present
+    """
+    # Define expected fields for each separate JSON section as they appear in the prompt
+    expected_sections = {
+        # CULPRIT ASSESSMENT JSON
+        "culprit_assessment": {"culprit_correct"},
+        
+        # CULPRIT MINOR ERRORS JSON  
+        "culprit_minor_errors": {
+            "culprit_missing_or_wrong_alias",
+            "hallucinated_part_of_name", 
+            "missing_part_of_name",
+            "included_accomplice"
+        },
+        
+        # CULPRIT MAJOR ERRORS JSON
+        "culprit_major_errors": {
+            "different_suspect_not_accomplice",
+            "confused_swapped_culprit_and_accomplice",
+            "missing_real_name_only_has_alias",
+            "included_other_non_accomplice_suspects"
+        },
+        
+        # ACCOMPLICE ASSESSMENT JSON
+        "accomplice_assessment": {"accomplice_correct"},
+        
+        # ACCOMPLICE MINOR ERRORS JSON
+        "accomplice_minor_errors": {
+            "accomplice_missing_or_wrong_alias",
+            "hallucinated_part_of_name",
+            "missing_part_of_name", 
+            "included_culprit"
+        },
+        
+        # ACCOMPLICE MAJOR ERRORS JSON
+        "accomplice_major_errors": {
+            "different_suspect_not_culprit",
+            "confused_swapped_accomplice_and_culprit",
+            "missing_real_name_only_has_alias",
+            "included_other_non_culprit_suspects"
+        }
+    }
+    
+    errors = []
+    
+    # Check that we have the expected nested structure from parse_scoring_response
+    if "culprit" not in parsed_response or "accomplice" not in parsed_response:
+        errors.append("Missing culprit or accomplice categories in parsed response")
+        
+    if errors:
+        error_msg = "Scoring response validation failed:\n" + "\n".join(f"  - {error}" for error in errors)
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+    
+    # Validate culprit fields
+    culprit_data = parsed_response["culprit"]
+    
+    # Check culprit_correct (main assessment)
+    if "culprit_correct" not in culprit_data:
+        errors.append("Missing culprit_correct field")
+    
+    # Check culprit minor errors
+    if "minor_errors" not in culprit_data:
+        errors.append("Missing culprit minor_errors section")
+    else:
+        expected_minor = expected_sections["culprit_minor_errors"]
+        actual_minor = set(culprit_data["minor_errors"].keys())
+        
+        missing_minor = expected_minor - actual_minor
+        extra_minor = actual_minor - expected_minor
+        
+        if missing_minor:
+            errors.append(f"Missing culprit minor_errors fields: {missing_minor}")
+        if extra_minor:
+            errors.append(f"Unexpected culprit minor_errors fields: {extra_minor}")
+    
+    # Check culprit major errors
+    if "major_errors" not in culprit_data:
+        errors.append("Missing culprit major_errors section")
+    else:
+        expected_major = expected_sections["culprit_major_errors"]
+        actual_major = set(culprit_data["major_errors"].keys())
+        
+        missing_major = expected_major - actual_major
+        extra_major = actual_major - expected_major
+        
+        if missing_major:
+            errors.append(f"Missing culprit major_errors fields: {missing_major}")
+        if extra_major:
+            errors.append(f"Unexpected culprit major_errors fields: {extra_major}")
+    
+    # Validate accomplice fields
+    accomplice_data = parsed_response["accomplice"]
+    
+    # Check accomplice_correct (main assessment)
+    if "accomplice_correct" not in accomplice_data:
+        errors.append("Missing accomplice_correct field")
+    
+    # Check accomplice minor errors
+    if "minor_errors" not in accomplice_data:
+        errors.append("Missing accomplice minor_errors section")
+    else:
+        expected_minor = expected_sections["accomplice_minor_errors"]
+        actual_minor = set(accomplice_data["minor_errors"].keys())
+        
+        missing_minor = expected_minor - actual_minor
+        extra_minor = actual_minor - expected_minor
+        
+        if missing_minor:
+            errors.append(f"Missing accomplice minor_errors fields: {missing_minor}")
+        if extra_minor:
+            errors.append(f"Unexpected accomplice minor_errors fields: {extra_minor}")
+    
+    # Check accomplice major errors
+    if "major_errors" not in accomplice_data:
+        errors.append("Missing accomplice major_errors section")
+    else:
+        expected_major = expected_sections["accomplice_major_errors"]
+        actual_major = set(accomplice_data["major_errors"].keys())
+        
+        missing_major = expected_major - actual_major
+        extra_major = actual_major - expected_major
+        
+        if missing_major:
+            errors.append(f"Missing accomplice major_errors fields: {missing_major}")
+        if extra_major:
+            errors.append(f"Unexpected accomplice major_errors fields: {extra_major}")
+    
+    if errors:
+        error_msg = "Scoring response validation failed:\n" + "\n".join(f"  - {error}" for error in errors)
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+    
+    logger.info("Scoring response validation passed - all expected fields present")
+
+
+def parse_single_category_response(response: str, prompt_name: str) -> Dict[str, Any]:
+    """
+    Parse LLM response for a single category (culprit or accomplice only).
+    
+    Args:
+        response: Raw LLM response
+        prompt_name: Name of the prompt used (to determine category)
+        
+    Returns:
+        Dictionary with parsed assessment for the single category
+    """
+    import re
+    import json
+    
+    try:
+        # Determine category from prompt name
+        if "culprit" in prompt_name.lower():
+            category = "culprit"
+            main_field = "culprit_correct"
+        elif "accomplice" in prompt_name.lower():
+            category = "accomplice"
+            main_field = "accomplice_correct"
+        else:
+            raise ValueError(f"Cannot determine category from prompt name: {prompt_name}")
+        
+        # Initialize result structure
+        result = {
+            category: {}
+        }
+        
+        # Define section patterns for single category
+        # Use more flexible regex to capture multi-line JSON objects
+        # Try multiple patterns to be more robust
+        if category == "culprit":
+            sections = {
+                # Primary patterns with exact headers
+                r"CULPRIT ASSESSMENT:\s*(?:```json\s*)?(\{.*?\})(?:\s*```)?": "assessment",
+                r"CULPRIT MINOR ERRORS:\s*(?:```json\s*)?(\{.*?\})(?:\s*```)?": "minor_errors", 
+                r"CULPRIT MAJOR ERRORS:\s*(?:```json\s*)?(\{.*?\})(?:\s*```)?": "major_errors",
+                # Fallback patterns with variations
+                r"(?:CULPRIT\s+)?ASSESSMENT:\s*(?:```json\s*)?(\{.*?\})(?:\s*```)?": "assessment",
+                r"(?:CULPRIT\s+)?MINOR ERRORS:\s*(?:```json\s*)?(\{.*?\})(?:\s*```)?": "minor_errors",
+                r"(?:CULPRIT\s+)?MAJOR ERRORS:\s*(?:```json\s*)?(\{.*?\})(?:\s*```)?": "major_errors",
+                # Even more flexible - just look for JSON with expected fields
+                r'(\{[^}]*"culprit_correct"[^}]*\})': "assessment",
+                r'(\{[^}]*"culprit_missing_or_wrong_alias"[^}]*\})': "minor_errors",
+                r'(\{[^}]*"different_suspect_not_accomplice"[^}]*\})': "major_errors"
+            }
+        else:  # accomplice
+            sections = {
+                # Primary patterns with exact headers
+                r"ACCOMPLICE ASSESSMENT:\s*(?:```json\s*)?(\{.*?\})(?:\s*```)?": "assessment",
+                r"ACCOMPLICE MINOR ERRORS:\s*(?:```json\s*)?(\{.*?\})(?:\s*```)?": "minor_errors",
+                r"ACCOMPLICE MAJOR ERRORS:\s*(?:```json\s*)?(\{.*?\})(?:\s*```)?": "major_errors",
+                # Fallback patterns with variations
+                r"(?:ACCOMPLICE\s+)?ASSESSMENT:\s*(?:```json\s*)?(\{.*?\})(?:\s*```)?": "assessment",
+                r"(?:ACCOMPLICE\s+)?MINOR ERRORS:\s*(?:```json\s*)?(\{.*?\})(?:\s*```)?": "minor_errors",
+                r"(?:ACCOMPLICE\s+)?MAJOR ERRORS:\s*(?:```json\s*)?(\{.*?\})(?:\s*```)?": "major_errors",
+                # Even more flexible - just look for JSON with expected fields
+                r'(\{[^}]*"accomplice_correct"[^}]*\})': "assessment",
+                r'(\{[^}]*"accomplice_missing_or_wrong_alias"[^}]*\})': "minor_errors",
+                r'(\{[^}]*"different_suspect_not_culprit"[^}]*\})': "major_errors"
+            }
+        
+        sections_found = 0
+        
+        # Extract each section
+        for pattern, section_name in sections.items():
+            match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
+            if match:
+                try:
+                    json_str = match.group(1).strip()
+                    #####
+                    # Remove comments from JSON (LLM sometimes includes them despite instructions)
+                    json_str = re.sub(r'#.*?(?=\n|$)', '', json_str)  # Remove # comments
+                    json_str = re.sub(r'//.*?(?=\n|$)', '', json_str)  # Remove // comments
+                    # Clean up any extra whitespace/commas that might be left
+                    json_str = re.sub(r',\s*}', '}', json_str)  # Remove trailing commas before }
+                    json_str = re.sub(r',\s*]', ']', json_str)  # Remove trailing commas before ]
+                    #####
+                    parsed_section = json.loads(json_str)
+                    
+                    if section_name == "assessment":
+                        # Merge assessment directly into the category
+                        result[category].update(parsed_section)
+                    else:
+                        # Add as a subsection
+                        result[category][section_name] = parsed_section
+                    
+                    sections_found += 1
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Could not parse {section_name} section: {e}")
+        
+        if sections_found == 0:
+            logger.warning(f"Could not find any JSON sections in {category} response")
+            return None
+        
+        logger.info(f"Successfully parsed {sections_found} sections from {category} response")
+        
+        # Normalize field names (replace hyphens with underscores)
+        result = normalize_field_names(result)
+        
+        # Validate that all expected fields are present for this category
+        validate_single_category_fields(result, category)
+        
+        return result
+        
+    except Exception as e:
+        logger.warning(f"Error parsing {category} response: {e}")
+        return None
+
+
+def validate_single_category_fields(parsed_response: Dict[str, Any], category: str) -> None:
+    """
+    Validate that a single category response contains all expected fields.
+    
+    Args:
+        parsed_response: Parsed response for single category
+        category: Either "culprit" or "accomplice"
+        
+    Raises:
+        ValueError: If any expected fields are missing or unexpected fields are present
+    """
+    if category == "culprit":
+        expected_main = {"culprit_correct"}
+        expected_minor = {
+            "culprit_missing_or_wrong_alias",
+            "hallucinated_part_of_name", 
+            "missing_part_of_name",
+            "included_accomplice"
+        }
+        expected_major = {
+            "different_suspect_not_accomplice",
+            "confused_swapped_culprit_and_accomplice",
+            "missing_real_name_only_has_alias",
+            "included_other_non_accomplice_suspects"
+        }
+    else:  # accomplice
+        expected_main = {"accomplice_correct"}
+        expected_minor = {
+            "accomplice_missing_or_wrong_alias",
+            "hallucinated_part_of_name",
+            "missing_part_of_name", 
+            "included_culprit"
+        }
+        expected_major = {
+            "different_suspect_not_culprit",
+            "confused_swapped_accomplice_and_culprit",
+            "missing_real_name_only_has_alias",
+            "included_other_non_culprit_suspects"
+        }
+    
+    errors = []
+    
+    if category not in parsed_response:
+        errors.append(f"Missing {category} category in parsed response")
+        
+    if errors:
+        error_msg = f"Single category validation failed:\n" + "\n".join(f"  - {error}" for error in errors)
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+    
+    category_data = parsed_response[category]
+    
+    # Check main assessment fields
+    category_main_fields = {k for k in category_data.keys() if k not in ["minor_errors", "major_errors"]}
+    
+    missing_main = expected_main - category_main_fields
+    extra_main = category_main_fields - expected_main
+    
+    if missing_main:
+        errors.append(f"Missing {category} main fields: {missing_main}")
+    if extra_main:
+        errors.append(f"Unexpected {category} main fields: {extra_main}")
+    
+    # Check minor and major error fields
+    for error_type, expected_fields in [("minor_errors", expected_minor), ("major_errors", expected_major)]:
+        if error_type not in category_data:
+            errors.append(f"Missing {category} {error_type} section")
+            continue
+            
+        actual_fields = set(category_data[error_type].keys())
+        
+        missing_fields = expected_fields - actual_fields
+        extra_fields = actual_fields - expected_fields
+        
+        if missing_fields:
+            errors.append(f"Missing {category} {error_type} fields: {missing_fields}")
+        if extra_fields:
+            errors.append(f"Unexpected {category} {error_type} fields: {extra_fields}")
+    
+    if errors:
+        error_msg = f"Single category validation failed:\n" + "\n".join(f"  - {error}" for error in errors)
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+    
+    logger.info(f"Single category validation passed for {category}")
 
 
 def parse_scoring_response(response: str) -> Dict[str, Any]:
@@ -430,6 +811,13 @@ def parse_scoring_response(response: str) -> Dict[str, Any]:
             return None
         
         logger.info(f"Successfully parsed {sections_found} sections from scoring response")
+        
+        # Normalize field names (replace hyphens with underscores)
+        result = normalize_field_names(result)
+        
+        # Validate that all expected fields are present
+        validate_scoring_response_fields(result)
+        
         return result
         
     except Exception as e:
@@ -437,14 +825,216 @@ def parse_scoring_response(response: str) -> Dict[str, Any]:
         return None
 
 
+def score_whodunit_solution_two_calls(
+    llm_solution: Dict[str, str],
+    ground_truth: Dict[str, Any],
+    range_spec: str = "all",
+    scoring_model: str = "gpt-5",
+    max_completion_tokens: int = 100000,
+    ask_user_confirmation: bool = False
+) -> Dict[str, Any]:
+    """
+    Score a whodunit solution using two separate LLM calls - one for culprits, one for accomplices.
+    
+    Args:
+        llm_solution: Parsed LLM solution
+        ground_truth: Ground truth data
+        range_spec: Range specification used for text selection
+        scoring_model: LLM model for scoring
+        max_completion_tokens: Max tokens for scoring
+        ask_user_confirmation: Whether to ask for confirmation
+        
+    Returns:
+        Dictionary with scoring results from both calls
+    """
+    from ius.utils import call_llm
+    
+    # Simple ground truth selection: use post-reveal if range includes the end and it exists
+    if range_spec in ["last", "all"] and ground_truth.get("culprits_post_reveal"):
+        selected_culprits = ground_truth.get("culprits_post_reveal")
+    else:
+        selected_culprits = ground_truth.get("culprits")
+    
+    # Prepare template variables (same for both calls) - use ground truth suspects from Google Sheets
+    template_vars = {
+        "suspects": ground_truth.get("suspects", "None"),  # Use ground truth suspects instead of LLM suspects
+        "ground_truth_culprits": selected_culprits or "None",
+        "ground_truth_accomplices": ground_truth.get("accomplices", "None"),
+        "llm_main_culprits": llm_solution.get("main_culprits", "None"),
+        "llm_accomplices": llm_solution.get("accomplices", "None")
+    }
+    
+    logger.info("Making two separate LLM calls for culprit and accomplice scoring...")
+    
+    # Call 1: Score culprits
+    logger.info("Making LLM call for culprit scoring...")
+    culprit_result = _score_single_category(
+        "whodunit-scoring-culprits", 
+        template_vars, 
+        scoring_model, 
+        max_completion_tokens, 
+        ask_user_confirmation
+    )
+    
+    # Call 2: Score accomplices
+    logger.info("Making LLM call for accomplice scoring...")
+    accomplice_result = _score_single_category(
+        "whodunit-scoring-accomplices", 
+        template_vars, 
+        scoring_model, 
+        max_completion_tokens, 
+        ask_user_confirmation
+    )
+
+    # Check if either call failed parsing (but preserve raw responses for debugging)
+    culprit_failed = culprit_result.get("error") is not None
+    accomplice_failed = accomplice_result.get("error") is not None
+    
+    if culprit_failed or accomplice_failed:
+        # Return error but preserve raw responses for debugging
+        error_msg = []
+        if culprit_failed:
+            error_msg.append(f"Culprit: {culprit_result['error']}")
+        if accomplice_failed:
+            error_msg.append(f"Accomplice: {accomplice_result['error']}")
+        
+        return {
+            "assessment": None,
+            "raw_response": {
+                "culprit_raw_response": culprit_result.get("raw_response"),
+                "accomplice_raw_response": accomplice_result.get("raw_response")
+            },
+            "usage": {
+                "input_tokens": culprit_result["usage"]["input_tokens"] + accomplice_result["usage"]["input_tokens"],
+                "output_tokens": culprit_result["usage"]["output_tokens"] + accomplice_result["usage"]["output_tokens"],
+                "total_tokens": culprit_result["usage"]["total_tokens"] + accomplice_result["usage"]["total_tokens"],
+                "input_cost": culprit_result["usage"]["input_cost"] + accomplice_result["usage"]["input_cost"],
+                "output_cost": culprit_result["usage"]["output_cost"] + accomplice_result["usage"]["output_cost"],
+                "total_cost": culprit_result["usage"]["total_cost"] + accomplice_result["usage"]["total_cost"]
+            },
+            "error": "Two-call scoring failed: " + "; ".join(error_msg),
+            "final_prompts_used": {
+                "culprit_prompts": culprit_result.get("final_prompts_used", {}),
+                "accomplice_prompts": accomplice_result.get("final_prompts_used", {})
+            },
+            "finish_reason": f"culprit: {culprit_result.get('finish_reason', 'unknown')}, accomplice: {accomplice_result.get('finish_reason', 'unknown')}"
+        }
+    
+    # Combine results - extract the nested category data to avoid double nesting
+    combined_assessment = {}
+    
+    # Extract culprit data (culprit_result["assessment"] is {"culprit": {...}})
+    if culprit_result["assessment"] and "culprit" in culprit_result["assessment"]:
+        combined_assessment["culprit"] = culprit_result["assessment"]["culprit"]
+    
+    # Extract accomplice data (accomplice_result["assessment"] is {"accomplice": {...}})
+    if accomplice_result["assessment"] and "accomplice" in accomplice_result["assessment"]:
+        combined_assessment["accomplice"] = accomplice_result["assessment"]["accomplice"]
+    
+    # Combine metadata
+    combined_usage = {
+        "input_tokens": culprit_result["usage"]["input_tokens"] + accomplice_result["usage"]["input_tokens"],
+        "output_tokens": culprit_result["usage"]["output_tokens"] + accomplice_result["usage"]["output_tokens"],
+        "total_tokens": culprit_result["usage"]["total_tokens"] + accomplice_result["usage"]["total_tokens"],
+        "input_cost": culprit_result["usage"]["input_cost"] + accomplice_result["usage"]["input_cost"],
+        "output_cost": culprit_result["usage"]["output_cost"] + accomplice_result["usage"]["output_cost"],
+        "total_cost": culprit_result["usage"]["total_cost"] + accomplice_result["usage"]["total_cost"]
+    }
+    
+    return {
+        "assessment": combined_assessment,
+        "raw_response": {
+            "culprit_raw_response": culprit_result['raw_response'],
+            "accomplice_raw_response": accomplice_result['raw_response']
+        },
+        "usage": combined_usage,
+        "error": None,  # No error for successful results
+        "final_prompts_used": {
+            "culprit_prompts": culprit_result.get("final_prompts_used", {}),
+            "accomplice_prompts": accomplice_result.get("final_prompts_used", {})
+        },
+        "finish_reason": f"culprit: {culprit_result.get('finish_reason', 'unknown')}, accomplice: {accomplice_result.get('finish_reason', 'unknown')}"
+    }
+
+
+def _score_single_category(
+    prompt_name: str,
+    template_vars: Dict[str, str],
+    scoring_model: str,
+    max_completion_tokens: int,
+    ask_user_confirmation: bool
+) -> Dict[str, Any]:
+    """
+    Score a single category (culprit or accomplice) using LLM.
+    
+    Args:
+        prompt_name: Name of the prompt directory (e.g., "whodunit-scoring-culprits")
+        template_vars: Template variables for the prompt
+        scoring_model: LLM model for scoring
+        max_completion_tokens: Max tokens for scoring
+        ask_user_confirmation: Whether to ask for confirmation
+        
+    Returns:
+        Dictionary with scoring results for this category
+    """
+    from ius.utils import call_llm
+    
+    # Load prompts for this category
+    prompt_dir = Path(f"prompts/extrinsic-eval/{prompt_name}")
+    
+    try:
+        system_prompt, user_prompt_template = load_prompts(prompt_dir)
+    except Exception as e:
+        logger.error(f"Could not load {prompt_name} prompts: {e}")
+        raise
+    
+    # Make LLM call
+    scoring_result = call_llm(
+        text="",  # Not used for this prompt style
+        system_and_user_prompt={
+            "system": system_prompt,
+            "user": user_prompt_template
+        },
+        template_vars=template_vars,
+        model=scoring_model,
+        temperature=1.0,  # gpt-5 only supports temperature=1.0
+        max_completion_tokens=max_completion_tokens,
+        ask_user_confirmation=ask_user_confirmation
+    )
+    
+    if not scoring_result:
+        raise ValueError(f"LLM call for {prompt_name} returned None")
+    
+    # Parse the response (single category)
+    parsed_assessment = parse_single_category_response(scoring_result["response"], prompt_name)
+    
+    if not parsed_assessment:
+        # Return the raw response even when parsing fails for debugging
+        return {
+            "assessment": None,
+            "raw_response": scoring_result["response"],
+            "usage": scoring_result["usage"],
+            "final_prompts_used": scoring_result.get("final_prompts_used", {}),
+            "finish_reason": scoring_result.get("finish_reason", "unknown"),
+            "error": f"Could not parse {prompt_name} response"
+        }
+    
+    return {
+        "assessment": parsed_assessment,
+        "raw_response": scoring_result["response"],
+        "usage": scoring_result["usage"],
+        "final_prompts_used": scoring_result.get("final_prompts_used", {}),
+        "finish_reason": scoring_result.get("finish_reason", "unknown")
+    }
+
+
 def score_whodunit_solution(
     llm_solution: Dict[str, str],
     ground_truth: Dict[str, Any],
     scoring_prompt_name: str,
     range_spec: str = "all",
-    scoring_model: str = "gpt-4o",
-    temperature: float = 0.1,
-    max_completion_tokens: int = 2000,
+    scoring_model: str = "gpt-5",
+    max_completion_tokens: int = 100000,
     ask_user_confirmation: bool = False
 ) -> Dict[str, Any]:
     """
@@ -453,15 +1043,28 @@ def score_whodunit_solution(
     Args:
         llm_solution: Parsed LLM solution
         ground_truth: Ground truth data
+        scoring_prompt_name: Prompt name - if "two-calls", uses separate culprit/accomplice calls
         range_spec: Range specification used for text selection
         scoring_model: LLM model for scoring
-        temperature: LLM temperature
         max_completion_tokens: Max tokens for scoring
         ask_user_confirmation: Whether to ask for confirmation
         
     Returns:
         Dictionary with scoring results
     """
+    # Check if we should use the two-call approach
+    if scoring_prompt_name == "two-calls":
+        logger.info("Using two-call scoring approach (separate culprit and accomplice calls)")
+        return score_whodunit_solution_two_calls(
+            llm_solution=llm_solution,
+            ground_truth=ground_truth,
+            range_spec=range_spec,
+            scoring_model=scoring_model,
+            max_completion_tokens=max_completion_tokens,
+            ask_user_confirmation=ask_user_confirmation
+        )
+    
+    # Original single-call approach
     from ius.utils import call_llm
     
     # Load scoring prompts
@@ -484,9 +1087,12 @@ def score_whodunit_solution(
     else:
         selected_culprits = ground_truth.get("culprits")
     
-    # Prepare template variables
+    # Prepare template variables - use ground truth suspects from Google Sheets
+    # NOTE the  LM generated ground truth suspects were not reliable and causing errors in scoring
+    # so I used GPT-5 to fix those errors (removing extra suspects who were clearly wrong and fixing
+    # wrong names)
     template_vars = {
-        "suspects": llm_solution.get("suspects", "None"),
+        "suspects": ground_truth.get("suspects", "None"),  # Use ground truth suspects instead of LLM suspects
         "ground_truth_culprits": selected_culprits or "None",
         "ground_truth_accomplices": ground_truth.get("accomplices", "None"),
         "llm_main_culprits": llm_solution.get("main_culprits", "None"),
@@ -508,7 +1114,7 @@ def score_whodunit_solution(
             },
             template_vars=template_vars,  # Pass template variables
             model=scoring_model,
-            temperature=temperature,
+            temperature=1.0,  # gpt-5 only supports temperature=1.0
             max_completion_tokens=max_completion_tokens,
             ask_user_confirmation=ask_user_confirmation
         )
@@ -601,8 +1207,7 @@ def run_whodunit_evaluation(
     range_spec: str = "all",
     prompt_name: str = "default-whodunit-culprits-and-accomplices",
     scoring_prompt_name: Optional[str] = None,
-    model: str = "gpt-4.1-mini",
-    temperature: float = 0.1,
+    model: str = "o3",
     max_completion_tokens: int = 100000, # Absurdly high value to account for reasoning tokens
     item_ids: Optional[List[str]] = None,
     output_dir: Optional[str] = None,
@@ -620,7 +1225,6 @@ def run_whodunit_evaluation(
         range_spec: Range specification for text selection
         prompt_name: Name of prompt directory
         model: LLM model to use for solving
-        temperature: LLM temperature
         max_completion_tokens: Maximum tokens for LLM response
         item_ids: Specific item IDs to process (None for all)
         output_dir: Custom output directory (None for auto-generated)
@@ -656,7 +1260,7 @@ def run_whodunit_evaluation(
             "model": model,
             "prompt_name": prompt_name,
             "range_spec": range_spec,
-            "temperature": temperature,
+            "temperature": 0.1,#temperature,
             "max_completion_tokens": max_completion_tokens
         }
         output_hash = generate_output_hash(hash_params)
@@ -677,7 +1281,7 @@ def run_whodunit_evaluation(
                 "model": model,
                 "prompt_name": prompt_name,
                 "range_spec": range_spec,
-                "temperature": temperature,
+                "temperature": 0.1,#temperature,
                 "max_completion_tokens": max_completion_tokens,
                 "prompts_used": {
                     "system": system_prompt,
@@ -737,7 +1341,14 @@ def run_whodunit_evaluation(
             # Track whether we executed Phase 1 (solving)
             phase1_executed = False
             llm_result = None
-            
+
+            # Extract ground truth from original item
+            # NOTE this is done here because phase 1 is not always executed.
+
+            with open(item_file) as f:
+                original_item_data = json.load(f)
+            ground_truth = extract_ground_truth(original_item_data, input_dir)
+
             # PHASE 1: SOLVE (if needed)
             if not item_output_file.exists() or overwrite:
                 phase1_executed = True
@@ -772,7 +1383,7 @@ def run_whodunit_evaluation(
                         "text": selected_text,
                         "reveal_chunk": reveal_segment
                     },
-                    temperature=temperature,
+                    temperature=0.1,#temperature,
                     max_completion_tokens=max_completion_tokens,
                     ask_user_confirmation=ask_user_confirmation
                 )
@@ -781,11 +1392,7 @@ def run_whodunit_evaluation(
                 # Parse response
                 parsed_sections = parse_llm_response(llm_result["response"])
                 
-                # Extract ground truth from original item
-                with open(item_file) as f:
-                    original_item_data = json.load(f)
-                ground_truth = extract_ground_truth(original_item_data)
-                
+
                 # Create result with solution_correctness_assessment set to None
                 item_result = {
                     "item_metadata": {
@@ -801,7 +1408,7 @@ def run_whodunit_evaluation(
                     "evaluation_metadata": {
                         "prompt_name": prompt_name,
                         "model": model,
-                        "temperature": temperature,
+                        "temperature": 0.1,#temperature,
                         "max_completion_tokens": max_completion_tokens,
                         "prompts_used": {
                             "system": system_prompt,
@@ -832,7 +1439,7 @@ def run_whodunit_evaluation(
             # PHASE 2: SCORE (if needed)
             if item_output_file.exists():
                 # Use a different model for scoring
-                scoring_model = "gpt-4o"
+                scoring_model = "gpt-5"
 
                 # Load existing item
                 with open(item_output_file) as f:
@@ -841,53 +1448,72 @@ def run_whodunit_evaluation(
                 # Check if scoring is needed and scoring prompt is provided
                 if scoring_prompt_name and (item_result.get("solution_correctness_assessment") is None or rescore):
                     # Check if ground truth is available for scoring
-                    ground_truth = item_result.get("ground_truth", {})
+                    #ground_truth = item_result.get("ground_truth", {})
                     parsed_response = item_result.get("parsed_response")
                     
                     # If no ground truth in item result, try to extract it again (including Google Sheets fallback)
-                    if not ground_truth.get("culprits"):
-                        logger.info(f"🔄 No ground truth found in item result for {item_id}, trying to extract again...")
-                        with open(item_file) as f:
-                            original_item_data = json.load(f)
-                        ground_truth = extract_ground_truth(original_item_data)
-                        # Update the item result with the newly extracted ground truth
-                        item_result["ground_truth"] = ground_truth
-                    
-                    if not ground_truth.get("culprits"):
-                        logger.info(f"⏭️  No ground truth available for {item_id} - skipping scoring (can be done later)")
-                    elif not parsed_response or not isinstance(parsed_response, dict):
-                        logger.warning(f"⏭️  No valid parsed response for {item_id} - skipping scoring")
-                    elif not parsed_response.get("suspects") or not parsed_response.get("main_culprits"):
-                        logger.info(f"⏭️  LLM solution incomplete for {item_id} (missing suspects or main_culprits) - skipping scoring")
-                    else:
-                        if rescore and item_result.get("solution_correctness_assessment") is not None:
-                            logger.info(f"🔄 Re-scoring solution for {item_id}...")
-                        else:
-                            logger.info(f"📊 Scoring solution for {item_id}...")
-                        
+#                    if not ground_truth.get("culprits"):
+#                        logger.info(f"🔄 No ground truth found in item result for {item_id}, trying to extract again...")
+#                        with open(item_file) as f:
+#                            original_item_data = json.load(f)
+#                        ground_truth = extract_ground_truth(original_item_data, input_dir)
+#                        # Update the item result with the newly extracted ground truth
+#                        item_result["ground_truth"] = ground_truth
+#                    
+#                    if not ground_truth.get("culprits"):
+#                        logger.info(f"⏭️  No ground truth available for {item_id} - skipping scoring (can be done later)")
+#                    elif not parsed_response or not isinstance(parsed_response, dict):
+#                        logger.warning(f"⏭️  No valid parsed response for {item_id} - skipping scoring")
+#                    elif not parsed_response.get("suspects") or not parsed_response.get("main_culprits"):
+#                        logger.info(f"⏭️  LLM solution incomplete for {item_id} (missing suspects or main_culprits) - skipping #scoring")
+#                    else:
+#                        if rescore and item_result.get("solution_correctness_assessment") is not None:
+#                            logger.info(f"🔄 Re-scoring solution for {item_id}...")
+#                        else:
+#                            logger.info(f"📊 Scoring solution for {item_id}...")
+
+                if True:
+
                         # Score the solution
                         scoring_result = score_whodunit_solution(
                             llm_solution=item_result["parsed_response"],
-                            ground_truth=item_result["ground_truth"],
+                            ground_truth=ground_truth, #item_result["ground_truth"],
                             scoring_prompt_name=scoring_prompt_name,
                             range_spec=range_spec,
                             scoring_model=scoring_model,
-                            temperature=temperature,
-                            max_completion_tokens=1000,
+                            max_completion_tokens=100000,
                             ask_user_confirmation=ask_user_confirmation
                         )
                         
                         # Update item with scoring results
                         item_result["solution_correctness_assessment"] = scoring_result["assessment"]
+                        
+                        # Handle different raw_response formats (single-call vs two-call)
+                        raw_response = scoring_result["raw_response"]
+                        if isinstance(raw_response, dict):
+                            # Two-call approach: separate responses
+                            scoring_raw_response = raw_response
+                        else:
+                            # Single-call approach: string response
+                            scoring_raw_response = raw_response
+                        
+                        # Handle different prompt formats (single-call vs two-call)
+                        prompts_used = scoring_result.get("final_prompts_used", {})
+                        if scoring_prompt_name == "two-calls":
+                            # Two-call approach: already properly structured
+                            scoring_prompts_used = prompts_used
+                        else:
+                            # Single-call approach: already properly structured
+                            scoring_prompts_used = prompts_used
+                        
                         item_result["scoring_metadata"] = {
                             "scoring_model": scoring_model,
-                            "scoring_temperature": temperature,
-                            "scoring_raw_response": scoring_result["raw_response"],
+                            "scoring_raw_response": scoring_raw_response,
                             "scoring_finish_reason": scoring_result.get("finish_reason"),
                             "scoring_usage": scoring_result["usage"],
                             "scoring_error": scoring_result["error"],
                             "scoring_timestamp": datetime.now().isoformat(),
-                            "scoring_prompts_used": scoring_result.get("final_prompts_used", {})
+                            "scoring_prompts_used": scoring_prompts_used
                         }
                         
                         # Save updated item
