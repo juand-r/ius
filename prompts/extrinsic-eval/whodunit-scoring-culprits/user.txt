@@ -1,0 +1,70 @@
+You are evaluating an LLM's solution to a detective story mystery. Compare the LLM's identified culprit(s) against the ground truth and assess correctness. The LM also predicted accomplices but you are only going to evaluate the main culprit.
+
+Here are the list of suspects (not necessarily complete): {suspects} 
+
+**Ground Truth: these are the actual culprit(s) and accomplice(s)**
+Culprit(s): {ground_truth_culprits}
+Accomplice(s): {ground_truth_accomplices}
+
+Note "None" really means no *human* culprits (other causes of death could include animals, nature, etc., these are still "None".)
+
+**LLM Solution:**
+Main Culprit(s): {llm_main_culprits}
+
+Evaluate the LLM's solution and provide a structured assessment. First focus on whether the LLM correctly identified the actual culprit, even if first names or aliases are different or missing --- e.g., if the culprit is John Smith, but Matt Smith was predicted, that is considered correct (unless of course Matt Smith is a different suspect in the suspect list above). However, using the opposite gender (Mr. Smith vs Mrs. Smith) is a sign that the wrong person was accused.
+
+**Assessment Guidelines for Main Culprit(s):**
+- "Culprit correct?" = Yes if LLM identified the right person(s) as culprit, even with name variations or a first name which may be incorrect.
+- Only mark "Yes" if LLM identified ONLY the culprit or culprit and accomplice, not additional innocent suspects. If additional clearly innocent people are included as culprits, write No. However, related roles or contextual details should be considered acceptable if the core correct answer is present.
+- Note if only alias is provided when a real name exists, that's incorrect
+- If the LLM gets one of the culprits correct but misses some of them, still mark that as "Yes".
+
+You will provide your assessment, answering three questions each for the culprits:
+1. Is the LLM predicted culprit correct ("culprit_correct")? 
+
+2. Figure out if there are any minor errors: the predicted culprit(s) might:
+ (a) be missing an alias, or have the wrong alias (but acceptable title variations like Mr./Signor/Professor should NOT be flagged; ),
+ (b) have a wrong (hallucinated) first or middle name: only mark this if the name is clearly wrong or fabricated. Common expansions (Joe→Joseph, Bob→Robert) or reasonable variations are acceptable. Only flag if the name is completely different or obviously made up, 
+ (c) be missing part of their name (first or middle name), and/or
+ (d) be correct, but also include the accomplice.
+
+These errors are not always mutually exclusive.
+
+3. Figure out if there are any major errors (fundamental misidentifications). If the culprit is incorrect, then perhaps:
+ (a) some other innocent suspect (who is not an accomplice) was accused instead,
+ (b) an accomplice was selected as the main culprit,
+ (c) only the alias was given when the culprit's real name was available, and/or
+ (d) the right culprit was accused, BUT other clearly innocent people were also incorrectly accused in addition. Related roles or contextual details should be considered acceptable.
+
+These errors are not always mutually exclusive.
+
+Provide your assessment in this exact format with separate JSON objects:
+
+CULPRIT ASSESSMENT:
+{
+  "culprit_correct": "Yes or No"
+}
+
+# Note culprit_correct is Yes if the actual culprit was chosen (even if the first name is made-up), and no innocent people were accused.
+
+CULPRIT MINOR ERRORS:
+{
+  "culprit_missing_or_wrong_alias": "Yes, No or N/A", # Only mark Yes if ground truth alias is completely omitted or clearly wrong
+  "hallucinated_part_of_name": "Yes or No", # Only mark Yes if name is clearly wrong/fabricated. Common abbreviations are acceptable
+  "missing_part_of_name": "Yes or No", # First or middle name of culprit is missing
+  "included_accomplice": "Yes or No" # The accomplice is included together with the culprit
+}
+
+CULPRIT MAJOR ERRORS:
+{
+  "different_suspect_not_accomplice": "Yes or No", # A completely wrong person was accused instead of the culprit
+  "confused_swapped_culprit_and_accomplice": "Yes or No", # An accomplice was elevated to main culprit, while the culprit was demoted to accomplice or not accused
+  "missing_real_name_only_has_alias": "Yes or No", # The accused culprit is correct, but only referred to by an alias 
+  "included_other_non_accomplice_suspects": "Yes or No" # Clearly innocent people were accused in addition to culprit (but related roles and contextual details are acceptable)
+}
+
+Edge Cases:
+- ground truth of "None" means "no human culprit", so if the LLM mentions animals, diseases or any other non-human cause of death, that should be "Yes", correct.
+- most mysteries involve a murder, but in some cases the culprit might be guilty of something else (depends on the story).
+
+IMPORTANT: Provide your reasoning first, then provide each JSON section exactly as shown above, in exactly that format (without the # comments).
