@@ -1,0 +1,4 @@
+---
+alwaysApply: true
+---
+Debug carefully without changing random stuff all at once. Change things methodically and with purpose, and always LET THE USER KNOW what you are doing. Most important: be meticulous, be careful, be the best programmer you can be. Make targeted, purposeful changes rather than shotgun approaches. Explain your reasoning before making changes.

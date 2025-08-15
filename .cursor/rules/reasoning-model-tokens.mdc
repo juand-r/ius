@@ -1,0 +1,4 @@
+---
+alwaysApply: true
+---
+Never change max_completion_tokens back to small values like 2000 for reasoning models (gpt-5, o3, etc.) as these models need much higher token limits due to internal reasoning tokens. If the user has already increased it to a higher value like 100000, don't revert it back to smaller values that are known to cause truncation issues.
