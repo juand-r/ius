@@ -46,46 +46,46 @@ You will also answer all these questions for the accomplice(s) in the json below
 Provide your assessment in this exact format with separate JSON objects:
 
 CULPRIT ASSESSMENT:
-{{
+{
   "culprit_correct": "Yes or No" # Yes if the actual culprit was chosen (even if the first name is made-up), and no innocent people were accused
-}}
+}
 
 CULPRIT MINOR ERRORS:
-{{
+{
   "culprit_missing_or_wrong_alias": "Yes, No or N/A",
   "hallucinated_part_of_name": "Yes or No", # If first or middle name does not match ground truth
   "missing_part_of_name": "Yes or No", # Part of the actual culprit name is missing
   "included_accomplice": "Yes or No" # The accomplice is included together with the culprit
-}}
+}
 
 CULPRIT MAJOR ERRORS:
-{{
+{
   "different_suspect_not_accomplice": "Yes or No", # An innocent person was accused instead of culprit
   "confused_swapped_culprit_and_accomplice": "Yes or No", # An accomplice was accused instead of the main culprit
   "missing_real_name_only_has_alias": "Yes or No", # The accused culprit is correct, but only referred to by alias 
   "included_other_non_accomplice_suspects": "Yes or No" # Innocent people accused in addition to culprit
-}}
+}
 
 ACCOMPLICE ASSESSMENT:
-{{
+{
   "accomplice_correct": "Yes or No"
-}}
+}
 
 ACCOMPLICE MINOR ERRORS:
-{{
+{
   "accomplice_missing_or_wrong_alias": "Yes, No or N/A",
   "hallucinated_part_of_name": "Yes or No",
   "missing_part_of_name": "Yes or No",
   "included_culprit": "Yes or No"
-}}
+}
 
 ACCOMPLICE MAJOR ERRORS:
-{{
+{
   "different_suspect_not_culprit": "Yes or No",
   "confused_swapped_accomplice_and_culprit": "Yes or No",
   "missing_real_name_only_has_alias": "Yes or No",
   "included_other_non_culprit_suspects": "Yes or No"
-}}
+}
 
 Edge Cases:
 - ground truth of "None" means "no human culprit", so if the LLM mentions animals, diseases or any other non-human cause of death, that should be "Yes", correct.
