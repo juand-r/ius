@@ -1272,27 +1272,48 @@ def run_whodunit_evaluation(
     items_output_dir.mkdir(exist_ok=True)
     
     # Create initial collection metadata
+    collection_metadata = {
+        "evaluation_function": "run_whodunit_evaluation",
+        "content_type": "whodunit_analysis",
+        "input_type": input_type,
+        "model": model,
+        "prompt_name": prompt_name,
+        "range_spec": range_spec,
+        "temperature": 0.1,#temperature,
+        "max_completion_tokens": max_completion_tokens,
+        "prompts_used": {
+            "system": system_prompt,
+            "user": user_template
+        },
+        "source_collection": str(input_path),
+        "command_run": command_run,
+        "hash_parameters": hash_params,
+        "hash_note": "Directory name contains 6-char MD5 hash of these parameters",
+        "hash_value": output_hash
+    }
+    
+    # If input is summaries, include summarization info from source collection
+    if input_type == "summaries":
+        source_collection_file = input_path / "collection.json"
+        if source_collection_file.exists():
+            try:
+                with open(source_collection_file, 'r') as f:
+                    source_data = json.load(f)
+                
+                # Extract summarization_info from source collection
+                if "summarization_info" in source_data:
+                    collection_metadata["summarization_info"] = source_data["summarization_info"]
+                    logger.info(f"Added summarization_info from source collection: {source_collection_file}")
+                else:
+                    logger.warning(f"No summarization_info found in source collection: {source_collection_file}")
+            except Exception as e:
+                logger.warning(f"Failed to load summarization_info from {source_collection_file}: {e}")
+        else:
+            logger.warning(f"Source collection file not found: {source_collection_file}")
+    
     collection_data = {
         "whodunit_evaluation_info": {
-            "collection_metadata": {
-                "evaluation_function": "run_whodunit_evaluation",
-                "content_type": "whodunit_analysis",
-                "input_type": input_type,
-                "model": model,
-                "prompt_name": prompt_name,
-                "range_spec": range_spec,
-                "temperature": 0.1,#temperature,
-                "max_completion_tokens": max_completion_tokens,
-                "prompts_used": {
-                    "system": system_prompt,
-                    "user": user_template
-                },
-                "source_collection": str(input_path),
-                "command_run": command_run,
-                "hash_parameters": hash_params,
-                "hash_note": "Directory name contains 6-char MD5 hash of these parameters",
-                "hash_value": output_hash
-            },
+            "collection_metadata": collection_metadata,
             "timestamp": datetime.now().isoformat(),
             "items_processed": [],
             "processing_stats": {
