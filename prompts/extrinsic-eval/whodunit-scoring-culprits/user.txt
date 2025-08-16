@@ -15,7 +15,7 @@ Evaluate the LLM's solution and provide a structured assessment. First focus on 
 
 **Assessment Guidelines for Main Culprit(s):**
 - "Culprit correct?" = Yes if LLM identified the right person(s) as culprit, even with name variations or a first name which may be incorrect.
-- Only mark "Yes" if LLM identified ONLY the culprit or culprit and accomplice, not additional innocent suspects. If additional clearly innocent people are included as culprits, write No. However, related roles or contextual details should be considered acceptable if the core correct answer is present.
+- Only mark "Yes" if LLM identified ONLY the culprit or culprit and accomplice (even if the accomplice's first name is hallucinated), not additional innocent suspects. If additional clearly innocent people are included as culprits, write No. However, related roles or contextual details should be considered acceptable if the core correct answer is present.
 - Note if only alias is provided when a real name exists, that's incorrect
 - If the LLM gets one of the culprits correct but misses some of them, still mark that as "Yes".
 
