@@ -1569,7 +1569,8 @@ def run_whodunit_evaluation(
 #                            logger.info(f"🔄 Re-scoring solution for {item_id}...")
 #                        else:
 #                            logger.info(f"📊 Scoring solution for {item_id}...")
-                if True:
+                #if True:
+                if scoring_prompt_name and (item_result.get("solution_correctness_assessment") is None or rescore):
 
                         # Score the solution
                         scoring_result = score_whodunit_solution(
