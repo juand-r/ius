@@ -5,6 +5,7 @@ Evaluates summaries or chunks by asking an LLM to identify the culprit.
 """
 
 import json
+import os
 import re
 import hashlib
 from datetime import datetime
@@ -333,9 +334,34 @@ def extract_ground_truth(item_data: Dict[str, Any], input_path: str = None) -> D
         else:
             logger.warning(f"❌ No ground truth found in Google Sheets for BMDS story {story_id}")
     else:
-        # Non-BMDS dataset - use JSON metadata (already extracted above)
-        dataset_name = "unknown" if not input_path else input_path.split("/")[-2] if "/" in input_path else input_path
+        # Non-BMDS dataset - extract suspects from dataset-specific locations
+        dataset_name = "unknown"
+        if input_path:
+            # Get last directory and split on underscore, take first part
+            last_dir = os.path.basename(input_path.rstrip("/"))
+            dataset_name = last_dir.split("_")[0]
+        
         logger.info(f"📁 Non-BMDS dataset ({dataset_name}), using JSON metadata for ground truth")
+        
+        # Extract suspects for non-BMDS datasets
+        try:
+            metadata = item_data["documents"][0]["metadata"]
+            # True Detective dataset - extract suspects from answer_options  
+            if "true-detective" in dataset_name.lower():
+                puzzle_data = metadata.get("original_metadata", {}).get("original_metadata", {}).get("puzzle_data", {})
+                answer_options = puzzle_data.get("answer_options", "")
+                if answer_options:
+                    ground_truth["suspects"] = answer_options
+                    logger.info(f"✅ Extracted suspects for true-detective from answer_options: {answer_options}")
+                else:
+                    logger.warning(f"❌ No answer_options found for true-detective item {story_id}")
+            else:
+                # Other non-BMDS datasets
+                raise NotImplementedError(f"Dataset '{dataset_name}' suspect extraction not implemented yet. Only true-detective is supported for non-BMDS datasets.")
+            
+        except (KeyError, IndexError, TypeError) as e:
+            logger.warning(f"Could not extract suspects for non-BMDS dataset {dataset_name}: {e}")
+        
         if not story_id:
             logger.warning("Cannot determine dataset type - no story_id found")
     
@@ -987,7 +1013,7 @@ def _score_single_category(
     except Exception as e:
         logger.error(f"Could not load {prompt_name} prompts: {e}")
         raise
-    
+
     # Make LLM call
     scoring_result = call_llm(
         text="",  # Not used for this prompt style
@@ -1007,7 +1033,7 @@ def _score_single_category(
     
     # Parse the response (single category)
     parsed_assessment = parse_single_category_response(scoring_result["response"], prompt_name)
-    
+
     if not parsed_assessment:
         # Return the raw response even when parsing fails for debugging
         return {
@@ -1024,7 +1050,8 @@ def _score_single_category(
         "raw_response": scoring_result["response"],
         "usage": scoring_result["usage"],
         "final_prompts_used": scoring_result.get("final_prompts_used", {}),
-        "finish_reason": scoring_result.get("finish_reason", "unknown")
+        "finish_reason": scoring_result.get("finish_reason", "unknown"),
+        "error": None
     }
 
 
@@ -1035,7 +1062,8 @@ def score_whodunit_solution(
     range_spec: str = "all",
     scoring_model: str = "gpt-5",
     max_completion_tokens: int = 100000,
-    ask_user_confirmation: bool = False
+    ask_user_confirmation: bool = False,
+    input_path: str = None
 ) -> Dict[str, Any]:
     """
     Score a whodunit solution against ground truth using LLM.
@@ -1048,11 +1076,37 @@ def score_whodunit_solution(
         scoring_model: LLM model for scoring
         max_completion_tokens: Max tokens for scoring
         ask_user_confirmation: Whether to ask for confirmation
+        input_path: Input path to detect dataset type (for non-BMDS handling)
         
     Returns:
         Dictionary with scoring results
     """
-    # Check if we should use the two-call approach
+    # Detect if this is a non-BMDS dataset
+    is_bmds = False
+    if input_path:
+        path_lower = input_path.lower()
+        is_bmds = "/bmds" in path_lower or "bmds_" in path_lower
+    
+    # For non-BMDS datasets, force culprits-only scoring
+
+    if not is_bmds:
+        logger.info("Non-BMDS dataset detected - using culprits-only scoring")
+        score_output = _score_single_category(
+            prompt_name="whodunit-scoring-culprits",
+            template_vars={
+                "suspects": ground_truth.get("suspects", "None"),
+                "ground_truth_culprits": ground_truth.get("culprits") or "None",
+                "ground_truth_accomplices": "None",  # Not used for culprits-only
+                "llm_main_culprits": llm_solution.get("main_culprits", "None"),
+                "llm_accomplices": "None"  # Not used for culprits-only
+            },
+            scoring_model=scoring_model,
+            max_completion_tokens=max_completion_tokens,
+            ask_user_confirmation=ask_user_confirmation
+        )
+        return score_output
+    
+    # Check if we should use the two-call approach (BMDS only)
     if scoring_prompt_name == "two-calls":
         logger.info("Using two-call scoring approach (separate culprit and accomplice calls)")
         return score_whodunit_solution_two_calls(
@@ -1414,18 +1468,41 @@ def run_whodunit_evaluation(
                 parsed_sections = parse_llm_response(llm_result["response"])
                 
 
+                # Extract puzzle_data for true-detective metadata 
+                puzzle_metadata = {}
+                try:
+                    # Detect if this is true-detective
+                    dataset_name = input_dir.split("/")[-2] if "/" in input_dir else input_dir
+                    if "true-detective" in dataset_name.lower():
+                        with open(item_file) as f:
+                            original_item_data = json.load(f)
+                        
+                        puzzle_data = original_item_data["documents"][0]["metadata"].get("original_metadata", {}).get("original_metadata", {}).get("puzzle_data", {})
+                        if puzzle_data:
+                            # Copy puzzle_data excluding mystery_text and outcome
+                            puzzle_metadata = {k: v for k, v in puzzle_data.items() if k not in ["mystery_text", "outcome"]}
+                            logger.info(f"✅ Added puzzle_data metadata for true-detective item {item_id}")
+                except Exception as e:
+                    logger.warning(f"Could not extract puzzle_data metadata for {item_id}: {e}")
+
                 # Create result with solution_correctness_assessment set to None
+                item_metadata = {
+                    "item_id": item_id,
+                    "input_type": input_type,
+                    "selected_range": range_spec,
+                    "selected_indices": selected_indices,
+                    "selected_text_length": len(selected_text),
+                    "reveal_segment_length": len(reveal_segment),
+                    "reveal_preview": reveal_preview,
+                    "whodunit_timestamp": datetime.now().isoformat()
+                }
+                
+                # Add puzzle_data for true-detective datasets
+                if puzzle_metadata:
+                    item_metadata["puzzle_data"] = puzzle_metadata
+                
                 item_result = {
-                    "item_metadata": {
-                        "item_id": item_id,
-                        "input_type": input_type,
-                        "selected_range": range_spec,
-                        "selected_indices": selected_indices,
-                        "selected_text_length": len(selected_text),
-                        "reveal_segment_length": len(reveal_segment),
-                        "reveal_preview": reveal_preview,
-                        "whodunit_timestamp": datetime.now().isoformat()
-                    },
+                    "item_metadata": item_metadata,
                     "evaluation_metadata": {
                         "prompt_name": prompt_name,
                         "model": model,
@@ -1465,7 +1542,7 @@ def run_whodunit_evaluation(
                 # Load existing item
                 with open(item_output_file) as f:
                     item_result = json.load(f)
-                
+
                 # Check if scoring is needed and scoring prompt is provided
                 if scoring_prompt_name and (item_result.get("solution_correctness_assessment") is None or rescore):
                     # Check if ground truth is available for scoring
@@ -1492,7 +1569,6 @@ def run_whodunit_evaluation(
 #                            logger.info(f"🔄 Re-scoring solution for {item_id}...")
 #                        else:
 #                            logger.info(f"📊 Scoring solution for {item_id}...")
-
                 if True:
 
                         # Score the solution
@@ -1503,9 +1579,9 @@ def run_whodunit_evaluation(
                             range_spec=range_spec,
                             scoring_model=scoring_model,
                             max_completion_tokens=100000,
-                            ask_user_confirmation=ask_user_confirmation
+                            ask_user_confirmation=ask_user_confirmation,
+                            input_path=input_dir
                         )
-                        
                         # Update item with scoring results
                         item_result["solution_correctness_assessment"] = scoring_result["assessment"]
                         
@@ -1526,21 +1602,21 @@ def run_whodunit_evaluation(
                         else:
                             # Single-call approach: already properly structured
                             scoring_prompts_used = prompts_used
-                        
+
                         item_result["scoring_metadata"] = {
                             "scoring_model": scoring_model,
                             "scoring_raw_response": scoring_raw_response,
                             "scoring_finish_reason": scoring_result.get("finish_reason"),
                             "scoring_usage": scoring_result["usage"],
-                            "scoring_error": scoring_result["error"],
+                            "scoring_error": scoring_result.get("error", None),
                             "scoring_timestamp": datetime.now().isoformat(),
                             "scoring_prompts_used": scoring_prompts_used
                         }
-                        
+
                         # Save updated item
                         with open(item_output_file, 'w') as f:
                             json.dump(item_result, f, indent=2)
-                        
+
                         total_cost += scoring_result["usage"]["total_cost"]
                         total_tokens += scoring_result["usage"]["total_tokens"]
                 elif not scoring_prompt_name:
