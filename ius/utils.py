@@ -254,6 +254,7 @@ def _estimate_input_cost_per_1m(model: str) -> float:
         "o3": 2.00,        # $2.00 per 1M input tokens
         "gpt-5": 1.25,     # $1.25 per 1M input tokens
         "gpt-4.1": 2.00,   # $2.00 per 1M input tokens
+        "gpt-5-mini": 0.25  # $0.25 per 1M input tokens
     }
     if model not in pricing:
         raise ValueError(f"No input cost pricing data available for model: {model}")
@@ -269,6 +270,7 @@ def _estimate_output_cost_per_1m(model: str) -> float:
         "o3": 8.00,       # $8.00 per 1M output tokens
         "gpt-5": 10.00,   # $10.00 per 1M output tokens
         "gpt-4.1": 8.00,   # $8.00 per 1M output tokens
+        "gpt-5-mini": 2.00 # $2.00 per 1M output tokens
     }
     if model not in pricing:
         raise ValueError(f"No output cost pricing data available for model: {model}")

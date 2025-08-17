@@ -1347,6 +1347,8 @@ def run_whodunit_evaluation(
     }
     
     # If input is summaries, include summarization info from source collection
+    summarization_model = None
+    summarization_prompt_name = None
     if input_type == "summaries":
         source_collection_file = input_path / "collection.json"
         if source_collection_file.exists():
@@ -1358,6 +1360,14 @@ def run_whodunit_evaluation(
                 if "summarization_info" in source_data:
                     collection_metadata["summarization_info"] = source_data["summarization_info"]
                     logger.info(f"Added summarization_info from source collection: {source_collection_file}")
+                    
+                    # Also extract collection-level metadata for individual items
+                    try:
+                        source_collection_metadata = source_data["summarization_info"]["collection_metadata"]
+                        summarization_model = source_collection_metadata.get("model")
+                        summarization_prompt_name = source_collection_metadata.get("prompt_name")
+                    except Exception as e:
+                        logger.debug(f"Could not extract collection-level summarization metadata: {e}")
                 else:
                     logger.warning(f"No summarization_info found in source collection: {source_collection_file}")
             except Exception as e:
@@ -1423,6 +1433,29 @@ def run_whodunit_evaluation(
             with open(item_file) as f:
                 original_item_data = json.load(f)
             ground_truth = extract_ground_truth(original_item_data, input_dir)
+            
+            # Extract summarization metadata from item (for summaries input)
+            item_optional_summary_length = None
+            item_strategy_function = None
+            item_summary_content_type = None
+            item_step_k_inputs = None
+            
+            if input_type == "summaries":
+                try:
+                    documents = original_item_data.get("documents", [])
+                    if documents:
+                        item_metadata_dict = documents[0].get("metadata", {}).get("item_experiment_metadata", {})
+                        
+                        # From template_vars
+                        template_vars = item_metadata_dict.get("template_vars", {})
+                        item_optional_summary_length = template_vars.get("optional_summary_length")
+                        
+                        # From item_experiment_metadata
+                        item_strategy_function = item_metadata_dict.get("strategy_function")
+                        item_summary_content_type = item_metadata_dict.get("summary_content_type")
+                        item_step_k_inputs = item_metadata_dict.get("step_k_inputs")
+                except Exception as e:
+                    logger.debug(f"Could not extract item-level summarization metadata for {item_id}: {e}")
 
             # PHASE 1: SOLVE (if needed)
             if not item_output_file.exists() or overwrite:
@@ -1492,10 +1525,22 @@ def run_whodunit_evaluation(
                     "selected_range": range_spec,
                     "selected_indices": selected_indices,
                     "selected_text_length": len(selected_text),
+                    "total_chunks": len(segments),
                     "reveal_segment_length": len(reveal_segment),
                     "reveal_preview": reveal_preview,
-                    "whodunit_timestamp": datetime.now().isoformat()
+                    "evaluation_timestamp": datetime.now().isoformat()
                 }
+                
+                # Add summarization metadata if available (for summaries input)
+                if input_type == "summaries":
+                    item_metadata.update({
+                        "optional_summary_length": item_optional_summary_length,
+                        "strategy_function": item_strategy_function,
+                        "summary_content_type": item_summary_content_type,
+                        "step_k_inputs": item_step_k_inputs,
+                        "summarization_model": summarization_model,
+                        "summarization_prompt_name": summarization_prompt_name
+                    })
                 
                 # Add puzzle_data for true-detective datasets
                 if puzzle_metadata:

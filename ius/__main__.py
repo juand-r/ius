@@ -35,7 +35,7 @@ def main():
         from ius.cli.summarize import main as summarize_main
 
         summarize_main()
-    elif command == "claim-extract" or command == "claims":
+    elif command == "claim-extract":
         from ius.cli.claim_extract import main as claim_extract_main
 
         claim_extract_main()
@@ -43,6 +43,10 @@ def main():
         from ius.cli.whodunit import main as whodunit_main
 
         whodunit_main()
+    elif command == "entity-coverage":
+        from ius.cli.entity_coverage import main as entity_coverage_main
+
+        entity_coverage_main()
     elif command == "help" or command == "-h" or command == "--help":
         print_help()
     else:
@@ -59,17 +63,19 @@ def print_help():
     print("  python -m ius <command> [options]")
     print()
     print("Available commands:")
-    print("  chunk         Chunk documents for summarization")
-    print("  summarize     Generate summaries from chunked data")
-    print("  claim-extract Extract claims from summaries")
-    print("  whodunit      Evaluate detective stories (whodunit analysis)")
-    print("  help          Show this help message")
+    print("  chunk           Chunk documents for summarization")
+    print("  summarize       Generate summaries from chunked data")
+    print("  claim-extract   Extract claims from summaries")
+    print("  whodunit        Evaluate detective stories (whodunit analysis)")
+    print("  entity-coverage Evaluate entity coverage in summaries")
+    print("  help            Show this help message")
     print()
     print("Examples:")
     print("  python -m ius chunk --dataset bmds --strategy fixed_size --size 2048")
     print("  python -m ius summarize --input outputs/chunks/ipython_test")
     print("  python -m ius claim-extract --input outputs/summaries/bmds_summaries")
     print("  python -m ius whodunit --input outputs/summaries/bmds_summaries --range 1-3")
+    print("  python -m ius entity-coverage --input outputs/summaries/bmds_summaries --range penultimate")
     print("  python -m ius help")
     print()
     print("For command-specific help:")
@@ -77,6 +83,7 @@ def print_help():
     print("  python -m ius summarize --help")
     print("  python -m ius claim-extract --help")
     print("  python -m ius whodunit --help")
+    print("  python -m ius entity-coverage --help")
 
 
 if __name__ == "__main__":
