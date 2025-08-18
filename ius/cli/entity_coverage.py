@@ -42,6 +42,7 @@ def evaluate_entity_coverage_dataset(
     output_dir: str | None = None,
     overwrite: bool = False,
     verbose: bool = False,
+    stop_after: int | None = None,
 ) -> dict[str, Any]:
     """
     Run entity coverage evaluation on a summary dataset.
@@ -54,6 +55,7 @@ def evaluate_entity_coverage_dataset(
         output_dir: Optional custom output directory name
         overwrite: Whether to overwrite existing results
         verbose: Enable verbose logging
+        stop_after: Optional limit on number of items to process (for testing)
 
     Returns:
         Dictionary with evaluation results and statistics
@@ -69,6 +71,8 @@ def evaluate_entity_coverage_dataset(
     if output_dir:
         logger.info(f"Output directory: {output_dir}")
     logger.info(f"Overwrite: {overwrite}")
+    if stop_after:
+        logger.info(f"Stop after: {stop_after} items")
 
     start_time = time.time()
 
@@ -80,7 +84,8 @@ def evaluate_entity_coverage_dataset(
             model=model,
             prompt_name=prompt_name,
             output_dir=output_dir,
-            overwrite=overwrite
+            overwrite=overwrite,
+            stop_after=stop_after
         )
 
         end_time = time.time()
@@ -141,6 +146,9 @@ Examples:
   # Custom output directory and overwrite existing results
   python -m ius entity-coverage --input outputs/summaries/bmds_fixed_size2_8000_all_concat_5e8bbe --output-dir my_test --overwrite
 
+  # Process only first 10 items for testing
+  python -m ius entity-coverage --input outputs/summaries/bmds_fixed_size2_8000_all_concat_5e8bbe --stop 10
+
 Range specifications:
   penultimate     Use second-to-last summary chunk (default)
   all-but-last    Use all chunks except the last one
@@ -199,6 +207,12 @@ Supported models:
         help="Enable verbose logging",
     )
 
+    parser.add_argument(
+        "--stop",
+        type=int,
+        help="Stop processing after this many items (for testing/preview)",
+    )
+
     # Parse arguments
     args = parser.parse_args()
 
@@ -216,6 +230,7 @@ Supported models:
             output_dir=args.output_dir,
             overwrite=args.overwrite,
             verbose=args.verbose,
+            stop_after=args.stop,
         )
 
         logger.info("Entity coverage evaluation completed successfully!")

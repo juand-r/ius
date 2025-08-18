@@ -1269,7 +1269,8 @@ def run_whodunit_evaluation(
     rescore: bool = False,
     command_run: Optional[str] = None,
     ask_user_confirmation: bool = False,
-    verbose: bool = False
+    verbose: bool = False,
+    stop_after: Optional[int] = None
 ) -> Dict[str, Any]:
     """
     Run whodunit evaluation on detective stories.
@@ -1286,6 +1287,7 @@ def run_whodunit_evaluation(
         command_run: Command that was run (for reproducibility)
         ask_user_confirmation: Whether to ask for user confirmation
         verbose: Enable verbose logging
+        stop_after: Optional limit on number of items to process (for testing)
         
     Returns:
         Dictionary with evaluation results and metadata
@@ -1403,6 +1405,12 @@ def run_whodunit_evaluation(
         item_files = sorted(items_dir.glob("*.json"))
     
     logger.info(f"Processing {len(item_files)} items")
+    
+    # Apply stop_after limit if specified
+    if stop_after is not None:
+        original_count = len(item_files)
+        item_files = item_files[:stop_after]
+        logger.info(f"Limiting processing to first {stop_after} items (out of {original_count} available)")
     
     # Update total_items count and save initial collection.json
     collection_data["whodunit_evaluation_info"]["processing_stats"]["total_items"] = len(item_files)

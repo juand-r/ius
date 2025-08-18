@@ -48,6 +48,7 @@ def evaluate_whodunit_dataset(
     rescore: bool = False,
     ask_user_confirmation: bool = False,
     verbose: bool = False,
+    stop_after: int | None = None,
 ) -> dict[str, Any]:
     """
     CLI wrapper for whodunit evaluation on detective stories.
@@ -64,6 +65,7 @@ def evaluate_whodunit_dataset(
         overwrite: Whether to overwrite existing item results
         ask_user_confirmation: Whether to ask for confirmation before API calls
         verbose: Enable verbose logging
+        stop_after: Optional limit on number of items to process (for testing)
         
     Returns:
         Dictionary with evaluation results and metadata
@@ -87,8 +89,13 @@ def evaluate_whodunit_dataset(
     if scope == "item":
         print(f"📋 Processing {len(item_ids)} specific items: {', '.join(item_ids)}")
     
+    if stop_after:
+        print(f"🛑 Stop after: {stop_after} items")
+    
     logger.info(f"Starting whodunit evaluation from: {input_path}")
     logger.info(f"Range: {range_spec}, Model: {model}, Prompt: {prompt_name}, Scope: {scope}")
+    if stop_after:
+        logger.info(f"Stop after: {stop_after} items")
     
     start_time = time.time()
     
@@ -113,7 +120,8 @@ def evaluate_whodunit_dataset(
             rescore=rescore,
             command_run=command_run,
             ask_user_confirmation=ask_user_confirmation,
-            verbose=verbose
+            verbose=verbose,
+            stop_after=stop_after
         )
         
         # Show the actual auto-generated output name
@@ -187,6 +195,9 @@ Examples:
 
   # Custom output directory
   python -m ius whodunit --input outputs/summaries/bmds_summaries --output outputs/eval/custom_whodunit
+  
+  # Process only first 10 items for testing
+  python -m ius whodunit --input outputs/summaries/bmds_summaries --stop 10
         """
     )
     
@@ -281,6 +292,12 @@ Examples:
         help="Enable verbose logging (equivalent to --log-level DEBUG)"
     )
     
+    parser.add_argument(
+        "--stop",
+        type=int,
+        help="Stop processing after this many items (for testing/preview)"
+    )
+    
     args = parser.parse_args()
     
     # Set up logging (verbose flag overrides log-level)
@@ -305,7 +322,8 @@ Examples:
             "overwrite": args.overwrite,
             "rescore": args.rescore,
             "ask_user_confirmation": args.confirm,
-            "verbose": args.verbose
+            "verbose": args.verbose,
+            "stop_after": args.stop
         }
         
         result = evaluate_whodunit_dataset(**kwargs)

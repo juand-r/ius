@@ -593,7 +593,8 @@ def run_entity_coverage_evaluation(
     model: str = "gpt-5-mini",
     prompt_name: str = "default-entity-matching",
     output_dir: Optional[str] = None,
-    overwrite: bool = False
+    overwrite: bool = False,
+    stop_after: Optional[int] = None
 ) -> str:
     """
     Run entity coverage evaluation on summaries.
@@ -605,6 +606,7 @@ def run_entity_coverage_evaluation(
         prompt_name: Name of matching prompt
         output_dir: Optional custom output directory name
         overwrite: Whether to overwrite existing results
+        stop_after: Optional limit on number of items to process (for testing)
         
     Returns:
         Path to output directory
@@ -717,6 +719,12 @@ def run_entity_coverage_evaluation(
     successful_items = 0
     failed_items = 0
     skipped_items = 0
+    
+    # Apply stop_after limit if specified
+    if stop_after is not None:
+        original_count = len(item_files)
+        item_files = item_files[:stop_after]
+        logger.info(f"Limiting processing to first {stop_after} items (out of {original_count} available)")
     
     for item_file in tqdm(item_files, desc="Processing items"):
         item_id = item_file.stem
