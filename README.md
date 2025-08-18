@@ -878,6 +878,66 @@ make sync-requirements
 - `requirements-dev.txt` - Auto-generated, includes dev tools (pytest, ruff)
 - `requirements*.in` - Input files for pip-tools (don't edit directly)
 
+## SacreROUGE Setup
+
+This project supports SacreROUGE for reference-free and reference-based summarization evaluation. SacreROUGE provides access to many evaluation metrics including ROUGE, BERTScore, and others.
+
+### Installation Steps
+
+#### Option 1: Using Optional Dependencies (Recommended)
+
+```bash
+# 1. Activate your virtual environment
+source venv/bin/activate
+
+# 2. Install with metrics dependencies
+pip install -e ".[metrics]"
+
+# 3. Set up ROUGE metric dependencies (downloads Perl scripts to ~/.sacrerouge/)
+sacrerouge setup-metric rouge
+```
+
+#### Option 2: Manual Installation
+
+```bash
+# 1. Activate your virtual environment
+source venv/bin/activate
+
+# 2. Install SacreROUGE
+pip install sacrerouge
+
+# 3. Install the correct version of GoogleDriveDownloader (required for compatibility)
+pip install GoogleDriveDownloader==0.4
+
+# 4. Set up ROUGE metric dependencies (downloads Perl scripts to ~/.sacrerouge/)
+sacrerouge setup-metric rouge
+```
+
+### Usage Example
+
+```python
+# Basic ROUGE evaluation
+summary = 'Dan walked to the bakery this morning.'
+reference = 'Dan went to buy scones earlier this morning.'
+
+from sacrerouge.metrics import Rouge
+rouge = Rouge(max_ngram=2)
+result = rouge.score(summary, [reference])
+print(result)
+# Output: {'rouge-1': {'recall': 50.0, 'precision': 57.143, 'f1': 53.333}, 
+#          'rouge-2': {'recall': 14.285999999999998, 'precision': 16.667, 'f1': 15.384999999999998}}
+```
+
+### Troubleshooting
+
+**GoogleDriveDownloader Import Error**: If you see `ModuleNotFoundError: No module named 'google_drive_downloader'`, install the specific version:
+```bash
+pip uninstall GoogleDriveDownloader  
+pip install GoogleDriveDownloader==0.4
+```
+
+**NLTK Circular Import**: If you encounter `AttributeError: partially initialized module 'nltk' has no attribute 'data'`, restart your Python session and ensure imports are in the correct order.
+
 ## Configuration
 
 The framework supports flexible configuration through environment variables and code.
