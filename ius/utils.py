@@ -306,44 +306,37 @@ def _model_supports_max_completion_tokens(model: str) -> bool:
 
 def _log_cost_to_file(total_cost: float, model: str, input_tokens: int, output_tokens: int,
                      total_tokens: int, input_cost: float, output_cost: float) -> None:
-    """Log detailed cost breakdown and usage to cumulative spending JSON file."""
-    import json
+    """Log detailed cost breakdown to append-only spending log file."""
     from datetime import datetime
-
-    filename = "cumulative-openai-spending.json"
+    
+    filename = "cumulative-openai-spending.txt"
     timestamp = datetime.now().isoformat()
+    
+    # Simple CSV format - atomic append operation, no race conditions possible
+    log_line = f"{timestamp},{model},{input_tokens},{output_tokens},{total_tokens},{input_cost:.6f},{output_cost:.6f},{total_cost:.6f}\n"
+    
+    with open(filename, 'a') as f:
+        f.write(log_line)
 
-    # Load existing data or create new structure
+
+def calculate_total_spending(filename: str = "cumulative-openai-spending.txt") -> float:
+    """Calculate total spending from the append-only spending log file."""
+    total = 0.0
     try:
-        with open(filename) as f:
-            data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        data = {
-            "total_cost_cumulative": 0.0,
-            "last_updated": timestamp,
-            "entries": []
-        }
-
-    # Add new entry with detailed cost breakdown
-    new_entry = {
-        "timestamp": timestamp,
-        "model": model,
-        "input_tokens": input_tokens,
-        "output_tokens": output_tokens,
-        "total_tokens": total_tokens,
-        "input_cost": round(input_cost, 6),
-        "output_cost": round(output_cost, 6),
-        "total_cost": round(total_cost, 6)
-    }
-
-    data["entries"].append(new_entry)
-    data["total_cost_cumulative"] += total_cost
-    data["total_cost_cumulative"] = round(data["total_cost_cumulative"], 6)
-    data["last_updated"] = timestamp
-
-    # Write back to file
-    with open(filename, 'w') as f:
-        json.dump(data, f, indent=2)
+        with open(filename, 'r') as f:
+            for line in f:
+                if line.strip():  # Skip empty lines
+                    parts = line.strip().split(',')
+                    if len(parts) >= 8:  # Ensure we have all columns
+                        total += float(parts[7])  # Last column is total_cost
+    except FileNotFoundError:
+        # File doesn't exist yet - no spending recorded
+        return 0.0
+    except (ValueError, IndexError) as e:
+        print(f"Warning: Error parsing spending log line: {e}")
+        # Continue processing other lines
+    
+    return total
 
 
 
