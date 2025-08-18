@@ -165,6 +165,12 @@ python -m ius whodunit --input outputs/summaries/bmds_summaries
 
 # Evaluate using specific range of chunks/summaries with scoring
 python -m ius whodunit --input outputs/chunks/bmds_fixed_size2_8000 --range 1-3 --scoring-prompt whodunit-scoring-culprits-and-accomplices
+
+# Evaluate entity coverage in summaries
+python -m ius entity-coverage --input outputs/summaries/bmds_summaries --range penultimate
+
+# Evaluate entity coverage across multiple ranges (all available)
+python -m ius entity-coverage-multi --input outputs/summaries/bmds_summaries
 ```
 
 ### Advanced Features
@@ -297,6 +303,51 @@ python -m ius whodunit --input outputs/chunks/bmds_fixed_size2_8000 --model o3 -
 # Check finish_reason in output JSONs for debugging:
 # "stop" = normal completion, "length" = hit token limit
 ```
+
+### Entity Coverage Evaluation Commands
+
+The CLI provides intrinsic evaluation capabilities for summaries using entity coverage analysis. This evaluation measures how well summaries preserve named entities (people, places, organizations) from the source text, providing metrics like Jaccard similarity, recall, and precision.
+
+```bash
+# Evaluate entity coverage using all available summary text
+python -m ius entity-coverage --input outputs/summaries/bmds_summaries
+
+# Evaluate using specific range of summaries
+python -m ius entity-coverage --input outputs/summaries/bmds_summaries --range penultimate
+
+# Evaluate specific items using the last summary
+python -m ius entity-coverage --input outputs/summaries/bmds_summaries --range last
+
+# Use different range specifications
+python -m ius entity-coverage --input outputs/summaries/bmds_summaries --range all-but-last  # All except last
+python -m ius entity-coverage --input outputs/summaries/bmds_summaries --range 1-4         # First 4 summaries
+python -m ius entity-coverage --input outputs/summaries/bmds_summaries --range 3          # Just 3rd summary
+
+# Use a different model and prompt
+python -m ius entity-coverage --input outputs/summaries/bmds_summaries --model gpt-4o --prompt custom-entity-prompt
+
+# Enable verbose logging
+python -m ius entity-coverage --input outputs/summaries/bmds_summaries --verbose
+
+# Custom output directory
+python -m ius entity-coverage --input outputs/summaries/bmds_summaries --output-dir outputs/eval/custom_entity
+
+# Overwrite existing results
+python -m ius entity-coverage --input outputs/summaries/bmds_summaries --overwrite
+
+# Multi-range evaluation (evaluates all available ranges)
+python -m ius entity-coverage-multi --input outputs/summaries/bmds_summaries
+
+# Multi-range evaluation up to specific range
+python -m ius entity-coverage-multi --input outputs/summaries/bmds_summaries --max-range 5
+
+# Multi-range with custom settings
+python -m ius entity-coverage-multi --input outputs/summaries/bmds_summaries --max-range 8 --model gpt-4o --verbose
+```
+
+**How it works:** The entity coverage evaluation performs a two-step process: (1) extracts named entities from the source documents using spaCy, with caching for efficiency, and (2) extracts entities from summaries and compares them using a hybrid matching approach that combines fast string normalization with LLM-based matching for higher accuracy.
+
+**Output:** Results are saved in `outputs/eval/intrinsic/entity-coverage/` with comprehensive metrics including intersection entities, summary-only entities, source-only entities, and computed similarity metrics.
 
 ### Summarization Commands
 
@@ -440,6 +491,7 @@ Default strategy: concat_and_summarize
 - **🔗 Command Reproducibility**: Full command history stored in metadata for perfect experiment reproduction
 - **🔍 Claim Extraction**: Extract concrete, verifiable claims from generated summaries using LLMs
 - **🕵️ Whodunit Evaluation**: Extrinsic evaluation of detective stories using whodunit analysis prompts
+- **🏷️ Entity Coverage Evaluation**: Intrinsic evaluation measuring how well summaries preserve named entities from source text
 
 ### Example Output
 
@@ -1144,9 +1196,10 @@ The framework has been significantly enhanced with production-ready features:
 - **Command Reproducibility**: Complete command tracking in both chunking and summarization metadata for scientific transparency
 - **Claim Extraction**: LLM-based extraction of concrete, verifiable claims from generated summaries with structured JSON output
 - **Whodunit Evaluation**: Extrinsic evaluation framework for detective stories using whodunit analysis prompts to assess summary quality
+- **Entity Coverage Evaluation**: Intrinsic evaluation system measuring how well summaries preserve named entities using spaCy extraction and hybrid LLM matching
 
 ### 🚧 In Progress  
-- **Additional Evaluation Metrics**: Intrinsic metrics for content preservation, summary quality, and computational efficiency
+- **Additional Evaluation Metrics**: Expanding intrinsic metrics beyond entity coverage (e.g., content preservation, factual accuracy, computational efficiency)
 
 ### 📋 Planned Features
 - **Multi-document datasets**: News sequences, TV show episodes, book series

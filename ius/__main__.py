@@ -47,6 +47,14 @@ def main():
         from ius.cli.entity_coverage import main as entity_coverage_main
 
         entity_coverage_main()
+    elif command == "entity-coverage-multi":
+        from ius.cli.entity_coverage_multi import main as entity_coverage_multi_main
+
+        entity_coverage_multi_main()
+    elif command == "supert":
+        from ius.cli.supert import main as supert_main
+
+        supert_main()
     elif command == "help" or command == "-h" or command == "--help":
         print_help()
     else:
@@ -67,7 +75,9 @@ def print_help():
     print("  summarize       Generate summaries from chunked data")
     print("  claim-extract   Extract claims from summaries")
     print("  whodunit        Evaluate detective stories (whodunit analysis)")
-    print("  entity-coverage Evaluate entity coverage in summaries")
+    print("  entity-coverage       Evaluate entity coverage in summaries")
+    print("  entity-coverage-multi Evaluate entity coverage across multiple ranges")
+    print("  supert          Evaluate summaries using SUPERT (reference-free metric)")
     print("  help            Show this help message")
     print()
     print("Examples:")
@@ -76,6 +86,8 @@ def print_help():
     print("  python -m ius claim-extract --input outputs/summaries/bmds_summaries")
     print("  python -m ius whodunit --input outputs/summaries/bmds_summaries --range 1-3")
     print("  python -m ius entity-coverage --input outputs/summaries/bmds_summaries --range penultimate")
+    print("  python -m ius entity-coverage-multi --input outputs/summaries/bmds_summaries --max-range 5")
+    print("  python -m ius supert --input outputs/summaries/bmds_summaries --chunks outputs/chunks/bmds_chunks")
     print("  python -m ius help")
     print()
     print("For command-specific help:")
@@ -84,6 +96,8 @@ def print_help():
     print("  python -m ius claim-extract --help")
     print("  python -m ius whodunit --help")
     print("  python -m ius entity-coverage --help")
+    print("  python -m ius entity-coverage-multi --help")
+    print("  python -m ius supert --help")
 
 
 if __name__ == "__main__":
