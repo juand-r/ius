@@ -3,7 +3,7 @@ Command-line interface for entity coverage evaluation operations.
 
 Usage:
     python -m ius entity-coverage --input outputs/summaries/bmds_fixed_size2_8000_all_concat_5e8bbe --range penultimate
-    python -m ius entity-coverage --input outputs/summaries/bmds_fixed_size2_8000_all_concat_5e8bbe --range all-but-last --model gpt-4o
+    python -m ius entity-coverage --input outputs/summaries/bmds_fixed_size2_8000_all_concat_5e8bbe --range all-but-last --model gpt-5-mini
 """
 
 import argparse
@@ -43,6 +43,8 @@ def evaluate_entity_coverage_dataset(
     overwrite: bool = False,
     verbose: bool = False,
     stop_after: int | None = None,
+    add_reveal: bool = False,
+    reveal_only: bool = False,
 ) -> dict[str, Any]:
     """
     Run entity coverage evaluation on a summary dataset.
@@ -56,6 +58,7 @@ def evaluate_entity_coverage_dataset(
         overwrite: Whether to overwrite existing results
         verbose: Enable verbose logging
         stop_after: Optional limit on number of items to process (for testing)
+        add_reveal: Whether to append reveal text to source documents
 
     Returns:
         Dictionary with evaluation results and statistics
@@ -85,7 +88,9 @@ def evaluate_entity_coverage_dataset(
             prompt_name=prompt_name,
             output_dir=output_dir,
             overwrite=overwrite,
-            stop_after=stop_after
+            stop_after=stop_after,
+            add_reveal=add_reveal,
+            reveal_only=reveal_only
         )
 
         end_time = time.time()
@@ -149,6 +154,12 @@ Examples:
   # Process only first 10 items for testing
   python -m ius entity-coverage --input outputs/summaries/bmds_fixed_size2_8000_all_concat_5e8bbe --stop 10
 
+  # Include reveal text in source documents (for detective stories)
+  python -m ius entity-coverage --input outputs/summaries/bmds_fixed_size2_8000_all_concat_5e8bbe --add-reveal
+
+  # Use only reveal text as source documents (for detective stories)
+  python -m ius entity-coverage --input outputs/summaries/bmds_fixed_size2_8000_all_concat_5e8bbe --reveal-only
+
 Range specifications:
   penultimate     Use second-to-last summary chunk (default)
   all-but-last    Use all chunks except the last one
@@ -158,9 +169,10 @@ Range specifications:
   2               Use only chunk 2
 
 Supported models:
+
+  gpt-5-mini      OpenAI GPT-5-mini (default)
   gpt-4o          OpenAI GPT-4o 
   gpt-4.1-mini    OpenAI GPT-4.1-mini
-  gpt-5-mini      OpenAI GPT-5-mini
         """,
     )
 
@@ -213,6 +225,18 @@ Supported models:
         help="Stop processing after this many items (for testing/preview)",
     )
 
+    parser.add_argument(
+        "--add-reveal",
+        action="store_true",
+        help="Append reveal text to source documents (for bmds and true-detective datasets)",
+    )
+
+    parser.add_argument(
+        "--reveal-only",
+        action="store_true",
+        help="Use only reveal text as source documents (for bmds and true-detective datasets)",
+    )
+
     # Parse arguments
     args = parser.parse_args()
 
@@ -231,6 +255,8 @@ Supported models:
             overwrite=args.overwrite,
             verbose=args.verbose,
             stop_after=args.stop,
+            add_reveal=args.add_reveal,
+            reveal_only=args.reveal_only,
         )
 
         logger.info("Entity coverage evaluation completed successfully!")

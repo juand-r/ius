@@ -17,8 +17,9 @@ from rapidfuzz import fuzz
 from ius.utils import call_llm
 from ius.exceptions import ValidationError
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
+# Set up logging (only if not already configured)
+if not logging.getLogger().hasHandlers():
+    logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def load_spacy_model():
@@ -79,7 +80,7 @@ def extract_dataset_name(input_path: str) -> str:
     dataset_name = last_dir.split("_")[0]
     return dataset_name
 
-def get_source_entities(item_id: str, dataset_name: str, nlp, force_extract: bool = False, model: str = "gpt-4o") -> Tuple[List[str], List[str], Dict[str, List[str]], str]:
+def get_source_entities(item_id: str, dataset_name: str, nlp, force_extract: bool = False, model: str = "gpt-5-mini", add_reveal: bool = False, reveal_only: bool = False) -> Tuple[List[str], List[str], Dict[str, List[str]], str]:
     """Get or extract entities from source dataset item."""
     
     # Check cache first
@@ -120,6 +121,66 @@ def get_source_entities(item_id: str, dataset_name: str, nlp, force_extract: boo
         logger.warning(f"No content found in documents[0] of source file: {source_file}")
         return [], [], {}, ""
     
+    # Check for conflicting flags
+    if add_reveal and reveal_only:
+        raise ValueError("Cannot use both --add-reveal and --reveal-only flags together")
+    
+    # Add reveal text if requested
+    if add_reveal:
+        reveal_text = ""
+        try:
+            metadata = documents[0].get("metadata", {})
+            
+            if dataset_name == "bmds":
+                # For bmds: documents[0]['metadata']['detection']['reveal_segment']
+                reveal_text = metadata.get("detection", {}).get("reveal_segment", "")
+            elif dataset_name == "true-detective":
+                # For true-detective: documents[0]['metadata']['original_metadata']['reveal_text']
+                reveal_text = metadata.get("original_metadata", {}).get("reveal_text", "")
+            else:
+                logger.warning(f"Unknown dataset '{dataset_name}' - cannot extract reveal text")
+                raise ValueError(f"Unknown dataset '{dataset_name}' - cannot extract reveal text")
+            
+            if reveal_text:
+                content = content + "\n\n" + reveal_text
+                logger.debug(f"Added reveal text to {item_id} (length: {len(reveal_text)} chars)")
+            else:
+                logger.warning(f"No reveal text found for {item_id}")
+                raise ValueError(f"No reveal text found for {item_id}")
+                
+        except Exception as e:
+            logger.warning(f"Failed to extract reveal text for {item_id}: {e}")
+            raise ValueError(f"Failed to extract reveal text for {item_id}: {e}")
+    
+    # Use only reveal text if requested  
+    if reveal_only:
+        reveal_text = ""
+        try:
+            metadata = documents[0].get("metadata", {})
+            
+            if dataset_name == "bmds":
+                # For bmds: documents[0]['metadata']['detection']['reveal_segment']
+                reveal_text = metadata.get("detection", {}).get("reveal_segment", "")
+            elif dataset_name == "true-detective":
+                # For true-detective: documents[0]['metadata']['original_metadata']['reveal_text']
+                reveal_text = metadata.get("original_metadata", {}).get("reveal_text", "")
+            else:
+                logger.warning(f"Unknown dataset '{dataset_name}' - cannot extract reveal text")
+                raise ValueError(f"Unknown dataset '{dataset_name}' - cannot extract reveal text")
+            
+            if reveal_text:
+                content = reveal_text
+                logger.debug(f"Using only reveal text for {item_id} (length: {len(reveal_text)} chars)")
+            else:
+                logger.warning(f"No reveal text found for {item_id}")
+                raise ValueError(f"No reveal text found for {item_id}")
+                
+        except Exception as e:
+            logger.warning(f"Failed to extract reveal text for {item_id}: {e}")
+            raise ValueError(f"Failed to extract reveal text for {item_id}: {e}")
+
+    logger.debug(f"Content: {content}")
+
     original_entities = extract_entities_with_spacy(content, nlp)
     logger.info(f"Extracted {len(original_entities)} original entities, now deduplicating...")
     
@@ -205,7 +266,7 @@ def select_summary_text(summaries: List[str], range_spec: str) -> Tuple[str, Lis
     
     return selected_text, selected_indices
 
-def deduplicate_entities_with_llm(entities: List[str], model: str = "gpt-4o", context_text: str = "") -> Tuple[List[str], Dict[str, List[str]], str]:
+def deduplicate_entities_with_llm(entities: List[str], model: str = "gpt-5-mini", context_text: str = "") -> Tuple[List[str], Dict[str, List[str]], str]:
     """
     Use LLM to group entity variations that refer to the same person/entity.
     Uses OpenAI structured outputs to guarantee valid JSON.
@@ -594,7 +655,10 @@ def run_entity_coverage_evaluation(
     prompt_name: str = "default-entity-matching",
     output_dir: Optional[str] = None,
     overwrite: bool = False,
-    stop_after: Optional[int] = None
+    stop_after: Optional[int] = None,
+    add_reveal: bool = False,
+    reveal_only: bool = False,
+    item_id: Optional[str] = None
 ) -> str:
     """
     Run entity coverage evaluation on summaries.
@@ -607,6 +671,8 @@ def run_entity_coverage_evaluation(
         output_dir: Optional custom output directory name
         overwrite: Whether to overwrite existing results
         stop_after: Optional limit on number of items to process (for testing)
+        add_reveal: Whether to append reveal text to source documents
+        item_id: Optional specific item ID to process (if None, processes all items)
         
     Returns:
         Path to output directory
@@ -628,21 +694,26 @@ def run_entity_coverage_evaluation(
     dataset_name = extract_dataset_name(input_path)
     logger.info(f"Detected dataset: {dataset_name}")
     
+    # Generate hash parameters (always needed for collection metadata)
+    hash_parameters = {
+        "extraction_method": "spacy",
+        "extraction_model": "en_core_web_lg",
+        "model": model,
+        "prompt_name": prompt_name,
+        "range_spec": range_spec,
+        "temperature": 1.0,
+        "max_completion_tokens": 10000,
+        "add_reveal": add_reveal,
+        "reveal_only": reveal_only
+    }
+    
     # Generate output directory name if not provided
     if output_dir is None:
-        hash_parameters = {
-            "extraction_method": "spacy",
-            "extraction_model": "en_core_web_lg",
-            "model": model,
-            "prompt_name": prompt_name,
-            "range_spec": range_spec,
-            "temperature": 1.0,
-            "max_completion_tokens": 10000
-        }
-        
         hash_value = generate_output_hash(hash_parameters)
         input_basename = os.path.basename(input_path.rstrip('/'))
         output_dir = f"{input_basename}_entity_coverage_{hash_value}"
+    else:
+        hash_value = generate_output_hash(hash_parameters)
     
     # Create output directory
     output_path = Path(f"outputs/eval/intrinsic/entity-coverage/{output_dir}")
@@ -677,7 +748,14 @@ def run_entity_coverage_evaluation(
     if not item_files:
         raise ValueError(f"No JSON files found in {items_dir}")
     
-    logger.info(f"Found {len(item_files)} items to process")
+    # Filter to specific item if requested
+    if item_id is not None:
+        item_files = [f for f in item_files if f.stem == item_id]
+        if not item_files:
+            raise ValueError(f"Item '{item_id}' not found in collection")
+        logger.info(f"Processing single item: {item_id}")
+    else:
+        logger.info(f"Found {len(item_files)} items to process")
     
     # Initialize collection metadata
     collection_metadata = {
@@ -790,7 +868,7 @@ def run_entity_coverage_evaluation(
             logger.info(f"Deduplicated to {len(summary_entities)} canonical summary entities")
             
             # Get source entities (Step 1 - with caching and deduplication)
-            original_source_entities, source_entities, source_grouping_info, source_dedup_response = get_source_entities(item_id, dataset_name, nlp, model=model)
+            original_source_entities, source_entities, source_grouping_info, source_dedup_response = get_source_entities(item_id, dataset_name, nlp, model=model, add_reveal=add_reveal, reveal_only=reveal_only)
             
             if not source_entities:
                 logger.warning(f"No source entities found for {item_id}")

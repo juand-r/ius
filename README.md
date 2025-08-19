@@ -343,9 +343,24 @@ python -m ius entity-coverage-multi --input outputs/summaries/bmds_summaries --m
 
 # Multi-range with custom settings
 python -m ius entity-coverage-multi --input outputs/summaries/bmds_summaries --max-range 8 --model gpt-4o --verbose
+
+# Detective story specific options - append reveal text to full story
+python -m ius entity-coverage --input outputs/summaries/bmds_summaries --add-reveal
+
+# Detective story specific options - use only reveal text as source  
+python -m ius entity-coverage --input outputs/summaries/bmds_summaries --reveal-only
+
+# Multi-range with reveal text options
+python -m ius entity-coverage-multi --input outputs/summaries/bmds_summaries --max-range 5 --add-reveal
+python -m ius entity-coverage-multi --input outputs/summaries/bmds_summaries --max-range 5 --reveal-only
 ```
 
 **How it works:** The entity coverage evaluation performs a two-step process: (1) extracts named entities from the source documents using spaCy, with caching for efficiency, and (2) extracts entities from summaries and compares them using a hybrid matching approach that combines fast string normalization with LLM-based matching for higher accuracy.
+
+**Detective Story Options:** For detective stories (BMDS and True Detective datasets), you can control how the "reveal" text (the solution) is handled:
+- `--add-reveal`: Append reveal text to the full story content (`story + "\n\n" + reveal`)
+- `--reveal-only`: Use only the reveal text as the source content (`reveal` only)
+- These options are mutually exclusive - you cannot use both flags together
 
 **Output:** Results are saved in `outputs/eval/intrinsic/entity-coverage/` with comprehensive metrics including intersection entities, summary-only entities, source-only entities, and computed similarity metrics.
 
@@ -491,7 +506,7 @@ Default strategy: concat_and_summarize
 - **🔗 Command Reproducibility**: Full command history stored in metadata for perfect experiment reproduction
 - **🔍 Claim Extraction**: Extract concrete, verifiable claims from generated summaries using LLMs
 - **🕵️ Whodunit Evaluation**: Extrinsic evaluation of detective stories using whodunit analysis prompts
-- **🏷️ Entity Coverage Evaluation**: Intrinsic evaluation measuring how well summaries preserve named entities from source text
+- **🏷️ Entity Coverage Evaluation**: Intrinsic evaluation measuring how well summaries preserve named entities from source text, with detective story reveal text options
 
 ### Example Output
 
@@ -1256,10 +1271,11 @@ The framework has been significantly enhanced with production-ready features:
 - **Command Reproducibility**: Complete command tracking in both chunking and summarization metadata for scientific transparency
 - **Claim Extraction**: LLM-based extraction of concrete, verifiable claims from generated summaries with structured JSON output
 - **Whodunit Evaluation**: Extrinsic evaluation framework for detective stories using whodunit analysis prompts to assess summary quality
-- **Entity Coverage Evaluation**: Intrinsic evaluation system measuring how well summaries preserve named entities using spaCy extraction and hybrid LLM matching
+- **Entity Coverage Evaluation**: Intrinsic evaluation system measuring how well summaries preserve named entities using spaCy extraction and hybrid LLM matching, with detective story reveal text options (`--add-reveal`, `--reveal-only`)
+- **SUPERT Evaluation**: Reference-free summarization evaluation using SacreROUGE's SUPERT implementation with comprehensive conda environment setup, including detective story reveal text options (`--add-reveal`, `--reveal-only`)
 
 ### 🚧 In Progress  
-- **Additional Evaluation Metrics**: Expanding intrinsic metrics beyond entity coverage (e.g., content preservation, factual accuracy, computational efficiency)
+- **Additional Evaluation Metrics**: Expanding evaluation metrics beyond SUPERT and entity coverage (e.g., ROUGE, BERTScore, content preservation, factual accuracy)
 
 ### 📋 Planned Features
 - **Multi-document datasets**: News sequences, TV show episodes, book series
@@ -1267,6 +1283,133 @@ The framework has been significantly enhanced with production-ready features:
 - **Additional incremental strategies**: More approaches to update summaries efficiently
 - **Local LLM support**: Integration with local models (Ollama, Hugging Face)
 - **Interactive tools**: Visualization and analysis of incremental summarization results
+
+## SUPERT Setup
+
+SUPERT is a reference-free evaluation metric for summarization quality. Setting it up is **extremely complex** due to old dependencies and compatibility issues. This guide documents the complete setup process that actually works.
+
+### Why is SUPERT Setup So Complex?
+
+SUPERT was originally developed in 2020 and has complex dependencies:
+- Requires old versions of PyTorch, transformers, and BERT models
+- Uses outdated sentence-transformers with hardcoded URLs
+- Needs specific conda environment with Python 3.8
+- Requires manual model file setup and format conversion
+- Has hidden dependencies not listed in requirements
+
+### Step-by-Step Setup Guide
+
+#### 1. Create Conda Environment
+
+**Important**: Do NOT use pip/venv - conda is required for proper dependency resolution.
+
+```bash
+# Create conda environment with Python 3.8 (NOT 3.7, not available on ARM64)
+conda create -n supert python=3.8 -y
+conda activate supert
+```
+
+#### 2. Install SacreROUGE and Fix Dependencies
+
+```bash
+# Install SacreROUGE
+pip install sacrerouge
+
+# CRITICAL: Fix GoogleDriveDownloader version (newer versions break)
+pip uninstall -y GoogleDriveDownloader
+pip install GoogleDriveDownloader==0.4
+```
+
+#### 3. Download SUPERT Code and Dependencies
+
+```bash
+# This downloads the SUPERT implementation to ~/.sacrerouge/metrics/SUPERT/
+sacrerouge setup-metric supert
+```
+
+#### 4. Install Missing Dependencies
+
+```bash
+# Install PyTorch and other critical missing dependencies
+pip install torch pytorch-transformers==1.2.0 scikit-learn
+
+# Note: pytorch-transformers==1.2.0 is CRITICAL - newer versions break
+# Note: Use latest torch (older versions don't work on Apple Silicon)
+```
+
+#### 5. Set Environment Variable
+
+SUPERT needs the conda initialization script path:
+
+```bash
+# Add this to your shell profile (.bashrc, .zshrc, etc.) or set before each run
+export CONDA_INIT="/Users/$(whoami)/miniconda3/etc/profile.d/conda.sh"
+
+# Or find your conda path:
+find /Users/$(whoami)/miniconda3 -name "conda.sh" 2>/dev/null
+```
+
+### Verification Test
+
+Test that everything works:
+
+```bash
+conda activate supert
+export CONDA_INIT="/Users/$(whoami)/miniconda3/etc/profile.d/conda.sh"
+
+python -c "
+from sacrerouge.metrics import SUPERT
+supert = SUPERT(environment_name='supert')
+result = supert.score('Dan went to the store.', ['Dan walked to the local store to buy groceries.'])
+print('SUPERT Score:', result)
+"
+```
+
+If this prints a score (around 0.7-0.8), SUPERT is working correctly!
+
+### Usage in IUS
+
+Once set up, use SUPERT evaluation:
+
+```bash
+# Basic evaluation
+python -m ius supert --input outputs/summaries/your_summaries --range all
+
+# Different summary ranges
+python -m ius supert --input outputs/summaries/your_summaries --range penultimate
+
+# Test with limited items
+python -m ius supert --input outputs/summaries/your_summaries --stop 5
+
+# Detective story specific options - append reveal text to full story
+python -m ius supert --input outputs/summaries/bmds_summaries --add-reveal
+
+# Detective story specific options - use only reveal text as source
+python -m ius supert --input outputs/summaries/bmds_summaries --reveal-only
+```
+
+### Troubleshooting Common Issues
+
+**Environment not found**: Ensure conda environment exists with `conda env list`
+
+**Import errors**: Verify all dependencies installed in the correct environment:
+```bash
+conda activate supert
+pip list | grep -E "(sacrerouge|torch|pytorch|transformers|scikit)"
+```
+
+**CONDA_INIT error**: Set the environment variable correctly for your system
+
+**Model download failures**: The setup downloads old BERT models automatically, but may fail on slow connections - just retry `sacrerouge setup-metric supert`
+
+**Permission issues**: Ensure `~/.sacrerouge/` directory is writable
+
+### Performance Notes
+
+- SUPERT takes ~25-30 seconds per summary (includes BERT model loading)
+- Uses significant memory (~2GB) due to BERT models
+- Scores typically range from 0.2-0.8 for coherent summaries
+- Results are saved in `outputs/eval/intrinsic/supert/` with collection and item-level JSON files
 
 ## Research Questions
 

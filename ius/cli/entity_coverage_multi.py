@@ -20,6 +20,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from ius.eval.intrinsic.entity_coverage import run_entity_coverage_evaluation
 from ius.exceptions import ValidationError
+from ius.logging_config import setup_logging
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -73,7 +74,10 @@ def run_multi_range_evaluation(
     prompt_name: str = "default-entity-matching",
     output_dir: str = None,
     overwrite: bool = False,
-    verbose: bool = False
+    verbose: bool = False,
+    add_reveal: bool = False,
+    reveal_only: bool = False,
+    stop: int = None
 ) -> str:
     """
     Run entity coverage evaluation for multiple ranges (1, 2, 3, ..., max_range).
@@ -86,13 +90,15 @@ def run_multi_range_evaluation(
         output_dir: Optional custom output directory name
         overwrite: Whether to overwrite existing results
         verbose: Enable verbose logging
+        add_reveal: Whether to append reveal text to source documents
+        stop: Stop after processing this many items (None to process all)
         
     Returns:
         Path to output directory
     """
     
     if verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
+        setup_logging(log_level="DEBUG")
     
     # Validate input
     if not input_path.startswith("outputs/summaries"):
@@ -115,10 +121,13 @@ def run_multi_range_evaluation(
             "extraction_model": "en_core_web_lg",
             "model": model,
             "prompt_name": prompt_name,
-            "max_range": max_range,
             "temperature": 1.0,
             "max_completion_tokens": 10000,
-            "multi_range": True
+            "multi_range": True,
+            "add_reveal": add_reveal,
+            "reveal_only": reveal_only
+            # Note: max_range and stop are execution parameters, not evaluation parameters
+            # They don't affect the quality of results, just which ranges/items to compute
         }
         param_str = json.dumps(hash_parameters, sort_keys=True)
         hash_value = hashlib.md5(param_str.encode()).hexdigest()[:6]
@@ -131,13 +140,20 @@ def run_multi_range_evaluation(
     items_path = output_path / "items"
     items_path.mkdir(exist_ok=True)
     
-    # Process each item for each range
+    # Efficient processing: process each item once for all its ranges
     total_evaluations = 0
     successful_evaluations = 0
     skipped_evaluations = 0
     failed_evaluations = 0
+    processed_items = 0
     
     for item_id, item_max_range in item_max_ranges.items():
+        # Check if we should stop after processing a certain number of items
+        if stop is not None and processed_items >= stop:
+            logger.info(f"Stopped after processing {processed_items} items (--stop {stop})")
+            break
+        
+        processed_items += 1
         # Limit to user-specified max_range (if provided)
         if max_range is None:
             effective_max_range = item_max_range
@@ -161,19 +177,28 @@ def run_multi_range_evaluation(
                 continue
             
             try:
-                # Create a temporary output directory for this range
-                temp_output_dir = f"temp_{item_id}_range_{range_num}_{hash_value}"
-                
                 logger.debug(f"Evaluating {item_id} range {range_num}")
                 
-                # Run single-range evaluation
+                # Create a temporary single-item evaluation in ~/ius-temp/
+                temp_base_dir = Path.home() / "ius-temp" / "entity-coverage-single"
+                temp_base_dir.mkdir(parents=True, exist_ok=True)
+                
+                # Calculate relative path to ~/ius-temp/entity-coverage-single/
+                current_dir = Path.cwd() / "outputs" / "eval" / "intrinsic" / "entity-coverage"
+                rel_path = os.path.relpath(temp_base_dir, current_dir)
+                single_item_output_dir = f"{rel_path}/single_{item_id}_range_{range_num}_{hash_value}"
+                
+                # Run single-item, single-range evaluation 
                 temp_output_path = run_entity_coverage_evaluation(
                     input_path=input_path,
                     range_spec=str(range_num),
                     model=model,
                     prompt_name=prompt_name,
-                    output_dir=temp_output_dir,
-                    overwrite=True
+                    output_dir=single_item_output_dir,
+                    overwrite=True,
+                    add_reveal=add_reveal,
+                    reveal_only=reveal_only,
+                    item_id=item_id  # Process only this item!
                 )
                 
                 # Move the result file to our structure
@@ -259,6 +284,15 @@ Examples:
   
   # Overwrite existing results
   python -m ius entity-coverage-multi --input outputs/summaries/bmds_summaries --max-range 4 --overwrite
+  
+  # Include reveal text in source documents (for detective stories)
+  python -m ius entity-coverage-multi --input outputs/summaries/bmds_summaries --max-range 3 --add-reveal
+  
+  # Use only reveal text as source documents (for detective stories)  
+  python -m ius entity-coverage-multi --input outputs/summaries/bmds_summaries --max-range 3 --reveal-only
+  
+  # Stop after processing 2 items per range (useful for testing)
+  python -m ius entity-coverage-multi --input outputs/summaries/bmds_summaries --max-range 3 --stop 2
         """
     )
     
@@ -303,6 +337,24 @@ Examples:
         help="Enable verbose logging"
     )
     
+    parser.add_argument(
+        "--add-reveal",
+        action="store_true",
+        help="Append reveal text to source documents (for bmds and true-detective datasets)"
+    )
+    
+    parser.add_argument(
+        "--reveal-only",
+        action="store_true",
+        help="Use only reveal text as source documents (for bmds and true-detective datasets)"
+    )
+    
+    parser.add_argument(
+        "--stop",
+        type=int,
+        help="Stop after processing this many items per range (useful for testing)"
+    )
+    
     args = parser.parse_args()
     
     try:
@@ -313,7 +365,10 @@ Examples:
             prompt_name=args.prompt,
             output_dir=args.output_dir,
             overwrite=args.overwrite,
-            verbose=args.verbose
+            verbose=args.verbose,
+            add_reveal=args.add_reveal,
+            reveal_only=args.reveal_only,
+            stop=args.stop
         )
         print(f"Results saved to: {output_dir}")
         

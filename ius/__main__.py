@@ -87,7 +87,7 @@ def print_help():
     print("  python -m ius whodunit --input outputs/summaries/bmds_summaries --range 1-3")
     print("  python -m ius entity-coverage --input outputs/summaries/bmds_summaries --range penultimate")
     print("  python -m ius entity-coverage-multi --input outputs/summaries/bmds_summaries --max-range 5")
-    print("  python -m ius supert --input outputs/summaries/bmds_summaries --chunks outputs/chunks/bmds_chunks")
+    print("  python -m ius supert --input outputs/summaries/bmds_summaries --range all")
     print("  python -m ius help")
     print()
     print("For command-specific help:")
