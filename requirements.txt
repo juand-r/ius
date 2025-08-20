@@ -72,3 +72,4 @@ typing-inspection==0.4.1
     # via pydantic
 unidecode==1.4.0
     # via -r requirements.in
+rouge-score

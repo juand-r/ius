@@ -51,10 +51,10 @@ def main():
         from ius.cli.entity_coverage_multi import main as entity_coverage_multi_main
 
         entity_coverage_multi_main()
-    elif command == "supert":
-        from ius.cli.supert import main as supert_main
-
-        supert_main()
+    elif command == "overlap_metrics":
+        from ius.cli.overlap_metrics import main as overlap_metrics_main
+        
+        overlap_metrics_main()
     elif command == "help" or command == "-h" or command == "--help":
         print_help()
     else:
@@ -77,7 +77,7 @@ def print_help():
     print("  whodunit        Evaluate detective stories (whodunit analysis)")
     print("  entity-coverage       Evaluate entity coverage in summaries")
     print("  entity-coverage-multi Evaluate entity coverage across multiple ranges")
-    print("  supert          Evaluate summaries using SUPERT (reference-free metric)")
+    print("  overlap_metrics Evaluate summaries using overlap-based metrics (ROUGE, SUPERT)")
     print("  help            Show this help message")
     print()
     print("Examples:")
@@ -87,7 +87,7 @@ def print_help():
     print("  python -m ius whodunit --input outputs/summaries/bmds_summaries --range 1-3")
     print("  python -m ius entity-coverage --input outputs/summaries/bmds_summaries --range penultimate")
     print("  python -m ius entity-coverage-multi --input outputs/summaries/bmds_summaries --max-range 5")
-    print("  python -m ius supert --input outputs/summaries/bmds_summaries --range all")
+    print("  python -m ius overlap_metrics --rouge --input outputs/summaries/bmds_summaries --range all")
     print("  python -m ius help")
     print()
     print("For command-specific help:")
@@ -97,7 +97,7 @@ def print_help():
     print("  python -m ius whodunit --help")
     print("  python -m ius entity-coverage --help")
     print("  python -m ius entity-coverage-multi --help")
-    print("  python -m ius supert --help")
+    print("  python -m ius overlap_metrics --help")
 
 
 if __name__ == "__main__":

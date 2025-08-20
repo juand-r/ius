@@ -1,9 +1,10 @@
 """
-Command-line interface for SUPERT evaluation operations.
+Command-line interface for overlap-based evaluation metrics (ROUGE and SUPERT).
 
 Usage:
-    python -m ius supert --input outputs/summaries/bmds_fixed_size2_8000_all_concat_131eac --range all
-    python -m ius supert --input outputs/summaries/bmds_fixed_size2_8000_all_concat_131eac --range penultimate --conda-env supert
+    python -m ius overlap_metrics --supert --input outputs/summaries/bmds_fixed_size2_8000_all_concat_131eac --range all
+    python -m ius overlap_metrics --rouge --input outputs/summaries/bmds_fixed_size2_8000_all_concat_131eac --range penultimate
+    python -m ius overlap_metrics --supert --input outputs/summaries/bmds_fixed_size2_8000_all_concat_131eac --conda-env my_supert
 """
 
 import argparse
@@ -89,7 +90,7 @@ def parse_range_spec(range_spec: str, total_summaries: int) -> int:
             raise ValueError(f"Unknown range specification: {range_spec}")
 
 
-def load_summaries_and_source_docs(summary_path: str, range_spec: str, add_reveal: bool = False, reveal_only: bool = False) -> Dict[str, Dict[str, str]]:
+def load_summaries_and_source_docs(summary_path: str, range_spec: str, add_reveal: bool = False, reveal_only: bool = False, item_id: Optional[str] = None) -> Dict[str, Dict[str, str]]:
     """
     Load summaries and corresponding source documents.
     
@@ -98,6 +99,7 @@ def load_summaries_and_source_docs(summary_path: str, range_spec: str, add_revea
         range_spec: Which summary to extract
         add_reveal: If True, append the reveal text to the source content
         reveal_only: If True, use only the reveal text as source content
+        item_id: If provided, only process this specific item (for single-item processing)
     
     Returns:
         Dict mapping item_id to {"summary": text, "source": text}
@@ -122,7 +124,11 @@ def load_summaries_and_source_docs(summary_path: str, range_spec: str, add_revea
         with open(item_file) as f:
             item_data = json.load(f)
         
-        item_id = item_data["item_metadata"]["item_id"]
+        current_item_id = item_data["item_metadata"]["item_id"]
+        
+        # Filter to specific item if requested (for single-item processing)
+        if item_id and item_id != current_item_id:
+            continue
         
         # Extract summary using range specification
         documents = item_data.get("documents", [])
@@ -140,13 +146,13 @@ def load_summaries_and_source_docs(summary_path: str, range_spec: str, add_revea
             summary_idx = parse_range_spec(range_spec, len(summaries))
             summary_text = summaries[summary_idx]
         except (IndexError, ValueError) as e:
-            logger.warning(f"Could not extract summary for {item_id} with range {range_spec}: {e}")
+            logger.warning(f"Could not extract summary for {current_item_id} with range {range_spec}: {e}")
             continue
         
         # Load corresponding source document
-        source_file = source_path / "items" / f"{item_id}.json"
+        source_file = source_path / "items" / f"{current_item_id}.json"
         if not source_file.exists():
-            logger.warning(f"Source file not found for {item_id}: {source_file}")
+            logger.warning(f"Source file not found for {current_item_id}: {source_file}")
             continue
             
         with open(source_file) as f:
@@ -183,14 +189,14 @@ def load_summaries_and_source_docs(summary_path: str, range_spec: str, add_revea
                 
                 if reveal_text:
                     source_content = source_content + "\n\n" + reveal_text
-                    logger.debug(f"Added reveal text to {item_id} (length: {len(reveal_text)} chars)")
+                    logger.debug(f"Added reveal text to {current_item_id} (length: {len(reveal_text)} chars)")
                 else:
-                    logger.warning(f"No reveal text found for {item_id}")
-                    raise ValueError(f"No reveal text found for {item_id}")
+                    logger.warning(f"No reveal text found for {current_item_id}")
+                    raise ValueError(f"No reveal text found for {current_item_id}")
                     
             except Exception as e:
-                logger.warning(f"Failed to extract reveal text for {item_id}: {e}")
-                raise ValueError(f"Failed to extract reveal text for {item_id}: {e}")
+                logger.warning(f"Failed to extract reveal text for {current_item_id}: {e}")
+                raise ValueError(f"Failed to extract reveal text for {current_item_id}: {e}")
         
         # Use only reveal text if requested
         if reveal_only:
@@ -209,16 +215,16 @@ def load_summaries_and_source_docs(summary_path: str, range_spec: str, add_revea
                 
                 if reveal_text:
                     source_content = reveal_text
-                    logger.debug(f"Using only reveal text for {item_id} (length: {len(reveal_text)} chars)")
+                    logger.debug(f"Using only reveal text for {current_item_id} (length: {len(reveal_text)} chars)")
                 else:
-                    logger.warning(f"No reveal text found for {item_id}")
-                    raise ValueError(f"No reveal text found for {item_id}")
+                    logger.warning(f"No reveal text found for {current_item_id}")
+                    raise ValueError(f"No reveal text found for {current_item_id}")
                     
             except Exception as e:
-                logger.warning(f"Failed to extract reveal text for {item_id}: {e}")
-                raise ValueError(f"Failed to extract reveal text for {item_id}: {e}")
+                logger.warning(f"Failed to extract reveal text for {current_item_id}: {e}")
+                raise ValueError(f"Failed to extract reveal text for {current_item_id}: {e}")
         
-        data[item_id] = {
+        data[current_item_id] = {
             "summary": summary_text,
             "source": source_content
         }
@@ -227,17 +233,19 @@ def load_summaries_and_source_docs(summary_path: str, range_spec: str, add_revea
     return data
 
 
-def run_supert_evaluation_subprocess(data: Dict[str, Dict[str, str]], conda_env: str) -> Dict[str, float]:
-    """Run SUPERT evaluation using SacreROUGE in conda environment."""
+def run_metric_evaluation_subprocess(data: Dict[str, Dict[str, str]], metric_type: str, conda_env: str = "supert") -> Dict[str, float]:
+    """Run SUPERT or ROUGE evaluation using SacreROUGE."""
     
-    # Verify conda environment exists
-    result = subprocess.run(
-        ['conda', 'env', 'list'], 
-        capture_output=True, text=True
-    )
-    
-    if conda_env not in result.stdout:
-        raise ValueError(f"Conda environment '{conda_env}' not found. Please create it first.")
+    # For ROUGE, we don't need conda environment verification
+    if metric_type == "supert":
+        # Verify conda environment exists for SUPERT
+        result = subprocess.run(
+            ['conda', 'env', 'list'], 
+            capture_output=True, text=True
+        )
+        
+        if conda_env not in result.stdout:
+            raise ValueError(f"Conda environment '{conda_env}' not found. Please create it first.")
     
     # Write data to temporary file instead of using stdin
     import tempfile
@@ -246,8 +254,9 @@ def run_supert_evaluation_subprocess(data: Dict[str, Dict[str, str]], conda_env:
         temp_file = f.name
     
     try:
-        # Create Python script to run SUPERT in conda environment
-        script_content = f'''
+        # Create Python script based on metric type
+        if metric_type == "supert":
+            script_content = f'''
 import os
 import sys
 import json
@@ -279,32 +288,100 @@ for item_id, item_data in input_data.items():
 
 print(json.dumps(results))
 '''
+        elif metric_type == "rouge":
+            script_content = f'''
+import sys
+import json
+from sacrerouge.metrics import Rouge
+from rouge_score import rouge_scorer
+
+# Initialize SacreROUGE for ROUGE-1, ROUGE-2, and ROUGE-L (original implementation)
+sacrerouge = Rouge(max_ngram=2, compute_rouge_l=True, use_porter_stemmer=True)
+
+# Initialize rouge-score for ROUGE-1, ROUGE-2, ROUGE-L, and ROUGE-Lsum (Google implementation)
+rouge_score_scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL', 'rougeLsum'], 
+                                             use_stemmer=True, split_summaries=True)
+
+# Read data from file
+with open("{temp_file}", "r") as f:
+    input_data = json.load(f)
+
+results = {{}}
+
+for item_id, item_data in input_data.items():
+    summary = item_data["summary"]
+    reference = item_data["source"]  # For ROUGE, source acts as reference
+    
+    try:
+        # Get SacreROUGE results (ROUGE-1, ROUGE-2)
+        sacrerouge_result = sacrerouge.score(summary, [reference])
         
-        logger.info(f"Running SUPERT evaluation on {len(data)} items using conda environment: {conda_env}")
+        # Get rouge-score results (ROUGE-1, ROUGE-2, ROUGE-L, ROUGE-Lsum)
+        rouge_score_result = rouge_score_scorer.score(reference, summary)
+        
+        # Combine results - start with SacreROUGE results (rounded to 2 decimal places)
+        combined_result = {{}}
+        for metric, scores in sacrerouge_result.items():
+            combined_result[metric] = {{
+                "precision": round(scores["precision"], 2),
+                "recall": round(scores["recall"], 2),
+                "f1": round(scores["f1"], 2)
+            }}
+        
+        # Add rouge-score results with rs- prefix and proper format (rounded to 2 decimal places)
+        # Multiply by 100 to convert from 0-1 scale to 0-100 scale (to match SacreROUGE)
+        for metric, score in rouge_score_result.items():
+            # Convert rouge-score format to match SacreROUGE format
+            metric_name = f"rs-{{metric}}"  # Add rs- prefix (rouge-score)
+            combined_result[metric_name] = {{
+                "precision": round(score.precision * 100, 2),
+                "recall": round(score.recall * 100, 2),
+                "f1": round(score.fmeasure * 100, 2)
+            }}
+        
+        results[item_id] = combined_result
+    except Exception as e:
+        print(f"Error scoring {{item_id}}: {{e}}", file=sys.stderr)
+        results[item_id] = {{}}
+
+print(json.dumps(results))
+'''
+        else:
+            raise ValueError(f"Unknown metric type: {metric_type}")
+        
+        logger.info(f"Running {metric_type.upper()} evaluation on {len(data)} items" + (f" using conda environment: {conda_env}" if metric_type == "supert" else ""))
         logger.debug(f"Data file: {temp_file}")
         
+        # Run the script
+        if metric_type == "supert":
+            # SUPERT needs conda environment
+            cmd = ['conda', 'run', '-n', conda_env, 'python', '-c', script_content]
+        else:
+            # ROUGE can run in current environment
+            cmd = ['python', '-c', script_content]
+        
         result = subprocess.run(
-            ['conda', 'run', '-n', conda_env, 'python', '-c', script_content],
+            cmd,
             capture_output=True,
             text=True,
             timeout=3600  # 1 hour timeout
         )
         
         if result.returncode != 0:
-            logger.error(f"SUPERT subprocess failed: {result.stderr}")
-            raise RuntimeError(f"SUPERT evaluation failed: {result.stderr}")
+            logger.error(f"{metric_type.upper()} subprocess failed: {result.stderr}")
+            raise RuntimeError(f"{metric_type.upper()} evaluation failed: {result.stderr}")
         
         scores = json.loads(result.stdout)
-        logger.info(f"Successfully evaluated {len(scores)} summaries with SUPERT")
+        logger.info(f"Successfully evaluated {len(scores)} summaries with {metric_type.upper()}")
         return scores
         
     except subprocess.TimeoutExpired:
-        logger.error("SUPERT evaluation timed out after 1 hour")
-        raise RuntimeError("SUPERT evaluation timed out")
+        logger.error(f"{metric_type.upper()} evaluation timed out after 1 hour")
+        raise RuntimeError(f"{metric_type.upper()} evaluation timed out")
     except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse SUPERT output: {e}")
+        logger.error(f"Failed to parse {metric_type.upper()} output: {e}")
         logger.error(f"Raw output: {result.stdout}")
-        raise RuntimeError("Failed to parse SUPERT output")
+        raise RuntimeError(f"Failed to parse {metric_type.upper()} output")
     finally:
         # Clean up temporary file
         try:
@@ -319,27 +396,49 @@ def generate_output_hash(hash_parameters: Dict[str, Any]) -> str:
     return hashlib.md5(param_str.encode()).hexdigest()[:6]
 
 
-def save_supert_results(
-    scores: Dict[str, float],
-    data: Dict[str, Dict[str, str]], 
+def save_metric_results(
+    scores: Dict[str, Any], 
+    data: Dict[str, Dict[str, str]],
     output_path: Path,
     input_path: str,
     range_spec: str,
+    metric_type: str,
     conda_env: str,
     command_run: str
 ) -> None:
-    """Save SUPERT results to output directory."""
+    """Save metric results (SUPERT or ROUGE) to output directory."""
+    
+    # Extract numeric scores for statistics
+    # For SUPERT: scores are floats directly
+    # For ROUGE: scores are dicts, we'll use the main metric (rouge-l f1)
+    numeric_scores = []
+    for item_id, score in scores.items():
+        if score is not None:
+            if isinstance(score, dict):  # ROUGE case
+                # Use ROUGE-1 F1 score as the primary metric (most common)
+                if 'rouge-1' in score and isinstance(score['rouge-1'], dict) and 'f1' in score['rouge-1']:
+                    numeric_scores.append(score['rouge-1']['f1'])
+                elif 'rouge-1' in score:  # Fallback if rouge-1 is a float directly
+                    numeric_scores.append(score['rouge-1'])
+                else:  # Fallback to any F1 score in nested dicts
+                    for rouge_key, rouge_values in score.items():
+                        if isinstance(rouge_values, dict) and 'f1' in rouge_values:
+                            numeric_scores.append(rouge_values['f1'])
+                            break
+            elif isinstance(score, (int, float)):  # SUPERT case
+                # SUPERT scores are typically 0-1, so 0.0 is valid
+                if score >= 0:
+                    numeric_scores.append(score)
     
     # Calculate statistics
-    valid_scores = [s for s in scores.values() if s is not None and s > 0]
     stats = {
         "total_items": len(data),
-        "successful_items": len(valid_scores),
-        "failed_items": len(scores) - len(valid_scores),
-        "mean_score": float(sum(valid_scores) / len(valid_scores)) if valid_scores else 0.0,
-        "median_score": float(sorted(valid_scores)[len(valid_scores)//2]) if valid_scores else 0.0,
-        "min_score": float(min(valid_scores)) if valid_scores else 0.0,
-        "max_score": float(max(valid_scores)) if valid_scores else 0.0,
+        "successful_items": len(numeric_scores),
+        "failed_items": len(scores) - len(numeric_scores),
+        "mean_score": float(sum(numeric_scores) / len(numeric_scores)) if numeric_scores else 0.0,
+        "median_score": float(sorted(numeric_scores)[len(numeric_scores)//2]) if numeric_scores else 0.0,
+        "min_score": float(min(numeric_scores)) if numeric_scores else 0.0,
+        "max_score": float(max(numeric_scores)) if numeric_scores else 0.0,
     }
     
     # Save collection-level results
@@ -348,12 +447,12 @@ def save_supert_results(
         "created_at": datetime.now().isoformat(),
         "input_path": input_path,
         "dataset_name": extract_dataset_name(input_path),
-        "supert_evaluation_info": {
+        f"{metric_type}_evaluation_info": {
             "processing_stats": stats,
             "parameters": {
                 "range_spec": range_spec,
                 "conda_env_name": conda_env,
-                "metric": "supert",
+                "metric": metric_type,
                 "implementation": "sacrerouge"
             },
             "command_run": command_run,
@@ -371,11 +470,11 @@ def save_supert_results(
     for item_id, score in scores.items():
         item_result = {
             "item_id": item_id,
-            "supert_score": score,
+            f"{metric_type}_score": score,  # Store complete score (dict for ROUGE, float for SUPERT)
             "summary_text": data.get(item_id, {}).get("summary", ""),
             "parameters": {
                 "conda_env_name": conda_env,
-                "metric": "supert",
+                "metric": metric_type,
                 "implementation": "sacrerouge"
             }
         }
@@ -384,8 +483,9 @@ def save_supert_results(
             json.dump(item_result, f, indent=2)
 
 
-def evaluate_supert_dataset(
+def evaluate_dataset(
     input_path: str,
+    metric_type: str,
     range_spec: str = "all",
     conda_env: str = "supert", 
     output_dir: Optional[str] = None,
@@ -394,19 +494,23 @@ def evaluate_supert_dataset(
     stop_after: Optional[int] = None,
     add_reveal: bool = False,
     reveal_only: bool = False,
+    item_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Run SUPERT evaluation on a summary dataset.
+    Run SUPERT or ROUGE evaluation on a summary dataset.
 
     Args:
         input_path: Path to summary collection (must start with "outputs/summaries")
+        metric_type: Type of metric to use ("supert" or "rouge")
         range_spec: Which summary parts to use ("all", "penultimate", "last", etc.)
-        conda_env: Name of conda environment with SacreROUGE 
+        conda_env: Name of conda environment with SacreROUGE (for SUPERT only)
         output_dir: Optional custom output directory name
         overwrite: Whether to overwrite existing results
         verbose: Enable verbose logging
         stop_after: Optional limit on number of items to process (for testing)
         add_reveal: Whether to append reveal text to source documents
+        reveal_only: Whether to use only reveal text as source documents
+        item_id: If provided, only process this specific item (for single-item processing)
 
     Returns:
         Dictionary with evaluation results and statistics
@@ -417,7 +521,7 @@ def evaluate_supert_dataset(
     if not input_path.startswith("outputs/summaries"):
         raise ValidationError("Input path must start with 'outputs/summaries'")
     
-    logger.info(f"Starting SUPERT evaluation")
+    logger.info(f"Starting {metric_type.upper()} evaluation")
     logger.info(f"Input: {input_path}")
     logger.info(f"Range: {range_spec}")
     logger.info(f"Conda environment: {conda_env}")
@@ -434,18 +538,22 @@ def evaluate_supert_dataset(
         if output_dir is None:
             hash_parameters = {
                 "range_spec": range_spec,
-                "conda_env": conda_env,
-                "supert_version": "sacrerouge",
+                "metric_type": metric_type,
+                "sacrerouge_version": "sacrerouge",
                 "add_reveal": add_reveal,
                 "reveal_only": reveal_only
             }
             
+            # Only include conda_env for SUPERT
+            if metric_type == "supert":
+                hash_parameters["conda_env"] = conda_env
+            
             hash_value = generate_output_hash(hash_parameters)
             input_basename = os.path.basename(input_path.rstrip('/'))
-            output_dir = f"{input_basename}_supert_{hash_value}"
+            output_dir = f"{input_basename}_{metric_type}_{hash_value}"
         
-        # Create output directory
-        output_path = Path("outputs") / "eval" / "intrinsic" / "supert" / output_dir
+        # Create output directory - separate by metric type
+        output_path = Path("outputs") / "eval" / "intrinsic" / metric_type / output_dir
         
         if output_path.exists() and not overwrite:
             logger.info(f"Output directory already exists: {output_path}")
@@ -465,7 +573,7 @@ def evaluate_supert_dataset(
         output_path.mkdir(parents=True, exist_ok=True)
         
         # Load summaries and source documents
-        data = load_summaries_and_source_docs(input_path, range_spec, add_reveal, reveal_only)
+        data = load_summaries_and_source_docs(input_path, range_spec, add_reveal, reveal_only, item_id)
         
         if not data:
             raise ValidationError("No valid summary-source pairs found")
@@ -475,8 +583,8 @@ def evaluate_supert_dataset(
             logger.info(f"Limiting evaluation to first {stop_after} items")
             data = dict(list(data.items())[:stop_after])
         
-        # Run SUPERT evaluation
-        scores = run_supert_evaluation_subprocess(data, conda_env)
+        # Run metric evaluation
+        scores = run_metric_evaluation_subprocess(data, metric_type, conda_env)
         
         # Capture the command that was run
         argv_copy = sys.argv.copy()
@@ -485,12 +593,12 @@ def evaluate_supert_dataset(
         command_run = " ".join(argv_copy)
         
         # Save results
-        save_supert_results(scores, data, output_path, input_path, range_spec, conda_env, command_run)
+        save_metric_results(scores, data, output_path, input_path, range_spec, metric_type, conda_env, command_run)
 
         end_time = time.time()
         duration = end_time - start_time
 
-        logger.info(f"SUPERT evaluation completed in {duration:.2f} seconds")
+        logger.info(f"{metric_type.upper()} evaluation completed in {duration:.2f} seconds")
         logger.info(f"Results saved to: {output_path}")
 
         # Load and return results summary
@@ -523,29 +631,32 @@ def evaluate_supert_dataset(
 
 
 def main():
-    """Main entry point for SUPERT CLI."""
+    """Main entry point for SUPERT/ROUGE CLI."""
     parser = argparse.ArgumentParser(
-        description="Run SUPERT evaluation on summary datasets using SacreROUGE",
+        description="Run overlap-based metrics (SUPERT or ROUGE) on summary datasets",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Basic evaluation with default settings
-  python -m ius supert --input outputs/summaries/bmds_fixed_size2_8000_all_concat_131eac
+  # Basic SUPERT evaluation with default settings
+  python -m ius overlap_metrics --supert --input outputs/summaries/bmds_fixed_size2_8000_all_concat_131eac
+
+  # Basic ROUGE evaluation 
+  python -m ius overlap_metrics --rouge --input outputs/summaries/bmds_fixed_size2_8000_all_concat_131eac
 
   # Use different summary range
-  python -m ius supert --input outputs/summaries/bmds_fixed_size2_8000_all_concat_131eac --range penultimate
+  python -m ius overlap_metrics --supert --input outputs/summaries/bmds_fixed_size2_8000_all_concat_131eac --range penultimate
 
-  # Custom conda environment and output directory  
-  python -m ius supert --input outputs/summaries/bmds_fixed_size2_8000_all_concat_131eac --conda-env my_supert --output-dir my_test
+  # Custom conda environment for SUPERT  
+  python -m ius overlap_metrics --supert --input outputs/summaries/bmds_fixed_size2_8000_all_concat_131eac --conda-env my_supert
 
   # Process only first 10 items for testing
-  python -m ius supert --input outputs/summaries/bmds_fixed_size2_8000_all_concat_131eac --stop 10
+  python -m ius overlap_metrics --rouge --input outputs/summaries/bmds_fixed_size2_8000_all_concat_131eac --stop 10
 
   # Include reveal text in source documents (for detective stories)
-  python -m ius supert --input outputs/summaries/bmds_fixed_size2_8000_all_concat_131eac --add-reveal
+  python -m ius overlap_metrics --supert --input outputs/summaries/bmds_fixed_size2_8000_all_concat_131eac --add-reveal
 
   # Use only reveal text as source documents (for detective stories)
-  python -m ius supert --input outputs/summaries/bmds_fixed_size2_8000_all_concat_131eac --reveal-only
+  python -m ius overlap_metrics --rouge --input outputs/summaries/bmds_fixed_size2_8000_all_concat_131eac --reveal-only
 
 Range specifications:
   all             Use last summary (default)
@@ -565,6 +676,19 @@ Range specifications:
         help="Path to summary collection (must start with 'outputs/summaries')",
     )
 
+    # Metric type selection (mutually exclusive)
+    metric_group = parser.add_mutually_exclusive_group(required=True)
+    metric_group.add_argument(
+        "--supert",
+        action="store_true",
+        help="Use SUPERT metric (requires conda environment)",
+    )
+    metric_group.add_argument(
+        "--rouge",
+        action="store_true", 
+        help="Use ROUGE metric (runs in current environment)",
+    )
+
     # Optional arguments
     parser.add_argument(
         "--range",
@@ -575,7 +699,7 @@ Range specifications:
     parser.add_argument(
         "--conda-env",
         default="supert", 
-        help="Name of conda environment with SacreROUGE (default: supert)",
+        help="Name of conda environment with SacreROUGE (for SUPERT only, default: supert)",
     )
 
     parser.add_argument(
@@ -621,9 +745,20 @@ Range specifications:
     setup_logging(log_level=log_level)
 
     try:
+        # Determine metric type
+        if args.supert:
+            metric_type = "supert"
+        elif args.rouge:
+            metric_type = "rouge"
+        else:
+            # This shouldn't happen due to required=True in mutually_exclusive_group
+            logger.error("No metric type specified. Use --supert or --rouge")
+            sys.exit(1)
+        
         # Run evaluation
-        results = evaluate_supert_dataset(
+        results = evaluate_dataset(
             input_path=args.input,
+            metric_type=metric_type,
             range_spec=args.range,
             conda_env=args.conda_env,
             output_dir=args.output_dir,
@@ -634,16 +769,16 @@ Range specifications:
             reveal_only=args.reveal_only,
         )
 
-        logger.info("SUPERT evaluation completed successfully!")
+        logger.info(f"{metric_type.upper()} evaluation completed successfully!")
         
     except KeyboardInterrupt:
-        logger.info("SUPERT evaluation interrupted by user")
+        logger.info(f"Evaluation interrupted by user")
         sys.exit(1)
     except ValidationError as e:
         logger.error(f"Validation error: {e}")
         sys.exit(1)
     except Exception as e:
-        logger.error(f"SUPERT evaluation failed: {e}")
+        logger.error(f"Evaluation failed: {e}")
         if args.verbose:
             import traceback
             traceback.print_exc()
