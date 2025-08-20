@@ -80,11 +80,21 @@ def extract_dataset_name(input_path: str) -> str:
     dataset_name = last_dir.split("_")[0]
     return dataset_name
 
+def get_cache_subdir(add_reveal: bool, reveal_only: bool) -> str:
+    """Determine cache subdirectory based on reveal flags."""
+    if reveal_only:
+        return "source-reveal-only"
+    elif add_reveal:  
+        return "source-add-reveal"
+    else:
+        return "source-prereveal"
+
 def get_source_entities(item_id: str, dataset_name: str, nlp, force_extract: bool = False, model: str = "gpt-5-mini", add_reveal: bool = False, reveal_only: bool = False) -> Tuple[List[str], List[str], Dict[str, List[str]], str]:
     """Get or extract entities from source dataset item."""
     
     # Check cache first
-    cache_file = Path(f"outputs/eval/intrinsic/source-processed/entities/{dataset_name}/items/{item_id}.json")
+    cache_subdir = get_cache_subdir(add_reveal, reveal_only)
+    cache_file = Path(f"outputs/eval/intrinsic/source-processed/entities/{cache_subdir}/{dataset_name}/items/{item_id}.json")
     
     if cache_file.exists() and not force_extract:
         logger.debug(f"Loading cached entities for {item_id}")
@@ -203,7 +213,12 @@ def get_source_entities(item_id: str, dataset_name: str, nlp, force_extract: boo
             "entity_types": ["PERSON", "ORG", "GPE", "PRODUCT", "EVENT", "FAC", "WORK_OF_ART"],
             "timestamp": datetime.now().isoformat(),
             "total_original_entities": len(original_entities),
-            "total_deduplicated_entities": len(deduplicated_entities)
+            "total_deduplicated_entities": len(deduplicated_entities),
+            "content_processing": {
+                "add_reveal": add_reveal,
+                "reveal_only": reveal_only,
+                "cache_subdir": cache_subdir
+            }
         }
     }
     
