@@ -55,6 +55,10 @@ def main():
         from ius.cli.overlap_metrics import main as overlap_metrics_main
         
         overlap_metrics_main()
+    elif command == "overlap-metrics-multi":
+        from ius.cli.overlap_metrics_multi import main as overlap_metrics_multi_main
+        
+        overlap_metrics_multi_main()
     elif command == "help" or command == "-h" or command == "--help":
         print_help()
     else:
@@ -77,8 +81,9 @@ def print_help():
     print("  whodunit        Evaluate detective stories (whodunit analysis)")
     print("  entity-coverage       Evaluate entity coverage in summaries")
     print("  entity-coverage-multi Evaluate entity coverage across multiple ranges")
-    print("  overlap_metrics Evaluate summaries using overlap-based metrics (ROUGE, SUPERT)")
-    print("  help            Show this help message")
+    print("  overlap_metrics       Evaluate summaries using overlap-based metrics (ROUGE, SUPERT)")
+    print("  overlap-metrics-multi Evaluate overlap metrics across multiple ranges")
+    print("  help                  Show this help message")
     print()
     print("Examples:")
     print("  python -m ius chunk --dataset bmds --strategy fixed_size --size 2048")
@@ -88,6 +93,7 @@ def print_help():
     print("  python -m ius entity-coverage --input outputs/summaries/bmds_summaries --range penultimate")
     print("  python -m ius entity-coverage-multi --input outputs/summaries/bmds_summaries --max-range 5")
     print("  python -m ius overlap_metrics --rouge --input outputs/summaries/bmds_summaries --range all")
+    print("  python -m ius overlap-metrics-multi --rouge --input outputs/summaries/bmds_summaries --max-range 3")
     print("  python -m ius help")
     print()
     print("For command-specific help:")
@@ -98,6 +104,7 @@ def print_help():
     print("  python -m ius entity-coverage --help")
     print("  python -m ius entity-coverage-multi --help")
     print("  python -m ius overlap_metrics --help")
+    print("  python -m ius overlap-metrics-multi --help")
 
 
 if __name__ == "__main__":
