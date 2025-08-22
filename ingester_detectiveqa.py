@@ -48,6 +48,7 @@ samples = list(dataset.take(172)) #TODO is this correct or am I missing any data
 
 import json
 import os
+import argparse
 from pathlib import Path
 from collections import defaultdict
 from datetime import datetime
@@ -349,7 +350,16 @@ def clean_option_text(text):
 
 def main():
     """Main ingestion process."""
-    print("🔍 Starting DetectiveQA ingestion...")
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Ingest DetectiveQA dataset')
+    parser.add_argument('--split-reveal', action='store_true', 
+                       help='Split content at answer position and create separate reveal segment (default: keep original format)')
+    
+    args = parser.parse_args()
+    split_reveal = args.split_reveal
+    
+    mode_description = "with content splitting" if split_reveal else "original format"
+    print(f"🔍 Starting DetectiveQA ingestion ({mode_description})...")
     
     # Create output directories
     output_dir = Path("datasets/detectiveqa")
@@ -570,27 +580,79 @@ def main():
         
         print(f"  ✅ Novel {novel_id}: {len(all_questions)} qualifying questions")
         
-        # Create item JSON following README structure
-        item_data = {
-            "item_metadata": {
-                "item_id": str(novel_id),
-                "num_documents": 1
-            },
-            "documents": [
-                {
-                    "doc_id": f"{novel_id}",
-                    "content": novel_text,
-                    "metadata": {
-                        "title": book_ids[novel_id].split(" - ")[0],
-                        "author": book_ids[novel_id].split(" - ")[1],
-                        "novel_id": novel_id,
-                        "num_paragraphs": novel_samples[0]['num_paragraphs'],
-                        "time_cost": novel_samples[0]['time_cost'],
-                        "questions": all_questions
+        # Handle content processing based on mode
+        if split_reveal:
+            # New mode: Split content at first question's answer position
+            lines = novel_text.split('\n')
+            first_answer_position = all_questions[0]['answer_position']
+            
+            # Split at answer position (0-based indexing: answer_position 3 means line index 2)
+            content_lines = lines[:first_answer_position-1]  # Up to but not including answer line
+            reveal_lines = lines[first_answer_position-1:]   # From answer line onwards
+            
+            # Remove [num] prefixes from lines
+            def remove_line_numbers(line_list):
+                cleaned_lines = []
+                for line in line_list:
+                    # Remove [number] at start of line
+                    cleaned_line = re.sub(r'^\[\d+\]\s*', '', line)
+                    cleaned_lines.append(cleaned_line)
+                return cleaned_lines
+            
+            content_text = '\n'.join(remove_line_numbers(content_lines))
+            reveal_segment = '\n'.join(remove_line_numbers(reveal_lines))
+            
+            print(f"  📄 Content lines: {len(content_lines)}, Reveal lines: {len(reveal_lines)}")
+            
+            # Create item JSON with reveal segment
+            item_data = {
+                "item_metadata": {
+                    "item_id": str(novel_id),
+                    "num_documents": 1
+                },
+                "documents": [
+                    {
+                        "doc_id": f"{novel_id}",
+                        "content": content_text,
+                        "metadata": {
+                            "title": book_ids[novel_id].split(" - ")[0],
+                            "author": book_ids[novel_id].split(" - ")[1],
+                            "novel_id": novel_id,
+                            "num_paragraphs": novel_samples[0]['num_paragraphs'],
+                            "time_cost": novel_samples[0]['time_cost'],
+                            "questions": all_questions,
+                            "detection": {
+                                "reveal_segment": reveal_segment
+                            }
+                        }
                     }
-                }
-            ]
-        }
+                ]
+            }
+        else:
+            # Original mode: Keep full content with line numbers
+            print(f"  📄 Keeping original content format (with line numbers)")
+            
+            # Create item JSON without reveal segment
+            item_data = {
+                "item_metadata": {
+                    "item_id": str(novel_id),
+                    "num_documents": 1
+                },
+                "documents": [
+                    {
+                        "doc_id": f"{novel_id}",
+                        "content": novel_text,
+                        "metadata": {
+                            "title": book_ids[novel_id].split(" - ")[0],
+                            "author": book_ids[novel_id].split(" - ")[1],
+                            "novel_id": novel_id,
+                            "num_paragraphs": novel_samples[0]['num_paragraphs'],
+                            "time_cost": novel_samples[0]['time_cost'],
+                            "questions": all_questions
+                        }
+                    }
+                ]
+            }
         
         # Write item file
         item_file = items_dir / f"{novel_id}.json"
