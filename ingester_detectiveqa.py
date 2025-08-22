@@ -124,6 +124,19 @@ book_ids = dict([
 ])
 
 
+# Question mappings to make questions more natural
+QUESTION_MAPPINGS = {
+    " Who killed Ximian Li ( )": "Who killed Ximian Li?",
+    " Which of the following individuals is most likely to be the instigator of the entire case?": "Who was the main culprit?",
+    " The murderer of the Fosse brothers must be ( ).": "Who murdered the Fosse brothers?",
+    " The real culprit behind the scene in Guanxue Pavilion is ( )": "Who was the real culprit behind the scene in Guanxue Pavilion?",
+    " The murderer of Olga Semenova is ( )": "Who murdered Olga Semenova?",
+    " The real killer in this serial murder case ( )": "Who was the real killer in this serial murder case?",
+    " Who is the true killer of Helen?": "Who killed Helen?",
+    " The real killer of Alyona is ( ) ": "Who killed Alyona?",
+    " The killer of Yuecai is": "Who killed Yuecai?",
+}
+
 def is_english(text):
     """Check if text is in English using langdetect."""
     try:
@@ -149,17 +162,12 @@ def is_murderer_question(question):
         "Who was Ruth killed by?",
         "Which of the following individuals is most likely to be the instigator of the entire case?",
         "Who pushed Castles off the cliff?",
-        "Who is the accomplice of Professor Grimmer?",
-        "Who is the mastermind behind the multiple murders that took place in the mansion according to Bog?",
-        "Who manipulates others through psychological suggestion to commit crimes in the text?",
         "Who is the mastermind behind the murder of Mrs. Franklin?",
         "The person who directly killed Harington Pace was",
-        "Who is the accomplice in the case of the deceased in a traffic accident?",
         "Who was Anne Morris killed by?",
         "Who poisoned Polly?",
         "Who is involved in the murder of Colonel Prothero?",
-        "Who poisoned Marina's coffee?",
-        "According to Calgary's reasoning, who do you think killed Philip?",
+        #"Who poisoned Marina's coffee?",
     ]
     
     # Check if question matches any allowlist phrase (force include)
@@ -170,12 +178,39 @@ def is_murderer_question(question):
     # Blocklist: Questions that should NOT be considered murder questions
     # even if they contain murder-related keywords
     blocklist_phrases = [
-        # Add specific questions or phrases here that should be excluded
+        # Add specific questions or  phrases here that should be excluded
+        "Who killed George?", # same killer as other q
+        "The killer of the plan to kill Kaneko is", #confusing question, what did they mean
+        "Who was the murderer of Inoke?",
+        "Who was the murderer of Yadon?",
+        "Who could be the murderer of Chatham?",
+        "Who was the murderer of the Klaudok family?",
+        "Who is the real killer of Aristide?", #same killer as other q
+        "Who is the murderer of my grandfather?", #confusingly written and repeat
+        "Who is the suspect of killing Giuseppe?",
+        "Who poisoned Marina's coffee?",
+        "Who killed Mrs. Stanley?",
+        "Who is the killer of Celia?",
+        "Who killed Agnes, the maid of the Chingmingtong family?",
+        "Who killed Pierre Frey?",
+        "Who was the main perpetrator of the murder of Mr. Corley?",
+        "Who killed Wood?", # suspect is wrong
+        "Who was the murderer in the Joyce murder case?", # partial repeat killer and not sure if totally correct
+        " Murderer of Lily ( )", # same killer as other
+        "Who was the person who made the toad-faced man commit suicide?", #same killer as other q
+        "The murderer of Mrs. Marshall is ( ).", # same murderer as Alyona, so ok to remove
+        "There are commonalities among the three cases, and the inferred perpetrator is ( ).", #wrong culprit name
+        "Miss Marple believes who the real culprit is (",
+        "Which of the following individuals is most likely to be the instigator of the entire case?",
+        "Who has the greatest suspicion of being the murderer",# not the actual killer, but a suspect
+        "According to Agnes's statement, who killed Mr. Muller?", #don't want "according to..." questions
+        "Who is the mastermind behind the multiple murders that took place in the mansion according to Bog?", #don't want "according to..." questions
+        "According to Calgary's reasoning, who do you think killed Philip?", #don't want "from perspective of..." questions
+        "Who manipulates others through psychological suggestion to commit crimes in the text?", #not essential
         "How did the killer kill Richard Abernathy",
         "Based on the current clues, who is the killer (",
         "Who is the murderer of Mary?", # early suspect, not the actual murderer
         "How did the killer leave the scene?",
-        "According to Calgary's reasoning, who do you think killed Philip?", # avoid "from perspective of..." questions
         "Mr. Marshall believes that who killed Mrs. Aggles?", # avoid "from perspective of..." questions
         "Who killed Mrs. Upward?", #Duplicate
         "What is the true identity of the killer?", #Duplicate
@@ -185,7 +220,7 @@ def is_murderer_question(question):
         "Who killed Joyce?", #Duplicate
         "Who is the mastermind behind the murder of Mrs. Franklin?", #Near Duplicate
         "Who was the killer of Celia Austin?", # 'Who was the killer of Celia' is already there
-        "Based on the current clues, who is the killer (" #duplicate, checked only eliminates one
+        "Based on the current clues, who is the killer (", #duplicate, checked only eliminates one
         "Based on the existing clues, who is the perpetrator of the serial murder case (", #Duplicate, checked only eliminates one
         "Who is the perpetrator of the serial murder case?", #Duplicate, checked only eliminates one
         "The real culprit of the triple murder case 18 years ago was who?", #Malformed answer options, remove
@@ -452,16 +487,39 @@ def main():
                         for key, value in question_data['options'].items()
                     }
                     
-                    # Add to filtered questions
-                    all_questions.append({
-                        "question": question_data['question'],
-                        "answer": question_data['answer'],
-                        "reasoning": question_data['reasoning'],
-                        "answer_position": question_data['answer_position'],
-                        "clue_position": question_data['clue_position'],
-                        "options": cleaned_options,
-                        "distraction": question_data['distraction']
-                    })
+                    # Check for specific duplicate question that needs to be filtered
+                    question_text = question_data['question'].strip()
+                    should_skip = False
+                    
+                    if question_text == "The real killer of Alyona is ( )":
+                        # Remove the duplicate with specific distraction option
+                        distraction_a = question_data['distraction'].get('A', '')
+                        if "Elina's husband, knowing Elina's affair, has a motive to kill" in distraction_a:
+                            print(f"  🗑️  Removing duplicate question in novel {novel_id}: {question_text}")
+                            print(f"     (filtering based on distraction option A)")
+                            should_skip = True
+                    
+                    if not should_skip:
+                        # Apply question mapping if exists
+                        original_question = question_data['question']
+                        mapped_question = QUESTION_MAPPINGS.get(original_question, original_question)
+                        
+                        # Log when a mapping is applied
+                        if mapped_question != original_question:
+                            print(f"  📝 Mapping question in novel {novel_id}:")
+                            print(f"     From: {original_question}")
+                            print(f"     To:   {mapped_question}")
+                        
+                        # Add to filtered questions
+                        all_questions.append({
+                            "question": mapped_question,
+                            "answer": question_data['answer'],
+                            "reasoning": question_data['reasoning'],
+                            "answer_position": question_data['answer_position'],
+                            "clue_position": question_data['clue_position'],
+                            "options": cleaned_options,
+                            "distraction": question_data['distraction']
+                        })
                 else:
                     non_murder_questions_file.write(f"Novel {novel_id}: {question_data['question']}\n")
         
