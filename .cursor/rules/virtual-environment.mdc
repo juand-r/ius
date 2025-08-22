@@ -1,0 +1,4 @@
+---
+alwaysApply: true
+---
+Always source venv/bin/activate before running Python commands. Never run Python scripts or pip commands without first activating the virtual environment to ensure proper dependency isolation.

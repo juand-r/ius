@@ -1,0 +1,4 @@
+---
+alwaysApply: true
+---
+When encountering errors, read the full error message carefully and trace root causes rather than applying quick fixes. Take time to understand what went wrong, examine stack traces thoroughly, and implement proper solutions instead of band-aid approaches.

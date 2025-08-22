@@ -1,0 +1,4 @@
+---
+alwaysApply: true
+---
+Always check the format of the data before writing code that processes it. Examine data structure, field types, nested objects, and edge cases to understand what you're working with before implementing processing logic.
