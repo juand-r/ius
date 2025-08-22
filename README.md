@@ -189,9 +189,16 @@ python -m ius chunk --dataset true-detective --strategy fixed_count --count 6 --
 python -m ius chunk --dataset bmds --strategy fixed_size --size 10000 \
   --output outputs/chunks/bmds_large_chunks --preview
 
-# Add reveal segment as final chunk (BMDS only)
+# Add reveal segment as final chunk (detective datasets)
 python -m ius chunk --dataset bmds --strategy fixed_size --size 8000 \
   --reveal-add-on --output outputs/chunks/bmds_with_reveals
+
+# Control minimum acceptable chunk size (default: 400 chars)
+python -m ius chunk --dataset bmds --strategy fixed_size --size 8000 --min-len 300
+
+# Combine multiple advanced options
+python -m ius chunk --dataset detectiveqa --strategy fixed_size --size 8000 \
+  --min-len 500 --reveal-add-on --verbose
 ```
 
 ### Important: Output Path Format
@@ -213,13 +220,16 @@ The CLI will automatically create:
 - `items/` directory with individual chunk files
 - Proper directory structure within the specified output path
 
-### BMDS-Specific: Reveal Segment Add-On
+### Detective Story Datasets: Reveal Segment Add-On
 
-For the BMDS (detective stories) dataset, you can append the reveal segment as the final chunk using the `--reveal-add-on` flag:
+For detective story datasets (BMDS, True-Detective, DetectiveQA), you can append the reveal segment as the final chunk using the `--reveal-add-on` flag:
 
 ```bash
 # Add reveal segment to chunked stories
 python -m ius chunk --dataset bmds --strategy fixed_size --size 8000 --reveal-add-on
+
+# Works with DetectiveQA novels (larger reveal segments)
+python -m ius chunk --dataset detectiveqa --strategy fixed_size --size 8000 --reveal-add-on --min-len 2000
 ```
 
 **What this does:**
@@ -1016,6 +1026,13 @@ The configuration system provides automatic validation:
 - **Documents per item**: 1 (each puzzle is one document)
 - **Use case**: Study incremental summarization on detective stories, evaluate on the downstream task of guessing the culprit.
 
+### DetectiveQA
+- **Items**: 43 full-length detective novels 
+- **Documents per item**: 1 (each novel is one document)
+- **Novel lengths**: 50,400 - 138,481 words (average: 69,029 words)
+- **Special features**: Content/reveal segment splitting - novels are split at the first question's answer position into main content and reveal segment
+- **Use case**: Study incremental summarization on longer detective stories, evaluate with reveal segment handling
+
 ## Development Principles ✅ **ACHIEVED**
 
 - **✅ Lean and modular**: Clean, simple, readable, well-documented, modular code that's easily extensible. Optimized for ease of use and reproducibility.
@@ -1258,6 +1275,8 @@ The framework has been significantly enhanced with production-ready features:
 ## Future Directions
 
 ### ✅ Recently Completed
+- **Chunking Optimization Improvements**: Fixed redistribution logic to use actual chunk sizes instead of assumed sizes, eliminating small chunks during redistribution
+- **Minimum Chunk Length Control**: Added `--min-len` parameter (default: 400 chars) for fine-grained control over chunk size optimization
 - **LLM-based Summarization**: OpenAI integration with cost tracking and experimental management
 - **Summarization CLI**: Command-line interface with multiple strategies, auto-naming, and comprehensive options
 - **Multiple Strategies**: Cumulative (concat_and_summarize) and independent (summarize_chunks_independently) approaches
