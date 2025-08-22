@@ -89,15 +89,19 @@ def _extract_reveal_segment(item_data: dict[str, Any], dataset_name: str) -> str
             puzzle_data = original_metadata.get("puzzle_data", {})
             return puzzle_data.get("outcome", "") or None
             
+        elif dataset_name == "detectiveqa":
+            # DetectiveQA path: metadata.detection.reveal_segment
+            detection = metadata.get("detection", {})
+            return detection.get("reveal_segment", "") or None
+            
         else:
-            logger.warning(f"Unknown dataset '{dataset_name}' for reveal segment extraction")
-            return None
+            raise ValueError(f"Unknown dataset '{dataset_name}' for reveal segment extraction")
         
     except (KeyError, IndexError, AttributeError):
         return None
 
 
-def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n", _is_retry: bool = False, sentence_mode: bool = False) -> list[str]:
+def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n", _is_retry: bool = False, sentence_mode: bool = False, min_len: int = 400) -> list[str]:
     """
     Split text into chunks of approximately fixed size, respecting delimiter boundaries.
     
@@ -210,7 +214,6 @@ def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n", _is_retr
     # Optimize chunk sizes to avoid very small final chunks (only on first pass)
     if not _is_retry and len(chunks) > 1:
         last_chunk_size = len(chunks[-1])
-        min_len = 400  # Minimum acceptable chunk size
         small_threshold = 0.5 * chunk_size  # 50% of target chunk size
         
         # Case 1: Tiny final chunk - merge with previous chunk
@@ -229,7 +232,7 @@ def chunk_fixed_size(text: str, chunk_size: int, delimiter: str = "\n", _is_retr
                        f"across {num_complete_chunks} chunks. New target size: {new_chunk_size}")
             
             # Re-chunk with optimized size
-            optimized_chunks = chunk_fixed_size(text, new_chunk_size, delimiter, _is_retry=True, sentence_mode=sentence_mode)
+            optimized_chunks = chunk_fixed_size(text, new_chunk_size, delimiter, _is_retry=True, sentence_mode=sentence_mode, min_len=min_len)
             
             # Final safety check: if we still have a tiny final chunk, merge it
             if len(optimized_chunks) > 1 and len(optimized_chunks[-1]) < 1.5*min_len:
@@ -401,6 +404,7 @@ def _apply_chunking_strategy(
     num_chunks: int | None,
     delimiter: str,
     sentence_mode: bool = False,
+    min_len: int = 400,
 ) -> list[str]:
     """
     Apply the specified chunking strategy to text.
@@ -424,7 +428,7 @@ def _apply_chunking_strategy(
             raise ChunkingError(
                 "chunk_size required and must be positive for fixed_size strategy"
             )
-        return chunk_fixed_size(text, chunk_size, delimiter, sentence_mode=sentence_mode)
+        return chunk_fixed_size(text, chunk_size, delimiter, sentence_mode=sentence_mode, min_len=min_len)
 
     elif strategy == "fixed_count":
         if not num_chunks or num_chunks <= 0:
@@ -452,6 +456,7 @@ def process_dataset_items(
     reveal_add_on: bool = False,
     dataset_name: str | None = None,
     sentence_mode: bool = False,
+    min_len: int = 400,
 ) -> dict[str, Any]:
     """
     Core logic to chunk all items in a dataset.
@@ -532,7 +537,7 @@ def process_dataset_items(
 
                     # Apply chunking strategy to this document
                     doc_chunks = _apply_chunking_strategy(
-                        doc_text, strategy, chunk_size, num_chunks, delimiter, sentence_mode
+                        doc_text, strategy, chunk_size, num_chunks, delimiter, sentence_mode, min_len
                     )
 
                     # Analyze chunks for this document
@@ -610,7 +615,7 @@ def process_dataset_items(
 
                 # Apply chunking strategy to concatenated text
                 concatenated_chunks = _apply_chunking_strategy(
-                    text, strategy, chunk_size, num_chunks, delimiter, sentence_mode
+                    text, strategy, chunk_size, num_chunks, delimiter, sentence_mode, min_len
                 )
 
                 # Analyze chunks

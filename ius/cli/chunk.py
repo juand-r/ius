@@ -38,6 +38,7 @@ def chunk_dataset(
     preview: bool = False,
     reveal_add_on: bool = False,
     sentence_mode: bool = False,
+    min_len: int = 400,
 ) -> dict[str, Any]:
     """
     CLI wrapper for chunking datasets with progress printing and file I/O.
@@ -76,7 +77,7 @@ def chunk_dataset(
 
     # Process items with chunking
     results, errors = _process_items_with_chunking(
-        items_dict, strategy, chunk_size, num_chunks, delimiter, preview, reveal_add_on, dataset_name, sentence_mode
+        items_dict, strategy, chunk_size, num_chunks, delimiter, preview, reveal_add_on, dataset_name, sentence_mode, min_len
     )
     if results is None:  # Processing failed
         return {}
@@ -184,6 +185,7 @@ def _process_items_with_chunking(
     reveal_add_on: bool = False,
     dataset_name: str | None = None,
     sentence_mode: bool = False,
+    min_len: int = 400,
 ) -> tuple[dict, dict] | tuple[None, None]:
     """
     Process items with chunking and handle progress display.
@@ -204,6 +206,7 @@ def _process_items_with_chunking(
             reveal_add_on=reveal_add_on,
             dataset_name=dataset_name,
             sentence_mode=sentence_mode,
+            min_len=min_len,
         )
 
         results = processing_results["results"]
@@ -509,6 +512,13 @@ Examples:
         help="Add reveal segment as final chunk (works with BMDS and True Detective datasets)",
     )
 
+    parser.add_argument(
+        "--min-len",
+        type=int,
+        default=400,
+        help="Minimum acceptable chunk size in characters (default: 400)",
+    )
+
     args = parser.parse_args()
 
     # Validate required arguments for each strategy
@@ -580,6 +590,7 @@ Examples:
             preview=args.preview,
             reveal_add_on=args.reveal_add_on,
             sentence_mode=args.sentence,
+            min_len=args.min_len,
         )
 
         if results:
