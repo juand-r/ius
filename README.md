@@ -43,6 +43,9 @@ ius/                    # Main project code
 │   ├── chunk.py      # Chunking CLI with --verbose, --dry-run flags
 │   ├── claim_extract.py # Claim extraction CLI
 │   ├── whodunit.py   # Whodunit evaluation CLI
+│   ├── entity_coverage.py # Entity coverage evaluation CLI
+│   ├── overlap_metrics.py # ROUGE and SUPERT evaluation CLI
+│   ├── overlap_metrics_multi.py # Multi-range overlap metrics CLI
 │   └── common.py     # Shared CLI utilities
 ├── chunk/            # Text chunking strategies ✅ IMPLEMENTED
 │   ├── chunkers.py   # Fixed-size, fixed-count, custom chunking
@@ -171,6 +174,14 @@ python -m ius entity-coverage --input outputs/summaries/bmds_summaries --range p
 
 # Evaluate entity coverage across multiple ranges (all available)
 python -m ius entity-coverage-multi --input outputs/summaries/bmds_summaries
+
+# Overlap metrics evaluation (ROUGE and SUPERT)
+python -m ius overlap_metrics --rouge --input outputs/summaries/bmds_summaries --range all
+python -m ius overlap_metrics --supert --input outputs/summaries/bmds_summaries --add-reveal
+
+# Multi-range overlap metrics evaluation
+python -m ius overlap-metrics-multi --rouge --input outputs/summaries/bmds_summaries --max-range 5
+python -m ius overlap-metrics-multi --supert --input outputs/summaries/bmds_summaries --max-range 3
 ```
 
 ### Advanced Features
@@ -374,6 +385,128 @@ python -m ius entity-coverage-multi --input outputs/summaries/bmds_summaries --m
 
 **Output:** Results are saved in `outputs/eval/intrinsic/entity-coverage/` with comprehensive metrics including intersection entities, summary-only entities, source-only entities, and computed similarity metrics.
 
+### Overlap Metrics Evaluation Commands
+
+The CLI provides comprehensive overlap-based evaluation capabilities using both ROUGE and SUPERT metrics. ROUGE measures n-gram overlap between summaries and reference text, while SUPERT provides reference-free evaluation of summary quality.
+
+```bash
+# Basic ROUGE evaluation using all available summary text
+python -m ius overlap_metrics --rouge --input outputs/summaries/bmds_summaries
+
+# Basic SUPERT evaluation using all available summary text
+python -m ius overlap_metrics --supert --input outputs/summaries/bmds_summaries
+
+# Evaluate using specific range of summaries
+python -m ius overlap_metrics --rouge --input outputs/summaries/bmds_summaries --range penultimate
+python -m ius overlap_metrics --supert --input outputs/summaries/bmds_summaries --range 1-3
+
+# Use different range specifications
+python -m ius overlap_metrics --rouge --input outputs/summaries/bmds_summaries --range all-but-last  # All except last
+python -m ius overlap_metrics --supert --input outputs/summaries/bmds_summaries --range 2          # Just 2nd summary
+
+# Custom conda environment for SUPERT (ROUGE runs in current environment)
+python -m ius overlap_metrics --supert --input outputs/summaries/bmds_summaries --conda-env my_supert
+
+# Enable verbose logging
+python -m ius overlap_metrics --rouge --input outputs/summaries/bmds_summaries --verbose
+
+# Custom output directory
+python -m ius overlap_metrics --supert --input outputs/summaries/bmds_summaries --output-dir outputs/eval/custom_supert
+
+# Overwrite existing results
+python -m ius overlap_metrics --rouge --input outputs/summaries/bmds_summaries --overwrite
+
+# Process limited number of items for testing
+python -m ius overlap_metrics --supert --input outputs/summaries/bmds_summaries --stop 10
+
+# Multi-range evaluation (evaluates all available ranges)
+python -m ius overlap-metrics-multi --rouge --input outputs/summaries/bmds_summaries
+python -m ius overlap-metrics-multi --supert --input outputs/summaries/bmds_summaries
+
+# Multi-range evaluation up to specific range
+python -m ius overlap-metrics-multi --rouge --input outputs/summaries/bmds_summaries --max-range 5
+python -m ius overlap-metrics-multi --supert --input outputs/summaries/bmds_summaries --max-range 8
+
+# Detective story specific options - append reveal text to full story
+python -m ius overlap_metrics --rouge --input outputs/summaries/bmds_summaries --add-reveal
+python -m ius overlap_metrics --supert --input outputs/summaries/bmds_summaries --add-reveal
+
+# Detective story specific options - use only reveal text as source
+python -m ius overlap_metrics --rouge --input outputs/summaries/bmds_summaries --reveal-only
+python -m ius overlap_metrics --supert --input outputs/summaries/bmds_summaries --reveal-only
+
+# Multi-range with reveal text options
+python -m ius overlap-metrics-multi --rouge --input outputs/summaries/bmds_summaries --max-range 5 --add-reveal
+python -m ius overlap-metrics-multi --supert --input outputs/summaries/bmds_summaries --max-range 5 --reveal-only
+```
+
+**How it works:** 
+
+**ROUGE Evaluation:** Uses a hybrid approach combining SacreROUGE and Google's rouge-score implementations:
+- **SacreROUGE**: Provides `rouge-1`, `rouge-2`, and `rouge-l` metrics
+- **Google rouge-score**: Provides `rs-rouge1`, `rs-rouge2`, `rs-rougeL`, and `rs-rougeLsum` (with sentence splitting)
+- **Comprehensive coverage**: All metrics include precision, recall, and F1 scores
+- **Sentence splitting**: `rs-rougeLsum` uses sentence-level splitting for improved ROUGE-L computation
+- **Stemming**: Both implementations use Porter stemmer for better word matching
+
+**SUPERT Evaluation:** Reference-free summarization quality assessment:
+- **No reference needed**: Evaluates summary quality without requiring reference summaries
+- **BERT-based**: Uses pre-trained language models for semantic understanding
+- **Conda environment**: Requires special conda environment due to complex dependencies
+- **Score range**: Typically 0.2-0.8 for coherent summaries
+
+**Detective Story Options:** For detective stories (BMDS and True Detective datasets), you can control how the "reveal" text (the solution) is handled:
+- `--add-reveal`: Append reveal text to the full story content (`story + "\n\n" + reveal`)
+- `--reveal-only`: Use only the reveal text as the source content (`reveal` only)
+- These options are mutually exclusive - you cannot use both flags together
+
+**Multi-Range Evaluation:** The `overlap-metrics-multi` command automatically processes all available summary ranges (1, 2, 3, ..., max) for each item, creating comprehensive evaluation across all summary lengths. Results are organized in nested directories by item and range.
+
+**Output:** Results are saved in `outputs/eval/intrinsic/rouge/` for ROUGE metrics and `outputs/eval/intrinsic/supert/` for SUPERT metrics, with comprehensive score dictionaries and statistics.
+
+### Batch Processing Scripts
+
+For processing multiple summary collections efficiently, several bash scripts are provided:
+
+```bash
+# ROUGE evaluation for all BMDS collections (concat and iterative variants)
+./run_bmds_overlap_metrics_multi.sh
+
+# SUPERT evaluation for all BMDS collections (concat and iterative variants)  
+./run_bmds_supert_multi.sh
+
+# SUPERT evaluation for all True-Detective collections (concat and iterative variants)
+./run_true-detective_supert_multi.sh
+
+# Entity coverage evaluation for BMDS
+./run_bmds_entity_coverage.sh
+
+# Entity coverage evaluation for True-Detective  
+./run_true_detective_entity_coverage.sh
+```
+
+**What these scripts do:**
+- **Automatic discovery**: Find all matching summary directories using pattern matching
+- **Progress tracking**: Show processing status with counters and success/failure reports
+- **Error handling**: Continue processing even if individual collections fail
+- **Comprehensive coverage**: Process both `concat` and `iterative` summarization variants
+- **Detective story options**: Include `--add-reveal` flag for appropriate datasets
+
+**Example output:**
+```
+Starting BMDS overlap-metrics-multi ROUGE evaluation...
+Target patterns: bmds_fixed_size2_8000_all_concat_* and bmds_fixed_size2_8000_all_iterative_*
+==================================================================
+Found 14 directories to process
+
+[1/14] Processing: bmds_fixed_size2_8000_all_concat_131eac
+Command: python -m ius overlap-metrics-multi --rouge --input outputs/summaries/bmds_fixed_size2_8000_all_concat_131eac --add-reveal
+✓ SUCCESS: bmds_fixed_size2_8000_all_concat_131eac
+==================================================================
+[2/14] Processing: bmds_fixed_size2_8000_all_concat_5e8bbe
+...
+```
+
 ### Summarization Commands
 
 The CLI provides comprehensive summarization capabilities with multiple strategies, automatic output naming, and customizable summary specifications.
@@ -517,6 +650,9 @@ Default strategy: concat_and_summarize
 - **🔍 Claim Extraction**: Extract concrete, verifiable claims from generated summaries using LLMs
 - **🕵️ Whodunit Evaluation**: Extrinsic evaluation of detective stories using whodunit analysis prompts
 - **🏷️ Entity Coverage Evaluation**: Intrinsic evaluation measuring how well summaries preserve named entities from source text, with detective story reveal text options
+- **🔄 Hybrid ROUGE Evaluation**: Combines SacreROUGE and Google's rouge-score for comprehensive n-gram overlap metrics with sentence splitting
+- **📊 SUPERT Evaluation**: Reference-free summarization quality assessment using BERT-based semantic understanding
+- **📈 Multi-Range Metrics**: Automatically evaluate overlap metrics across all summary lengths for comprehensive analysis
 
 ### Example Output
 
@@ -716,6 +852,35 @@ result = summarize(
 # 💰 Estimated Cost: $0.045000
 # Do you want to proceed? (y/N): 
 ```
+
+### Cumulative Spending Tracking
+
+IUS automatically tracks all OpenAI API costs across all commands and experiments in `cumulative-openai-spending.txt`. This append-only log provides a complete audit trail of your API usage.
+
+```bash
+# View total spending across all experiments
+./calculate_spending.sh
+
+# Example output:
+# OpenAI API Spending Summary:
+# ==========================
+# Total entries: 247
+# Total cost: $23.456789
+#
+# Last 5 API calls:
+# =================
+# Timestamp,Model,Input,Output,Total,Cost
+# 21:38:28,gpt-4o,1024,512,1536,$0.002304
+```
+
+The spending log format is CSV with columns:
+- `timestamp,model,input_tokens,output_tokens,total_tokens,input_cost,output_cost,total_cost`
+
+This enables cost tracking across:
+- Different summarization experiments
+- Entity coverage evaluations  
+- Whodunit assessments
+- Claim extraction tasks
 
 ### Working with Pre-chunked Data
 
@@ -1291,10 +1456,14 @@ The framework has been significantly enhanced with production-ready features:
 - **Claim Extraction**: LLM-based extraction of concrete, verifiable claims from generated summaries with structured JSON output
 - **Whodunit Evaluation**: Extrinsic evaluation framework for detective stories using whodunit analysis prompts to assess summary quality
 - **Entity Coverage Evaluation**: Intrinsic evaluation system measuring how well summaries preserve named entities using spaCy extraction and hybrid LLM matching, with detective story reveal text options (`--add-reveal`, `--reveal-only`)
+- **Overlap Metrics Evaluation**: Comprehensive CLI for ROUGE and SUPERT evaluation with hybrid implementations
+- **Hybrid ROUGE Implementation**: Combines SacreROUGE and Google's rouge-score for complete metric coverage including sentence-split ROUGE-L (`rougeLsum`)
+- **Multi-Range Overlap Evaluation**: Automatic evaluation across all summary lengths with `overlap-metrics-multi` command
 - **SUPERT Evaluation**: Reference-free summarization evaluation using SacreROUGE's SUPERT implementation with comprehensive conda environment setup, including detective story reveal text options (`--add-reveal`, `--reveal-only`)
+- **Batch Processing Scripts**: Automated bash scripts for processing multiple summary collections (`run_bmds_overlap_metrics_multi.sh`, `run_bmds_supert_multi.sh`, `run_true-detective_supert_multi.sh`)
 
 ### 🚧 In Progress  
-- **Additional Evaluation Metrics**: Expanding evaluation metrics beyond SUPERT and entity coverage (e.g., ROUGE, BERTScore, content preservation, factual accuracy)
+- **Additional Evaluation Metrics**: Expanding evaluation metrics beyond ROUGE, SUPERT, and entity coverage (e.g., BERTScore, content preservation, factual accuracy)
 
 ### 📋 Planned Features
 - **Multi-document datasets**: News sequences, TV show episodes, book series
@@ -1392,19 +1561,19 @@ Once set up, use SUPERT evaluation:
 
 ```bash
 # Basic evaluation
-python -m ius supert --input outputs/summaries/your_summaries --range all
+python -m ius overlap_metrics --supert --input outputs/summaries/your_summaries --range all
 
 # Different summary ranges
-python -m ius supert --input outputs/summaries/your_summaries --range penultimate
+python -m ius overlap_metrics --supert --input outputs/summaries/your_summaries --range penultimate
 
 # Test with limited items
-python -m ius supert --input outputs/summaries/your_summaries --stop 5
+python -m ius overlap_metrics --supert --input outputs/summaries/your_summaries --stop 5
 
 # Detective story specific options - append reveal text to full story
-python -m ius supert --input outputs/summaries/bmds_summaries --add-reveal
+python -m ius overlap_metrics --supert --input outputs/summaries/bmds_summaries --add-reveal
 
 # Detective story specific options - use only reveal text as source
-python -m ius supert --input outputs/summaries/bmds_summaries --reveal-only
+python -m ius overlap_metrics --supert --input outputs/summaries/bmds_summaries --reveal-only
 ```
 
 ### Troubleshooting Common Issues
