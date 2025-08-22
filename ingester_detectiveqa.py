@@ -179,6 +179,7 @@ def is_murderer_question(question):
     # even if they contain murder-related keywords
     blocklist_phrases = [
         # Add specific questions or  phrases here that should be excluded
+        " Who killed Dwight?", # incorrect, no idea what is going on here.
         "Who killed George?", # same killer as other q
         "The killer of the plan to kill Kaneko is", #confusing question, what did they mean
         "Who was the murderer of Inoke?",
@@ -431,6 +432,11 @@ def main():
     
     for novel_id, novel_samples in novels_data.items():
         print(f"\n📖 Processing novel {novel_id}...")
+        
+        # Skip novels with data quality issues
+        if novel_id == 97:
+            print(f"  🚫 Skipping novel {novel_id} due to data quality issues (missing names in correct answers)")
+            continue
         
         # Check if we have the book mapping
         if novel_id not in book_ids:
