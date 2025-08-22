@@ -7,7 +7,9 @@ This script will then do the following:
 
 1. Filter out questions that are not in English.
 2. Filter out questions that are not about who the murderer/culprit is. (show what fraction was kept)
-3. Write out the data to datasets/detectiveqa/, 
+3. Filter out individual questions that occur before 85% position in the story
+4. Filter out novels where ALL remaining questions occur before 85% position (to focus on late-reveal mysteries)
+5. Write out the data to datasets/detectiveqa/, 
    Note I want one .json file per book, and one .json file for the collection.
    IMPORTANT: Note there are 172 samples in the dataset, but only 62 novels. So we will have 62 json files, and the
    "questions" list will aggregate from multiple samples.
@@ -49,7 +51,7 @@ import os
 from pathlib import Path
 from collections import defaultdict
 from datetime import datetime
-from datasets import load_dataset
+#from datasets import load_dataset
 from langdetect import detect
 from difflib import SequenceMatcher
 import re
@@ -308,6 +310,7 @@ def clean_option_text(text):
     return text
 
 
+
 def main():
     """Main ingestion process."""
     print("🔍 Starting DetectiveQA ingestion...")
@@ -326,6 +329,7 @@ def main():
     # Load annotation files directly (bypassing streaming dataset corruption)
     print("📥 Loading annotation files...")
     annotation_dir = Path("data-source/detectiveqa-annotations")
+
     aisup_dir = annotation_dir / "AIsup_anno"
     human_dir = annotation_dir / "human_anno"
     
@@ -387,6 +391,8 @@ def main():
     english_questions = 0
     murder_questions = 0
     processed_novels = []
+    filtered_by_position = []  # Track novels filtered out by 85% threshold
+    questions_filtered_by_position = 0  # Track individual questions filtered by 85% threshold
     
     for novel_id, novel_samples in novels_data.items():
         print(f"\n📖 Processing novel {novel_id}...")
@@ -464,6 +470,40 @@ def main():
             print(f"  ⏭️  Skipping novel {novel_id} (no qualifying questions)")
             continue
         
+        # Filter out individual questions that occur before 85% position threshold
+        lines = novel_text.split('\n')
+        total_lines = len([line for line in lines if line.strip().startswith('[') and ']' in line])
+        
+        if total_lines > 0:
+            original_count = len(all_questions)
+            filtered_questions = []
+            
+            for question in all_questions:
+                answer_position = question.get('answer_position', 0)
+                normalized_position = answer_position / total_lines
+                
+                if normalized_position >= 0.85:  # Keep questions at or after 85%
+                    filtered_questions.append(question)
+            
+            all_questions = filtered_questions
+            questions_filtered = original_count - len(all_questions)
+            questions_filtered_by_position += questions_filtered
+            
+            if questions_filtered > 0:
+                print(f"  🔍 Novel {novel_id}: Filtered out {questions_filtered} early questions (before 85%)")
+        
+        # Check if all questions were filtered out by position threshold
+        if not all_questions:
+            novel_title = book_ids[novel_id]
+            print(f"  🚫 Filtering out novel {novel_id} ({novel_title})")
+            print(f"     All questions occur before 85% position")
+            filtered_by_position.append({
+                'novel_id': novel_id,
+                'title': novel_title,
+                'num_questions': 0  # All questions were filtered
+            })
+            continue
+        
         print(f"  ✅ Novel {novel_id}: {len(all_questions)} qualifying questions")
         
         # Create item JSON following README structure
@@ -502,7 +542,7 @@ def main():
         "created": datetime.now().isoformat(),
         "num_items": len(processed_novels),
         "total_documents": len(processed_novels),
-        "description": "Detective novels with questions about murderer/culprit identification, filtered from DetectiveQA dataset",
+        "description": "Detective novels with questions about murderer/culprit identification, filtered from DetectiveQA dataset. Excludes individual questions that occur before 85% position and novels where all questions occur before 85% position, focusing on late-reveal mysteries.",
         "items": processed_novels
     }
     
@@ -520,8 +560,20 @@ def main():
     print(f"Total questions processed: {total_questions}")
     print(f"English questions: {english_questions} ({english_questions/total_questions*100:.1f}%)")
     print(f"Murder/culprit questions: {murder_questions} ({murder_questions/english_questions*100:.1f}% of English)")
+    print(f"Individual questions filtered by 85% position: {questions_filtered_by_position}")
     print(f"Novels processed: {len(processed_novels)}")
-    print(f"Output directory: {output_dir}")
+    
+    # Report on filtered novels
+    if filtered_by_position:
+        print(f"\n🚫 NOVELS FILTERED BY 85% POSITION THRESHOLD:")
+        print(f"   {len(filtered_by_position)} novels filtered out (all questions before 85% position)")
+        for filtered_novel in filtered_by_position:
+            print(f"   • Novel {filtered_novel['novel_id']}: {filtered_novel['title']}")
+            print(f"     (all questions were early)")
+    else:
+        print(f"\n✅ No novels completely filtered by 85% position threshold")
+    
+    print(f"\nOutput directory: {output_dir}")
     print(f"\n📝 Log files created:")
     print(f"  - murder_questions.txt: {murder_questions} questions about murderers/culprits")
     print(f"  - non_murder_questions.txt: {english_questions - murder_questions} other English questions")
