@@ -1,0 +1,111 @@
+---
+alwaysApply: true
+---
+
+# Data Structure Verification Rule
+
+Before making any claims about the structure or location of data in files (JSON, XML, etc.), you MUST verify the actual structure programmatically.
+
+## Core Requirements
+
+1. **Never assume structure from isolated lines** - A single line like `"key": "value"` reveals nothing about its nesting level without full context
+
+2. **Always verify programmatically when structure matters** - Use Python scripts, jq, grep, or other tools to confirm the actual data path before making code changes
+
+3. **Trace the hierarchy explicitly** - When examining nested data, explicitly state the full path (e.g., `data['documents'][0]['metadata']['original_metadata']['key']`)
+
+4. **Use qualifying language until verified** - Say "appears to be located at" or "might be stored in" instead of definitively stating structure
+
+5. **When proposing fixes based on data location** - ALWAYS run a verification script first
+
+## Examples
+
+### ❌ DON'T:
+```
+"I can see line 49 has the culprit field, so it's stored at metadata['culprit(s), human annotated']"
+```
+
+### ✅ DO:
+```
+"I see a culprit field on line 49. Let me verify the exact JSON path structure:
+python3 -c "import json; data=json.load(open('file.json')); print(data['path']['to']['field'])"
+```
+
+### ❌ DON'T:
+```
+"The data is clearly nested under config.settings based on this line"
+```
+
+### ✅ DO:
+```
+"Based on this line, the data appears to be nested. Let me trace the full structure to confirm the exact path."
+```
+
+## When This Rule Applies
+
+- Analyzing JSON, XML, YAML, or other structured data files
+- Proposing code changes that depend on data structure
+- Debugging data access issues
+- Making claims about where data is stored
+
+## Verification Methods
+
+- Python scripts to load and inspect data
+- `jq` for JSON analysis
+- Structure-aware tools rather than text-based analysis
+- Explicit path tracing through nested objects
+
+This rule prevents confident assertions about data structure that turn out to be completely wrong, avoiding wasted debugging time and incorrect code changes.# Data Structure Verification Rule
+
+Before making any claims about the structure or location of data in files (JSON, XML, etc.), you MUST verify the actual structure programmatically.
+
+## Core Requirements
+
+1. **Never assume structure from isolated lines** - A single line like `"key": "value"` reveals nothing about its nesting level without full context
+
+2. **Always verify programmatically when structure matters** - Use Python scripts, jq, grep, or other tools to confirm the actual data path before making code changes
+
+3. **Trace the hierarchy explicitly** - When examining nested data, explicitly state the full path (e.g., `data['documents'][0]['metadata']['original_metadata']['key']`)
+
+4. **Use qualifying language until verified** - Say "appears to be located at" or "might be stored in" instead of definitively stating structure
+
+5. **When proposing fixes based on data location** - ALWAYS run a verification script first
+
+## Examples
+
+### ❌ DON'T:
+```
+"I can see line 49 has the culprit field, so it's stored at metadata['culprit(s), human annotated']"
+```
+
+### ✅ DO:
+```
+"I see a culprit field on line 49. Let me verify the exact JSON path structure:
+python3 -c "import json; data=json.load(open('file.json')); print(data['path']['to']['field'])"
+```
+
+### ❌ DON'T:
+```
+"The data is clearly nested under config.settings based on this line"
+```
+
+### ✅ DO:
+```
+"Based on this line, the data appears to be nested. Let me trace the full structure to confirm the exact path."
+```
+
+## When This Rule Applies
+
+- Analyzing JSON, XML, YAML, or other structured data files
+- Proposing code changes that depend on data structure
+- Debugging data access issues
+- Making claims about where data is stored
+
+## Verification Methods
+
+- Python scripts to load and inspect data
+- `jq` for JSON analysis
+- Structure-aware tools rather than text-based analysis
+- Explicit path tracing through nested objects
+
+This rule prevents confident assertions about data structure that turn out to be completely wrong, avoiding wasted debugging time and incorrect code changes.

@@ -1,0 +1,96 @@
+---
+alwaysApply: true
+---
+
+# Cursor Rule Writing Guide
+
+Standards and best practices for creating effective Cursor rule files.
+
+## File Structure Requirements
+
+1. **Always start with YAML frontmatter:**
+   ```yaml
+   ---
+   alwaysApply: true
+   ---
+   ```
+
+2. **Use `.mdc` extension** - Never `.md` 
+
+3. **Place in correct directory** - Always `.cursor/rules/` in project root
+
+4. **Use kebab-case filenames** - e.g., `cursor-rule-writing-guide.mdc`
+
+## Content Structure
+
+### Required Elements
+- Clear title as H1 header
+- Brief description of the rule's purpose
+- Specific, actionable requirements
+- Concrete examples (both ✅ DO and ❌ DON'T)
+
+### Optional But Recommended
+- "When This Rule Applies" section
+- "Verification Methods" section  
+- Context about why the rule exists
+
+## Writing Style Guidelines
+
+1. **Be specific and actionable** - Avoid vague guidance
+2. **Use imperative mood** - "Always verify" not "You should verify"
+3. **Provide concrete examples** - Show exactly what to do/avoid
+4. **Explain the why** - Context helps with compliance
+5. **Use consistent formatting** - Follow markdown best practices
+
+## Examples
+
+### ❌ DON'T Write Rules Like This:
+```markdown
+# Be Careful
+You should be careful when working with data.
+```
+
+### ✅ DO Write Rules Like This:
+```markdown
+# Data Structure Verification Rule
+
+Before making claims about data structure, MUST verify programmatically.
+
+## Requirements
+1. **Never assume from isolated lines** - Always trace full hierarchy
+2. **Use verification scripts** - Run Python/jq to confirm structure
+
+## Example
+```python
+# Verify structure before claiming location
+python3 -c "import json; print(json.load(open('file.json'))['path'])"
+```
+
+## Testing Your Rules
+
+1. **Read your rule out loud** - Does it make sense?
+2. **Test with examples** - Would someone follow it correctly?
+3. **Check specificity** - Is it actionable or just aspirational?
+4. **Verify placement** - Is it in `.cursor/rules/*.mdc`?
+
+## Common Anti-Patterns
+
+- ❌ Rules that are too general ("be good at coding")
+- ❌ Missing YAML frontmatter
+- ❌ Wrong file extension (`.md` instead of `.mdc`)
+- ❌ Placed outside `.cursor/rules/` directory
+- ❌ No concrete examples
+- ❌ Vague language ("try to" instead of "MUST")
+
+## Rule Effectiveness Checklist
+
+- [ ] Has YAML frontmatter with `alwaysApply: true`
+- [ ] Uses `.mdc` extension
+- [ ] Located in `.cursor/rules/` 
+- [ ] Contains specific, actionable requirements
+- [ ] Includes concrete examples
+- [ ] Explains when the rule applies
+- [ ] Uses imperative language ("MUST", "ALWAYS", "NEVER")
+- [ ] Addresses a real problem or need
+
+Remember: Good cursor rules prevent specific mistakes and guide toward correct behavior with concrete, actionable guidance.
