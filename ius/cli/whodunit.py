@@ -235,7 +235,7 @@ Examples:
     
     parser.add_argument(
         "--scoring-prompt",
-        help="Scoring prompt directory name (if not provided, Phase 2 scoring will be skipped)"
+        help="Scoring prompt directory name (if not provided, Phase 2 scoring will be skipped). NOTE: For non-BMDS datasets, this parameter is ignored and 'whodunit-scoring-culprits' is used instead."
     )
     
    

@@ -363,10 +363,15 @@ def extract_ground_truth(item_data: Dict[str, Any], input_path: str = None) -> D
                         question_data = questions[0]
                         
                         # Extract suspects from options
-                        if "options" in question_data:
-                            options = question_data["options"]
-                            ground_truth["suspects"] = list(options.values())
-                            logger.info(f"✅ Extracted suspects for detectiveqa: {list(options.values())}")
+                        # NOTE I'm not doing this because I have not validated these names are correct yet
+                        #if "options" in question_data:
+                        #    options = question_data["options"]
+                        #    ground_truth["suspects"] = list(options.values())
+                        #    logger.info(f"✅ Extracted suspects for detectiveqa: {list(options.values())}")
+                        ground_truth["suspects"] = "We unfortunately do not have a list of suspects for this story."
+
+                        # Extract question -- only applies to detectiveqa
+                        ground_truth["murder_question"] = question_data["question"].strip()
                         
                         # Extract culprits from answer + options
                         if "answer" in question_data and "options" in question_data:
@@ -1128,6 +1133,7 @@ def score_whodunit_solution(
     
     # For non-BMDS datasets, force culprits-only scoring
 
+    #TODO the prompt should not be hard-coded but it's fine for now.
     if not is_bmds:
         logger.info("Non-BMDS dataset detected - using culprits-only scoring")
         score_output = _score_single_category(
@@ -1523,7 +1529,8 @@ def run_whodunit_evaluation(
                 # Build the actual user prompt with template substitution
                 actual_user_prompt = user_template.format(
                     text=selected_text,
-                    reveal_chunk=reveal_segment
+                    reveal_chunk=reveal_segment,
+                    question=ground_truth.get("murder_question", "") # most prompts ignore this but need for detectiveqa
                 )
                 
                 # Call LLM for solving
