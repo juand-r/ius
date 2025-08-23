@@ -1195,8 +1195,29 @@ The configuration system provides automatic validation:
 - **Items**: 43 full-length detective novels 
 - **Documents per item**: 1 (each novel is one document)
 - **Novel lengths**: 50,400 - 138,481 words (average: 69,029 words)
-- **Special features**: Content/reveal segment splitting - novels are split at the first question's answer position into main content and reveal segment
+- **Special features**: 
+  - Content/reveal segment splitting - novels are split at the first question's answer position into main content and reveal segment
+  - Name corrections - 121 curated character name corrections fix spelling variants (e.g., "Richard Nixon" → "Richard Negus", "Miss Maple" → "Miss Marple")
 - **Use case**: Study incremental summarization on longer detective stories, evaluate with reveal segment handling
+
+## Dataset Preparation
+
+### DetectiveQA Ingestion
+
+The DetectiveQA dataset requires preprocessing from the original Hugging Face format:
+
+```bash
+# Download raw novels first
+python download_detectiveqa_novels.py
+
+# Basic ingestion (preserves original format)
+python ingester_detectiveqa.py
+
+# With content splitting and name corrections (do it this way)
+python ingester_detectiveqa.py --split-reveal --apply-name-corrections
+```
+
+**Name Corrections Feature**: The `--apply-name-corrections` flag fixes character name variants and OCR errors found in the original texts using 121 manually curated corrections. This ensures consistent character names across questions, answers, and story content.
 
 ## Development Principles ✅ **ACHIEVED**
 

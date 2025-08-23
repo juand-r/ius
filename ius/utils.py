@@ -296,8 +296,8 @@ def _estimate_openai_cost(model: str, input_tokens: int, output_tokens: int) -> 
 
 def _model_supports_temperature(model: str) -> bool:
     """Check if model supports temperature parameter."""
-    # o1, o3, o4 models don't support temperature
-    return not model.startswith(("o1", "o3", "o4"))
+    # o1, o3, o4 models and search preview models don't support temperature
+    return not model.startswith(("o1", "o3", "o4")) and "search-preview" not in model
 
 
 def _model_supports_max_completion_tokens(model: str) -> bool:

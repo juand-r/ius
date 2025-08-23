@@ -293,7 +293,7 @@ def extract_ground_truth(item_data: Dict[str, Any], input_path: str = None) -> D
     try:
         metadata = item_data["documents"][0]["metadata"]
         
-        # Check if original_metadata exists (for BMDS, but not DetectiveQA)
+        # Check if original_metadata exists (for BMDS, true-detective, and DetectiveQA)
         if "original_metadata" in metadata:
             original_metadata = metadata["original_metadata"]
             
@@ -355,9 +355,48 @@ def extract_ground_truth(item_data: Dict[str, Any], input_path: str = None) -> D
                     logger.info(f"✅ Extracted suspects for true-detective from answer_options: {answer_options}")
                 else:
                     logger.warning(f"❌ No answer_options found for true-detective item {story_id}")
+            elif "detectiveqa" in dataset_name.lower():
+                # DetectiveQA dataset - extract suspects and culprits from questions
+                if "original_metadata" in metadata and "questions" in metadata["original_metadata"]:
+                    questions = metadata["original_metadata"]["questions"]
+                    if questions and len(questions) > 0:
+                        question_data = questions[0]
+                        
+                        # Extract suspects from options
+                        if "options" in question_data:
+                            options = question_data["options"]
+                            ground_truth["suspects"] = list(options.values())
+                            logger.info(f"✅ Extracted suspects for detectiveqa: {list(options.values())}")
+                        
+                        # Extract culprits from answer + options
+                        if "answer" in question_data and "options" in question_data:
+                            answer_letter = question_data["answer"]
+                            options = question_data["options"]
+                            
+                            if answer_letter in options:
+                                culprit_name = options[answer_letter]
+                                
+                                # Remove letter prefix if format is "A - name"
+                                if " - " in culprit_name:
+                                    culprit_name = culprit_name.split(" - ", 1)[1]
+                                
+                                ground_truth["culprits"] = culprit_name
+                                ground_truth["culprits_post_reveal"] = culprit_name  # Same as culprits
+                                ground_truth["accomplices"] = None  # No accomplices in detectiveqa
+                                
+                                logger.info(f"✅ Extracted culprits for detectiveqa: {culprit_name}")
+                            else:
+                                logger.warning(f"❌ Answer '{answer_letter}' not found in options for detectiveqa item {story_id}")
+                        else:
+                            logger.warning(f"❌ Missing answer or options for detectiveqa item {story_id}")
+                    else:
+                        logger.warning(f"❌ No questions found for detectiveqa item {story_id}")
+                else:
+                    logger.warning(f"❌ No questions metadata found for detectiveqa item {story_id}")
+                    logger.warning(f"Available metadata keys: {list(metadata.keys())}")
             else:
                 # Other non-BMDS datasets
-                raise NotImplementedError(f"Dataset '{dataset_name}' suspect extraction not implemented yet. Only true-detective is supported for non-BMDS datasets.")
+                raise NotImplementedError(f"Dataset '{dataset_name}' suspect extraction not implemented yet. Only true-detective and detectiveqa are supported for non-BMDS datasets.")
             
         except (KeyError, IndexError, TypeError) as e:
             logger.warning(f"Could not extract suspects for non-BMDS dataset {dataset_name}: {e}")
@@ -1509,10 +1548,10 @@ def run_whodunit_evaluation(
                 parsed_sections = parse_llm_response(llm_result["response"])
                 
 
-                # Extract puzzle_data for true-detective metadata 
+                # Extract metadata for true-detective and detectiveqa
                 puzzle_metadata = {}
                 try:
-                    # Detect if this is true-detective
+                    # Detect dataset type
                     dataset_name = input_dir.split("/")[-2] if "/" in input_dir else input_dir
                     if "true-detective" in dataset_name.lower():
                         with open(item_file) as f:
@@ -1523,8 +1562,23 @@ def run_whodunit_evaluation(
                             # Copy puzzle_data excluding mystery_text and outcome
                             puzzle_metadata = {k: v for k, v in puzzle_data.items() if k not in ["mystery_text", "outcome"]}
                             logger.info(f"✅ Added puzzle_data metadata for true-detective item {item_id}")
+                    elif "detectiveqa" in dataset_name.lower():
+                        with open(item_file) as f:
+                            original_item_data = json.load(f)
+                        
+                        questions_data = original_item_data["documents"][0]["metadata"].get("original_metadata", {}).get("questions", [])
+                        if questions_data and len(questions_data) > 0:
+                            question_data = questions_data[0]
+                            # Extract relevant question metadata
+                            puzzle_metadata = {
+                                "question": question_data.get("question", ""),
+                                "answer": question_data.get("answer", ""),
+                                "answer_position": question_data.get("answer_position"),
+                                "clue_position": question_data.get("clue_position")
+                            }
+                            logger.info(f"✅ Added question metadata for detectiveqa item {item_id}")
                 except Exception as e:
-                    logger.warning(f"Could not extract puzzle_data metadata for {item_id}: {e}")
+                    logger.warning(f"Could not extract metadata for {item_id}: {e}")
 
                 # Create result with solution_correctness_assessment set to None
                 item_metadata = {

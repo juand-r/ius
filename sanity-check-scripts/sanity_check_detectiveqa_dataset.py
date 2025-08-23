@@ -84,13 +84,20 @@ def check_name_in_content(name, content):
         "dr. " + name_lower,
     ]
     
-    # Also check if it's a compound name and any part matches
-    name_parts = name_lower.split()
-    if len(name_parts) > 1:
-        variations.extend(name_parts)
-    
     for variation in variations:
         if variation in content_lower:
+            return True
+    
+    # For compound names, check if ALL parts are present individually
+    name_parts = name_lower.split()
+    if len(name_parts) > 1:
+        # All parts must be found (but not necessarily together)
+        all_parts_found = True
+        for part in name_parts:
+            if part not in content_lower:
+                all_parts_found = False
+                break
+        if all_parts_found:
             return True
     
     return False
@@ -104,9 +111,10 @@ def analyze_item(item_path, nlp):
         return {
             'error': f"Failed to load {item_path}: {e}",
             'novel_id': str(item_path.stem),
-            'missing_names': [],
+            'missing_from_questions': [],
+            'missing_from_correct_answers': [],
             'question_names': [],
-            'answer_names': []
+            'correct_answer_names': []
         }
     
     novel_id = data['item_metadata']['item_id']
@@ -116,9 +124,10 @@ def analyze_item(item_path, nlp):
     author = metadata.get('author', 'Unknown')
     questions_data = metadata.get('questions', [])
     
-    all_missing_names = []
+    missing_from_questions = []
+    missing_from_correct_answers = []
     all_question_names = []
-    all_answer_names = []
+    all_correct_answer_names = []
     
     for i, q_data in enumerate(questions_data):
         question = q_data['question']
@@ -129,33 +138,43 @@ def analyze_item(item_path, nlp):
         question_names = extract_names_spacy(question, nlp)
         all_question_names.extend(question_names)
         
-        # Extract names from ALL answer options (to catch question issues with wrong names)
-        answer_names = []
-        for option_key, option_text in options.items():
-            option_names = extract_names_spacy(option_text, nlp)
-            answer_names.extend(option_names)
-        all_answer_names.extend(answer_names)
+        # Extract names from CORRECT answer only
+        correct_answer_names = []
+        if correct_answer_letter and correct_answer_letter in options:
+            correct_answer_text = options[correct_answer_letter]
+            correct_answer_names = extract_names_spacy(correct_answer_text, nlp)
+        all_correct_answer_names.extend(correct_answer_names)
         
-        # Check all names against content
-        all_names = set(question_names + answer_names)
-        for name in all_names:
+        # Check question names against content
+        for name in question_names:
             if not check_name_in_content(name, content):
-                all_missing_names.append({
+                missing_from_questions.append({
                     'name': name,
                     'question_num': i + 1,
-                    'in_question': name in question_names,
-                    'in_any_answer': name in answer_names,
                     'question_text': question,
-                    'all_options': str(options)
+                    'correct_answer_letter': correct_answer_letter,
+                    'correct_answer_text': options.get(correct_answer_letter, 'N/A')
+                })
+        
+        # Check correct answer names against content
+        for name in correct_answer_names:
+            if not check_name_in_content(name, content):
+                missing_from_correct_answers.append({
+                    'name': name,
+                    'question_num': i + 1,
+                    'question_text': question,
+                    'correct_answer_letter': correct_answer_letter,
+                    'correct_answer_text': options.get(correct_answer_letter, 'N/A')
                 })
     
     return {
         'novel_id': novel_id,
         'title': title,
         'author': author,
-        'missing_names': all_missing_names,
+        'missing_from_questions': missing_from_questions,
+        'missing_from_correct_answers': missing_from_correct_answers,
         'question_names': list(set(all_question_names)),
-        'answer_names': list(set(all_answer_names)),
+        'correct_answer_names': list(set(all_correct_answer_names)),
         'total_questions': len(questions_data),
         'error': None
     }
@@ -163,7 +182,7 @@ def analyze_item(item_path, nlp):
 def main():
     """Main function to analyze all detectiveqa items."""
     print("🔍 Starting DetectiveQA Dataset Sanity Check...")
-    print("   Checking if names in questions/ALL answer options appear in story content...")
+    print("   Checking if names in questions and CORRECT answers appear in story content...")
     
     # Load spaCy model
     nlp = load_spacy_model()
@@ -178,7 +197,8 @@ def main():
     print(f"📚 Found {len(json_files)} novels to analyze...")
     
     results = []
-    novels_with_issues = []
+    novels_with_question_issues = []
+    novels_with_answer_issues = []
     
     # Analyze each file
     for json_file in sorted(json_files):
@@ -189,78 +209,111 @@ def main():
         
         if result['error']:
             print(f" ❌ {result['error']}")
-        elif result['missing_names']:
-            print(f" ⚠️  {len(result['missing_names'])} missing names")
-            novels_with_issues.append(result)
         else:
-            print(" ✅")
+            issues = []
+            if result['missing_from_questions']:
+                issues.append(f"{len(result['missing_from_questions'])} question")
+                novels_with_question_issues.append(result)
+            if result['missing_from_correct_answers']:
+                issues.append(f"{len(result['missing_from_correct_answers'])} answer")
+                novels_with_answer_issues.append(result)
+            
+            if issues:
+                print(f" ⚠️  {', '.join(issues)} missing names")
+            else:
+                print(" ✅")
     
     # Generate report
     output_file = "detectiveqa_sanity_check_report.txt"
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write("DETECTIVEQA DATASET SANITY CHECK REPORT\n")
-        f.write("(Checking questions and ALL answer options)\n")
-        f.write("=" * 50 + "\n\n")
+        f.write("(Checking questions and CORRECT answers separately)\n")
+        f.write("=" * 60 + "\n\n")
         
         # Summary statistics
         total_novels = len(results)
         novels_with_errors = len([r for r in results if r['error']])
-        novels_with_missing_names = len(novels_with_issues)
-        novels_clean = total_novels - novels_with_errors - novels_with_missing_names
+        novels_with_question_issues_count = len(novels_with_question_issues)
+        novels_with_answer_issues_count = len(novels_with_answer_issues)
+        novels_with_any_issues = len(set([r['novel_id'] for r in novels_with_question_issues + novels_with_answer_issues]))
+        novels_clean = total_novels - novels_with_errors - novels_with_any_issues
         
         f.write(f"SUMMARY:\n")
         f.write(f"  Total novels analyzed: {total_novels}\n")
-        f.write(f"  Novels with errors: {novels_with_errors}\n") 
-        f.write(f"  Novels with missing names: {novels_with_missing_names}\n")
+        f.write(f"  Novels with loading errors: {novels_with_errors}\n")
+        f.write(f"  Novels with missing names in QUESTIONS: {novels_with_question_issues_count}\n")
+        f.write(f"  Novels with missing names in CORRECT ANSWERS: {novels_with_answer_issues_count}\n")
+        f.write(f"  Novels with ANY issues: {novels_with_any_issues}\n")
         f.write(f"  Clean novels: {novels_clean}\n\n")
         
-        # Detailed issues
-        if novels_with_issues:
-            f.write("NOVELS WITH MISSING NAMES:\n")
-            f.write("-" * 30 + "\n\n")
+        # Total counts
+        total_question_issues = sum(len(r['missing_from_questions']) for r in results)
+        total_answer_issues = sum(len(r['missing_from_correct_answers']) for r in results)
+        f.write(f"TOTAL ISSUE COUNTS:\n")
+        f.write(f"  Missing names from questions: {total_question_issues}\n")
+        f.write(f"  Missing names from correct answers: {total_answer_issues}\n\n")
+        
+        # Issues in QUESTIONS
+        if novels_with_question_issues:
+            f.write("1. MISSING NAMES IN QUESTIONS:\n")
+            f.write("-" * 40 + "\n\n")
             
-            for result in novels_with_issues:
-                f.write(f"Novel {result['novel_id']} - {result['title']} by {result['author']}\n")
-                f.write(f"  Total questions: {result['total_questions']}\n")
-                f.write(f"  Missing names: {len(result['missing_names'])}\n")
-                
-                for missing in result['missing_names']:
-                    location = []
-                    if missing['in_question']:
-                        location.append("question")
-                    if missing['in_any_answer']:
-                        location.append("answer options")
+            for result in novels_with_question_issues:
+                if result['missing_from_questions']:
+                    f.write(f"Novel {result['novel_id']} - {result['title']} by {result['author']}\n")
+                    f.write(f"  Missing from questions: {len(result['missing_from_questions'])}\n")
                     
-                    f.write(f"    ❌ '{missing['name']}' (in {'/'.join(location)}) - Q{missing['question_num']}\n")
-                    f.write(f"       Question: \"{missing['question_text']}\"\n")
-                    f.write(f"       All Options: {missing['all_options']}\n")
-                
-                f.write("\n")
+                    for missing in result['missing_from_questions']:
+                        f.write(f"    ❌ '{missing['name']}' - Q{missing['question_num']}\n")
+                        f.write(f"       Question: \"{missing['question_text']}\"\n")
+                        f.write(f"       Correct Answer ({missing['correct_answer_letter']}): \"{missing['correct_answer_text']}\"\n")
+                    f.write("\n")
+        
+        # Issues in CORRECT ANSWERS
+        if novels_with_answer_issues:
+            f.write("2. MISSING NAMES IN CORRECT ANSWERS:\n")
+            f.write("-" * 40 + "\n\n")
+            
+            for result in novels_with_answer_issues:
+                if result['missing_from_correct_answers']:
+                    f.write(f"Novel {result['novel_id']} - {result['title']} by {result['author']}\n")
+                    f.write(f"  Missing from correct answers: {len(result['missing_from_correct_answers'])}\n")
+                    
+                    for missing in result['missing_from_correct_answers']:
+                        f.write(f"    ❌ '{missing['name']}' - Q{missing['question_num']}\n")
+                        f.write(f"       Question: \"{missing['question_text']}\"\n")
+                        f.write(f"       Correct Answer ({missing['correct_answer_letter']}): \"{missing['correct_answer_text']}\"\n")
+                    f.write("\n")
         
         # Error details
         error_results = [r for r in results if r['error']]
         if error_results:
-            f.write("NOVELS WITH ERRORS:\n")
-            f.write("-" * 20 + "\n\n")
+            f.write("3. NOVELS WITH LOADING ERRORS:\n")
+            f.write("-" * 30 + "\n\n")
             for result in error_results:
                 f.write(f"Novel {result['novel_id']}: {result['error']}\n")
     
     print(f"\n📊 Analysis complete! Report saved to: {output_file}")
     print(f"   📈 {novels_clean}/{total_novels} novels are clean")
-    print(f"   ⚠️  {novels_with_missing_names} novels have missing names in questions/answers")
+    print(f"   ❓ {novels_with_question_issues_count} novels have missing names in QUESTIONS")
+    print(f"   ✅ {novels_with_answer_issues_count} novels have missing names in CORRECT ANSWERS")
     if novels_with_errors:
         print(f"   ❌ {novels_with_errors} novels had loading errors")
     
-    # Show a sample of issues if any
-    if novels_with_issues:
-        print(f"\n🔍 Sample issues found (missing names in questions/answers):")
-        for result in novels_with_issues[:3]:  # Show first 3
+    # Show samples of both issue types
+    if novels_with_question_issues:
+        print(f"\n🔍 Sample QUESTION issues:")
+        for result in novels_with_question_issues[:2]:  # Show first 2
             print(f"   Novel {result['novel_id']} ({result['title']}):")
-            for missing in result['missing_names'][:2]:  # Show first 2 missing names
-                location = "question" if missing['in_question'] else "answer options"
-                print(f"     - Missing '{missing['name']}' in {location}")
-        if len(novels_with_issues) > 3:
-            print(f"   ... and {len(novels_with_issues) - 3} more novels with issues")
+            for missing in result['missing_from_questions'][:2]:  # Show first 2 missing names
+                print(f"     - Missing '{missing['name']}' from question {missing['question_num']}")
+    
+    if novels_with_answer_issues:
+        print(f"\n🔍 Sample CORRECT ANSWER issues:")
+        for result in novels_with_answer_issues[:2]:  # Show first 2
+            print(f"   Novel {result['novel_id']} ({result['title']}):")
+            for missing in result['missing_from_correct_answers'][:2]:  # Show first 2 missing names
+                print(f"     - Missing '{missing['name']}' from answer {missing['correct_answer_letter']}")
 
 if __name__ == "__main__":
     main()

@@ -56,6 +56,7 @@ from datetime import datetime
 from langdetect import detect
 from difflib import SequenceMatcher
 import re
+from content_name_corrections import ContentNameCorrector
 
 # Note: my attempt to get these in English may not be completely accurate
 # https://huggingface.co/datasets/Phospheneser/DetectiveQA/tree/main/novel_data_en
@@ -101,7 +102,7 @@ book_ids = dict([
     (219, "The Monogram Murders - Sophie Hannah"),
     (241, "Why Didn't They Ask Evans? - Agatha Christie"),
     (25, "The Roman Hat Mystery - Ellery Queen"),
-    (252, "Murder by Command - Agatha Christie"),
+    (252, "Ordeal by Innocence - Agatha Christie"),
     (26, "The Greek Coffin Mystery - Ellery Queen"),
     (27, "The Egyptian Cross Mystery - Ellery Queen"),
     (28, "The Tragedy of X - Ellery Queen"),
@@ -125,17 +126,48 @@ book_ids = dict([
 ])
 
 
-# Question mappings to make questions more natural
+# Question mappings to make questions more natural and fix incorrect character names
 QUESTION_MAPPINGS = {
-    " Who killed Ximian Li ( )": "Who killed Ximian Li?",
+   " Who killed Ximian Li ( )": "Who killed Ximian Li?",
     " Which of the following individuals is most likely to be the instigator of the entire case?": "Who was the main culprit?",
     " The murderer of the Fosse brothers must be ( ).": "Who murdered the Fosse brothers?",
     " The real culprit behind the scene in Guanxue Pavilion is ( )": "Who was the real culprit behind the scene in Guanxue Pavilion?",
     " The murderer of Olga Semenova is ( )": "Who murdered Olga Semenova?",
     " The real killer in this serial murder case ( )": "Who was the real killer in this serial murder case?",
     " Who is the true killer of Helen?": "Who killed Helen?",
-    " The real killer of Alyona is ( ) ": "Who killed Alyona?",
     " The killer of Yuecai is": "Who killed Yuecai?",
+    # Fix incorrect character names in questions
+    " Who killed Richard Nixon?": " Who killed Richard Negus?",
+    " Who killed Rosamary Barron?": " Who killed Rosemary Barton?",
+    " Who was Ronnie DeFrancis killed by?": " Who was Ronnie Devereux killed by?",
+    " Who was the murderer of Heather Barducci?": " Who was the murderer of Heather Badcock?",
+    " Who was the killer of Quentin Ducassin?": " Who was the killer of Quentin Duguesclin?",
+    "Who murdered Olga Semenova?": "Who murdered Olga Seminoff?",
+    " Who killed Mrs. Aggleton?": "Who killed Mrs. Aggles?",  # Fix incorrect character name
+    " Who is the real killer in the Colonel Proctor's Mustard Plot?": " Who killed Colonel Protheroe?",
+    " Who was the killer of Yagami Ryukyu?": " Who was the killer of Okuma Ryuji?",
+    " Who caused the death of Rosalind Claude?": "Who killed Rosaleen Cloade?",
+    " The real killer of Alyona is ( ) ": "Who killed Arlena Marshall?",
+    " Who was the actual killer of Mary Gerald?": "Who killed Mary Gerrard?",
+    " Who is the murderer of Mrs. Laidner?": "Who killed Mrs. Leidner?",
+    " Who was Anne Morris killed by?": "Who killed Anne?",
+    " Who pushed Castles off the cliff?": "Who pushed Alan Carstairs off the cliff?",
+ 
+}
+
+# Answer option mappings to fix incorrect character names in answer choices
+ANSWER_MAPPINGS = {
+    "Jachi Hate": "York Hatter",
+    "Hamnet Sedlak": "Hamnet Sadler",
+    "The maid Mason and Nayton conspired together.": "The maid Mason and Major Nayton conspired together.",
+    "Johns Hopkins": "Nurse Hopkins",
+    "Mr. and Mrs. Brand": "Mr. and Mrs. Brand",
+    "Sheriff Trott": "Sheriff Trotter (Georgie Corrigan)",
+    "Janie Hobbs": "Jennie Hobbs",
+    "Corton":"Kirsten Lindstrom",
+    "Dr. Ladner": "Dr. Leidner",
+    "Marta Dobrowolska": "Marthe Daubreuil",
+    "Jimmy Cecil": "Jimmy",
 }
 
 def is_english(text):
@@ -354,12 +386,16 @@ def main():
     parser = argparse.ArgumentParser(description='Ingest DetectiveQA dataset')
     parser.add_argument('--split-reveal', action='store_true', 
                        help='Split content at answer position and create separate reveal segment (default: keep original format)')
+    parser.add_argument('--apply-name-corrections', action='store_true',
+                       help='Apply name corrections to fix character name variants and OCR errors (default: false)')
     
     args = parser.parse_args()
     split_reveal = args.split_reveal
+    apply_corrections = args.apply_name_corrections
     
     mode_description = "with content splitting" if split_reveal else "original format"
-    print(f"🔍 Starting DetectiveQA ingestion ({mode_description})...")
+    corrections_description = "with name corrections" if apply_corrections else "no name corrections"
+    print(f"🔍 Starting DetectiveQA ingestion ({mode_description}, {corrections_description})...")
     
     # Create output directories
     output_dir = Path("datasets/detectiveqa")
@@ -444,8 +480,8 @@ def main():
         print(f"\n📖 Processing novel {novel_id}...")
         
         # Skip novels with data quality issues
-        if novel_id == 97:
-            print(f"  🚫 Skipping novel {novel_id} due to data quality issues (missing names in correct answers)")
+        if novel_id in [53, 97, 100, 133, 136, 26, 27, 29, 30, 31, 33, 56, 79, 81, 84, 87, 90, 99]: 
+            print(f"  🚫 Skipping novel {novel_id} due to data quality issues")
             continue
         
         # Check if we have the book mapping
@@ -497,11 +533,17 @@ def main():
                     murder_questions += 1
                     murder_questions_file.write(f"Novel {novel_id}: {question_data['question']}\n")
                     
-                    # Clean options to remove corruption
-                    cleaned_options = {
-                        key: clean_option_text(value) 
-                        for key, value in question_data['options'].items()
-                    }
+                    # Clean options to remove corruption and apply answer mappings
+                    cleaned_options = {}
+                    for key, value in question_data['options'].items():
+                        cleaned_value = clean_option_text(value)
+                        # Apply answer mapping if exists
+                        mapped_value = ANSWER_MAPPINGS.get(cleaned_value, cleaned_value)
+                        if mapped_value != cleaned_value:
+                            print(f"  📝 Mapping answer option {key} in novel {novel_id}:")
+                            print(f"     From: {cleaned_value}")
+                            print(f"     To:   {mapped_value}")
+                        cleaned_options[key] = mapped_value
                     
                     # Check for specific duplicate question that needs to be filtered
                     question_text = question_data['question'].strip()
@@ -602,6 +644,30 @@ def main():
             content_text = '\n'.join(remove_line_numbers(content_lines))
             reveal_segment = '\n'.join(remove_line_numbers(reveal_lines))
             
+            # Apply name corrections if enabled
+            if apply_corrections:
+                corrector = ContentNameCorrector()
+                corrected_content = corrector.correct_names_in_text(content_text, str(novel_id))
+                corrected_reveal = corrector.correct_names_in_text(reveal_segment, str(novel_id))
+                
+                # Log corrections made
+                if corrector.replacements_made:
+                    corrections_count = len(corrector.replacements_made)
+                    print(f"  🔧 Applied {corrections_count} name corrections to novel {novel_id}")
+                    for replacement in corrector.replacements_made[:3]:  # Show first 3
+                        print(f"     {replacement['from']} → {replacement['to']} ({replacement['occurrences']} times)")
+                    if corrections_count > 3:
+                        print(f"     ... and {corrections_count - 3} more corrections")
+                
+                # Use corrected versions
+                content_text = corrected_content
+                reveal_segment = corrected_reveal
+                
+                # Save validation report for this novel
+                if corrector.replacements_made:
+                    report_file = f"name_corrections_novel_{novel_id}.json"
+                    corrector.save_validation_report(report_file)
+            
             print(f"  📄 Content lines: {len(content_lines)}, Reveal lines: {len(reveal_lines)}")
             
             # Create item JSON with reveal segment
@@ -631,6 +697,28 @@ def main():
         else:
             # Original mode: Keep full content with line numbers
             print(f"  📄 Keeping original content format (with line numbers)")
+            
+            # Apply name corrections if enabled
+            if apply_corrections:
+                corrector = ContentNameCorrector()
+                corrected_novel_text = corrector.correct_names_in_text(novel_text, str(novel_id))
+                
+                # Log corrections made
+                if corrector.replacements_made:
+                    corrections_count = len(corrector.replacements_made)
+                    print(f"  🔧 Applied {corrections_count} name corrections to novel {novel_id}")
+                    for replacement in corrector.replacements_made[:3]:  # Show first 3
+                        print(f"     {replacement['from']} → {replacement['to']} ({replacement['occurrences']} times)")
+                    if corrections_count > 3:
+                        print(f"     ... and {corrections_count - 3} more corrections")
+                
+                # Use corrected version
+                novel_text = corrected_novel_text
+                
+                # Save validation report for this novel
+                if corrector.replacements_made:
+                    report_file = f"name_corrections_novel_{novel_id}.json"
+                    corrector.save_validation_report(report_file)
             
             # Create item JSON without reveal segment
             item_data = {
