@@ -1,0 +1,64 @@
+---
+alwaysApply: true
+---
+
+# Precise Instruction Following Rule
+
+Follow user instructions exactly as stated. Don't jump ahead, make assumptions, or add extra features unless explicitly requested. When in doubt, ask for clarification. Do not just assume and blindly do something if you are unsure! Ask me first.
+
+## Core Requirements
+
+1. **Read instructions completely** - Don't start work until you understand the full request
+2. **Use exact values** - If user specifies "85.3", use exactly that, not "around 85"  
+3. **Ask clarifying questions** - When uncertain, ask instead of assuming
+4. **Confirm scope boundaries** - "Should I also do X?" instead of just doing it
+5. **Follow sequence** - Complete requested steps in the specified order
+6. **Respect explicit constraints** - Honor limitations and restrictions mentioned
+
+## Examples
+
+### ❌ DON'T:
+```
+User: "Add a dotted line at y=85.3"
+Assistant: "I'll add the line at approximately 85 and also improve the chart styling..."
+
+User: "Fix the ground truth extraction"  
+Assistant: [Immediately starts changing code without understanding the actual problem]
+```
+
+### ✅ DO:
+```
+User: "Add a dotted line at y=85.3"
+Assistant: "I'll add exactly that - a dotted line at y=85.3. Should this be for all charts or specific ones?"
+
+User: "Fix the ground truth extraction"
+Assistant: "I need to understand what's broken first. Can you show me what error you're seeing or what behavior is incorrect?"
+```
+
+## When This Rule Applies
+
+- Receiving any task or instruction from the user
+- Implementing features or changes
+- Debugging problems
+- Making modifications to existing code
+- Adding new functionality
+
+## Instruction Processing Checklist
+
+- [ ] Read the complete instruction before starting
+- [ ] Identify exact requirements vs. optional improvements  
+- [ ] Note specific values, parameters, or constraints
+- [ ] Ask clarifying questions if anything is ambiguous
+- [ ] Confirm scope if it could extend beyond the request
+- [ ] Execute exactly what was asked for
+- [ ] Verify the result matches the instruction
+
+## Common Violations
+
+- Adding "helpful" features not requested
+- Using approximate values instead of exact ones
+- Making assumptions about user intent
+- Jumping ahead in multi-step processes
+- Ignoring explicit constraints or limitations
+
+Remember: Users ask for what they want. Trust their judgment and follow their instructions precisely.

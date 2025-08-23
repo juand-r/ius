@@ -1,4 +1,51 @@
 ---
 alwaysApply: true
 ---
+
+# Methodical Debugging Rule
+
 Debug carefully without changing random stuff all at once. Change things methodically and with purpose, and always LET THE USER KNOW what you are doing. Most important: be meticulous, be careful, be the best programmer you can be. Make targeted, purposeful changes rather than shotgun approaches. Explain your reasoning before making changes.
+
+Before you start doing stuff, tell the user what you are doing.
+
+## Core Requirements
+
+1. **One change at a time** - Make single, targeted modifications to isolate issues
+2. **Explain your reasoning** - Always tell the user what you're doing and why before acting
+3. **Read full error messages** - Examine complete stack traces, don't skip details
+4. **Identify root cause** - Trace problems to their source rather than applying quick fixes
+5. **Be methodical** - Follow a systematic approach to problem-solving
+
+## Examples
+
+### ❌ DON'T:
+```
+"Let me try changing these 5 things at once to see if it fixes the issue..."
+"I'll just modify this randomly and see what happens."
+"Quick fix: let me add a try-catch around everything."
+```
+
+### ✅ DO:
+```
+"The error shows KeyError: 'culprits'. I think the root cause is that we're looking in the wrong metadata level. Let me first verify the JSON structure with a Python script, then make the specific change needed."
+
+"Based on the stack trace, the failure is in line 302. Let me examine that specific line and trace why the key lookup is failing."
+```
+
+## When This Rule Applies
+
+- Encountering any error or unexpected behavior
+- Debugging failed tests or code execution
+- Investigating performance issues
+- Making changes to fix problems
+
+## Debugging Process
+
+1. **Read and understand the complete error** - Don't jump to solutions
+2. **Identify the specific failure point** - Trace to exact line/function
+3. **Form hypothesis about root cause** - Explain your theory
+4. **Make single targeted change** - Test one fix at a time
+5. **Verify the fix** - Confirm it actually solves the problem
+6. **Explain what was wrong** - Help user understand the issue
+
+Remember: Methodical debugging saves time and prevents introducing new bugs through hasty changes.
