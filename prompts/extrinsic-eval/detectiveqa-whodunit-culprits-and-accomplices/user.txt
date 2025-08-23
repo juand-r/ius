@@ -1,0 +1,41 @@
+Here is a detective story. Please read the story carefully before you decide who the culprit is. There may have been multiple victims. The specific question I want you to answer is: {question}
+
+
+{text}
+
+
+Analyze all the clues and evidence presented in the story and identify who the culprit is. Explain your reasoning step by step, considering characters' motives, means and opportunities,  physical evidence or alibis, or any other clues you find relevant.
+
+Solve the mystery. Write down your thought process here.
+
+<THOUGHT PROCESS>
+<thought process here>
+</THOUGHT PROCESS>
+
+Who are the possible suspects? List them here:
+
+<SUSPECTS>
+<names(s) for all suspects here, comma separated>
+</SUSPECTS>
+
+Who is the culprit (or culprits, if more than one) and why? I want you to distinguish between the main culprit(s) and the accomplices (if any). If there are none, write None. If possible, include first and last names, as well as any aliases (if they have any). Answer in the form:
+
+<MAIN CULPRIT(S)>
+<name(s) here>
+</MAIN CULPRIT(S)>
+
+<ACCOMPLICE(S)>
+<name(s) here>
+</ACCOMPLICE(S)>
+
+Now write down your reconstruction of the events of what actually happened.
+
+<EVENT RECONSTRUCTION>
+<event reconstruction here>
+</EVENT RECONSTRUCTION>
+
+Finally, explain why the other suspects are innocent.
+
+<WHY THE OTHER SUSPECTS ARE INNOCENT>
+<explanation here>
+</WHY THE OTHER SUSPECTS ARE INNOCENT>
