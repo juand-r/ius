@@ -40,7 +40,7 @@ def evaluate_whodunit_dataset(
     prompt_name: str = "default-whodunit-culprits-and-accomplices",
     scoring_prompt_name: str | None = None,
     model: str = "gpt-4.1-mini",
-    max_completion_tokens: int = 100000,
+    max_completion_tokens: int = 20000,
     scope: str = "all",
     item_ids: list[str] | None = None,
     output_path: str | None = None,
@@ -235,15 +235,15 @@ Examples:
     
     parser.add_argument(
         "--scoring-prompt",
-        help="Scoring prompt directory name (if not provided, Phase 2 scoring will be skipped). NOTE: For non-BMDS datasets, this parameter is ignored and 'whodunit-scoring-culprits' is used instead."
+        help="Scoring prompt directory name (if not provided, Phase 2 scoring will be skipped). For non-BMDS datasets, accomplice fields are automatically set to 'None'."
     )
     
    
     parser.add_argument(
         "--max-tokens",
         type=int,
-        default=100000,
-        help="Maximum tokens for LLM response (default: 100000)"
+        default=20000,
+        help="Maximum tokens for LLM response (default: 20000)"
     )
     
     # Scope and item selection

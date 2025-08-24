@@ -1131,13 +1131,11 @@ def score_whodunit_solution(
         path_lower = input_path.lower()
         is_bmds = "/bmds" in path_lower or "bmds_" in path_lower
     
-    # For non-BMDS datasets, force culprits-only scoring
-
-    #TODO the prompt should not be hard-coded but it's fine for now.
+    # For non-BMDS datasets, force culprits-only scoring (but respect the scoring prompt)
     if not is_bmds:
-        logger.info("Non-BMDS dataset detected - using culprits-only scoring")
+        logger.info(f"Non-BMDS dataset detected - using culprits-only scoring with prompt '{scoring_prompt_name}'")
         score_output = _score_single_category(
-            prompt_name="whodunit-scoring-culprits",
+            prompt_name=scoring_prompt_name,  # Use the user-provided scoring prompt
             template_vars={
                 "suspects": ground_truth.get("suspects", "None"),
                 "ground_truth_culprits": ground_truth.get("culprits") or "None",
