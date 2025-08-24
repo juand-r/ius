@@ -33,12 +33,8 @@ def load_chunk_word_data(collection_path):
                     if documents and 'chunks' in documents[0]:
                         chunks = documents[0]['chunks']
                         
-                        # Check if reveal segment was added (last chunk might be reveal)
-                        chunking_params = item_data.get('item_metadata', {}).get('chunking_params', {})
-                        has_reveal = chunking_params.get('reveal_add_on', False)
-                        
-                        # Count words in regular chunks (exclude reveal if present)
-                        chunks_to_count = chunks[:-1] if has_reveal and len(chunks) > 1 else chunks
+                        # Count words in regular chunks (exclude last chunk)
+                        chunks_to_count = chunks[:-1] if len(chunks) > 1 else chunks
                         
                         for chunk in chunks_to_count:
                             chunk_word_count = len(chunk.split())
