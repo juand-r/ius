@@ -1,7 +1,7 @@
 {
   "domain": "sci-fi story",
   "source": "SQuALITY dataset - pszemraj/SQuALITY-v1.3 from Hugging Face",
-  "created": "2025-08-12T15:40:18.564446",
+  "created": "2025-08-24T18:54:09.075684",
   "num_items": 127,
   "total_documents": 127,
   "description": "Reading comprehension stories from SQuALITY dataset with questions and human responses",
