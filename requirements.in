@@ -1,0 +1,6 @@
+# Production dependencies from pyproject.toml
+-e .
+langdetect
+nltk
+unidecode
+rapidfuzz
