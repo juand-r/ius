@@ -3,6 +3,8 @@ data-source/*/
 datasets/booookscore/
 datasets/detectiveqa/
 
+supert_venv/
+
 .DS_Store
 
 # Byte-compiled / optimized / DLL files
