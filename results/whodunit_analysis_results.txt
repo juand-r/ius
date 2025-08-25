@@ -1,0 +1,61 @@
+================================================================================
+WHODUNIT EVALUATION ANALYSIS
+================================================================================
+
+OVERALL SUMMARY:
+Total evaluations: 11
+Overall accuracy: 0.583
+
+DETAILED RESULTS:
+--------------------------------------------------------------------------------
+Directory                                          Type     Range        Items  Culprit  Both     Avg Len 
+--------------------------------------------------------------------------------
+bmds_fixed_size2_8000_whodunit_481302              chunks   all          34     0.765    0.647    37017
+bmds_fixed_size2_8000_whodunit_5964ea              chunks   all          33     0.758    0.636    35799
+bmds_fixed_size2_8000_whodunit_7fdb57              chunks   all-but-last 34     0.853    0.647    30228
+bmds_fixed_size2_8000_all_concat_131eac_whodunit_  summaries penultimate  33     0.424    0.212    4939
+bmds_fixed_size2_8000_all_concat_5e8bbe_whodunit_  summaries penultimate  34     0.471    0.324    2810
+bmds_fixed_size2_8000_all_concat_65b244_whodunit_  summaries penultimate  34     0.559    0.324    3188
+bmds_fixed_size2_8000_all_concat_c6cc9b_whodunit_  summaries penultimate  34     0.441    0.294    1262
+bmds_fixed_size2_8000_all_iterative_061201_whodun  summaries penultimate  34     0.529    0.382    3972
+bmds_fixed_size2_8000_all_iterative_94ce59_whodun  summaries penultimate  34     0.618    0.441    22342
+bmds_fixed_size2_8000_all_iterative_9cf072_whodun  summaries penultimate  34     0.471    0.353    4285
+bmds_fixed_size2_8000_all_iterative_c3c26b_whodun  summaries penultimate  34     0.529    0.353    1421
+
+================================================================================
+SPECIFIC QUESTION ANALYSIS
+================================================================================
+
+1. CHUNK EVALUATION ACCURACY:
+--------------------------------------------------
+all          accuracy: 0.765 (34 items, avg 37017 chars)
+  Common mistakes in 8 incorrect cases:
+    Different suspect: 4/8
+    Confused w/ accomplice: 3/8
+    Only alias: 1/8
+    Included others: 3/8
+all          accuracy: 0.758 (33 items, avg 35799 chars)
+  Common mistakes in 8 incorrect cases:
+    Different suspect: 5/8
+    Confused w/ accomplice: 3/8
+    Only alias: 0/8
+    Included others: 2/8
+all-but-last accuracy: 0.853 (34 items, avg 30228 chars)
+
+2. PRE-REVEAL COMPARISON:
+--------------------------------------------------
+Chunks (pre-reveal): 0.853 accuracy, 30228 avg chars
+Concat summaries (pre-reveal): 0.474 accuracy, 3036 avg chars
+  Short concat (<500 words): 0.441 accuracy
+
+3. CONCAT SUMMARY LENGTH ANALYSIS:
+--------------------------------------------------
+short    (1262 chars): 0.441 accuracy
+medium   (2810 chars): 0.471 accuracy
+medium   (3188 chars): 0.559 accuracy
+medium   (4939 chars): 0.424 accuracy
+
+4. CONCAT vs ITERATIVE COMPARISON:
+--------------------------------------------------
+Concat summaries: 0.474 accuracy, 3036 avg chars (4 evaluations)
+Iterative summaries: 0.537 accuracy, 8005 avg chars (4 evaluations)

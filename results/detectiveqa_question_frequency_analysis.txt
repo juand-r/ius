@@ -1,0 +1,181 @@
+DETECTIVEQA QUESTION FREQUENCY ANALYSIS
+==================================================
+
+Total questions: 41
+Unique questions: 40
+Duplicates found: 1
+
+DUPLICATE QUESTIONS (1 found):
+----------------------------------------
+[2x] Who is the real killer?
+       Found in: Novel 27 (pos: 2588), Novel 25 (pos: 2215)
+
+ALL QUESTIONS (sorted by frequency):
+----------------------------------------
+  1. [2x] (Novel 25, 27) Who is the real killer?
+  2. [1x]  (Novel 83) Who was the killer of Yagami Ryukyu?
+  3. [1x]  (Novel 134) Who is the perpetrator of the case in the text?
+  4. [1x]  (Novel 56) Who kidnapped Donohue?
+  5. [1x]  (Novel 118) Who caused the death of Rosalind Claude?
+  6. [1x]  (Novel 138) Who is the murderer of Colonel Palgrave?
+  7. [1x]  (Novel 99) Who is the real culprit in the story?
+  8. [1x]  (Novel 109) Who is the real mastermind behind these murder cases in the text?
+  9. [1x]  (Novel 84) Who is the true killer of the students on Ten-Angle Island?
+ 10. [1x]  (Novel 133) Who planned the death of Mrs. Simington?
+ 11. [1x]  (Novel 144) Who was Ronnie DeFrancis killed by?
+ 12. [1x]  (Novel 105) Who was Ruth killed by?
+ 13. [1x]  (Novel 26) Who was the main culprit?
+ 14. [1x]  (Novel 241) Who pushed Castles off the cliff?
+ 15. [1x]  (Novel 30) Who murdered the Fosse brothers?
+ 16. [1x]  (Novel 128) Who is the mastermind behind the murder of Mrs. Franklin?
+ 17. [1x]  (Novel 124) Who was the killer of Quentin Ducassin?
+ 18. [1x]  (Novel 149) Who killed Rosamary Barron?
+ 19. [1x]  (Novel 90) Who was the real culprit behind the scene in Guanxue Pavilion?
+ 20. [1x]  (Novel 107) Who was Anne Morris killed by?
+ 21. [1x]  (Novel 150) Who killed the nanny?
+ 22. [1x]  (Novel 110) Who is the murderer of Mrs. Laidner?
+ 23. [1x]  (Novel 151) Who was the murderer of Mrs. Boyle?
+ 24. [1x]  (Novel 33) Who was the mastermind behind the murder in the John Fleming case?
+ 25. [1x]  (Novel 29) Who killed Mrs. Black?
+ 26. [1x]  (Novel 126) Who murdered Olga Semenova?
+ 27. [1x]  (Novel 130) Who is the real killer in the Colonel Proctor's Mustard Plot?
+ 28. [1x]  (Novel 87) Who was the real killer in this serial murder case?
+ 29. [1x]  (Novel 219) Who killed Richard Nixon?
+ 30. [1x]  (Novel 140) Who killed Helen?
+ 31. [1x]  (Novel 117) Who killed Alyona?
+ 32. [1x]  (Novel 137) Who was the murderer of Heather Barducci?
+ 33. [1x]  (Novel 79) Who is the murderer of the victim in the field?
+ 34. [1x]  (Novel 121) Who is the killer of Patricia?
+ 35. [1x]  (Novel 198) Collect all the evidence in the case, who is the final murderer?
+ 36. [1x]  (Novel 209) Who was the murderer of Mrs. Upward?
+ 37. [1x]  (Novel 136) Who is the murderer on the train?
+ 38. [1x]  (Novel 81) Who killed Yuecai?
+ 39. [1x]  (Novel 116) Who was the actual killer of Mary Gerald?
+ 40. [1x]  (Novel 100) Who was the actual mastermind behind the murder of Yuefu?
+
+==================================================
+QUESTIONS GROUPED BY NOVEL (sorted by question count):
+--------------------------------------------------
+
+Novel 83 - The Two-Headed Devil by Arisu Arisugawa (1 questions):
+  1. (pos: 4724, ans: B: Shizuko Fujisawa) "Who was the killer of Yagami Ryukyu?"
+
+Novel 134 - A Murder is Announced by Agatha Christie (1 questions):
+  1. (pos: 2865, ans: B: Charlotte Blacklock) "Who is the perpetrator of the case in the text?"
+
+Novel 56 - Drury Lane's Last Case by Ellery Queen (1 questions):
+  1. (pos: 2497, ans: C: Hamnet Sedlak) "Who kidnapped Donohue?"
+
+Novel 118 - Taken at the Flood by Agatha Christie (1 questions):
+  1. (pos: 2840, ans: B: David Hunter) "Who caused the death of Rosalind Claude?"
+
+Novel 138 - A Caribbean Mystery by Agatha Christie (1 questions):
+  1. (pos: 2243, ans: B: Tim Kendall) "Who is the murderer of Colonel Palgrave?"
+
+Novel 99 - The Night She Died by Yasuhiko Nishizawa (1 questions):
+  1. (pos: 2304, ans: D: Rocky) "Who is the real culprit in the story?"
+
+Novel 109 - Cards on the Table by Agatha Christie (1 questions):
+  1. (pos: 2522, ans: B: Dr. Roberts) "Who is the real mastermind behind these murder cases in the text?"
+
+Novel 84 - The Decagon House Murders by Yukito Ayatsuji (1 questions):
+  1. (pos: 2977, ans: A: Fan) "Who is the true killer of the students on Ten-Angle Island?"
+
+Novel 133 - By the Pricking of My Thumbs by Agatha Christie (1 questions):
+  1. (pos: 2555, ans: D: Mr. Simpson) "Who planned the death of Mrs. Simington?"
+
+Novel 144 - The Seven Dials Mystery by Agatha Christie (1 questions):
+  1. (pos: 3136, ans: A: Jimmy Cecil) "Who was Ronnie DeFrancis killed by?"
+
+Novel 105 - The Mystery of the Blue Train by Agatha Christie (1 questions):
+  1. (pos: 3204, ans: A: The maid Mason and Nayton conspired together.) "Who was Ruth killed by?"
+
+Novel 26 - The Greek Coffin Mystery by Ellery Queen (1 questions):
+  1. (pos: 2714, ans: D: James Knox) "Who was the main culprit?"
+
+Novel 241 - Why Didn't They Ask Evans? by Agatha Christie (1 questions):
+  1. (pos: 3192, ans: A: Roger) "Who pushed Castles off the cliff?"
+
+Novel 30 - The Tragedy of Z by Ellery Queen (1 questions):
+  1. (pos: 1873, ans: D: Magnum Prison Warden) "Who murdered the Fosse brothers?"
+
+Novel 128 - Curtain: Poirot's Last Case by Agatha Christie (1 questions):
+  1. (pos: 2093, ans: C: Norton) "Who is the mastermind behind the murder of Mrs. Franklin?"
+
+Novel 27 - The Egyptian Cross Mystery by Ellery Queen (1 questions):
+  1. (pos: 2588, ans: A: Wileg Crocetta) "Who is the real killer?"
+
+Novel 124 - The Clocks by Agatha Christie (1 questions):
+  1. (pos: 3269, ans: A: Mr. and Mrs. Brand) "Who was the killer of Quentin Ducassin?"
+
+Novel 149 - Sparkling Cyanide by Agatha Christie (1 questions):
+  1. (pos: 2554, ans: A: Ruth Lessing) "Who killed Rosamary Barron?"
+
+Novel 90 - The Hyperbolic Murder by Kyotaro Nishimura (1 questions):
+  1. (pos: 2638, ans: A: Sakura Kiyohara) "Who was the real culprit behind the scene in Guanxue Pavilion?"
+
+Novel 107 - Death in the Clouds by Agatha Christie (1 questions):
+  1. (pos: 2478, ans: B: Gael) "Who was Anne Morris killed by?"
+
+Novel 150 - Crooked House by Agatha Christie (1 questions):
+  1. (pos: 2550, ans: D: Josephine) "Who killed the nanny?"
+
+Novel 110 - Murder in Mesopotamia by Agatha Christie (1 questions):
+  1. (pos: 2683, ans: D: Dr. Ladner) "Who is the murderer of Mrs. Laidner?"
+
+Novel 151 - Three Blind Mice by Agatha Christie (1 questions):
+  1. (pos: 3283, ans: D: Sheriff Trott) "Who was the murderer of Mrs. Boyle?"
+
+Novel 25 - The Roman Hat Mystery by Ellery Queen (1 questions):
+  1. (pos: 2215, ans: A: Stephen Barry) "Who is the real killer?"
+
+Novel 33 - The Crooked Hinge by John Dickson Carr (1 questions):
+  1. (pos: 1934, ans: B: John Fairley's wife, Lily Fairley) "Who was the mastermind behind the murder in the John Fleming case?"
+
+Novel 29 - The Tragedy of Y by Ellery Queen (1 questions):
+  1. (pos: 2578, ans: D: Jachi Hate) "Who killed Mrs. Black?"
+
+Novel 126 - Halloween Party by Agatha Christie (1 questions):
+  1. (pos: 2304, ans: A: Roya Drake and Michael Garfield) "Who murdered Olga Semenova?"
+
+Novel 130 - The Murder at the Vicarage by Agatha Christie (1 questions):
+  1. (pos: 3171, ans: C: Lawrence Redding) "Who is the real killer in the Colonel Proctor's Mustard Plot?"
+
+Novel 87 - Everything Becomes F by Hiroshi Mori (1 questions):
+  1. (pos: 3695, ans: C: Akagi Shiki) "Who was the real killer in this serial murder case?"
+
+Novel 219 - The Monogram Murders by Sophie Hannah (1 questions):
+  1. (pos: 2476, ans: A: Janie Hobbs) "Who killed Richard Nixon?"
+
+Novel 140 - Sleeping Murder by Agatha Christie (1 questions):
+  1. (pos: 2187, ans: D: Dr. Kennedy.) "Who killed Helen?"
+
+Novel 117 - Evil Under the Sun by Agatha Christie (1 questions):
+  1. (pos: 2046, ans: B: Patrick Redford and Christine Redford) "Who killed Alyona?"
+
+Novel 137 - The Mirror Crack'd from Side to Side by Agatha Christie (1 questions):
+  1. (pos: 2701, ans: D: Marina Gregorovna) "Who was the murderer of Heather Barducci?"
+
+Novel 79 - Winged Darkness by Maya Yutaka (1 questions):
+  1. (pos: 4043, ans: C: Mist painting) "Who is the murderer of the victim in the field?"
+
+Novel 121 - Hickory Dickory Dock by Agatha Christie (1 questions):
+  1. (pos: 2441, ans: C: Nigel) "Who is the killer of Patricia?"
+
+Novel 198 - The ABC Murders by Agatha Christie (1 questions):
+  1. (pos: 2938, ans: C: Franklin Clark) "Collect all the evidence in the case, who is the final murderer?"
+
+Novel 209 - Mrs McGinty's Dead by Agatha Christie (1 questions):
+  1. (pos: 2903, ans: B: Robin Upward) "Who was the murderer of Mrs. Upward?"
+
+Novel 136 - 4.50 from Paddington by Agatha Christie (1 questions):
+  1. (pos: 2800, ans: A: Doctor Campbell) "Who is the murderer on the train?"
+
+Novel 81 - The One-Eyed Girl by Yutaka Maya (1 questions):
+  1. (pos: 3976, ans: B: Yuying's Mother) "Who killed Yuecai?"
+
+Novel 116 - Sad Cypress by Agatha Christie (1 questions):
+  1. (pos: 2781, ans: C: Johns Hopkins) "Who was the actual killer of Mary Gerald?"
+
+Novel 100 - Alphabet Puzzle by Seiichiro Oyama (1 questions):
+  1. (pos: 4007, ans: D: Mr. Fuyuan) "Who was the actual mastermind behind the murder of Yuefu?"
