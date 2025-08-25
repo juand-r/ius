@@ -173,6 +173,7 @@ def load_summaries_and_source_docs(summary_path: str, range_spec: str, add_revea
             raise ValueError("Cannot use both --add-reveal and --reveal-only flags together")
         
         # Add reveal text if requested
+        # NOTE source_docs is in datasets/, not summaries/
         if add_reveal:
             reveal_text = ""
             try:
@@ -184,6 +185,9 @@ def load_summaries_and_source_docs(summary_path: str, range_spec: str, add_revea
                 elif dataset_name == "true-detective":
                     # For true-detective: documents[0]['metadata']['original_metadata']['reveal_text']
                     reveal_text = metadata.get("original_metadata", {}).get("reveal_text", "")
+                elif dataset_name == "detectiveqa":
+                    # For detectiveqa: documents[0]['metadata']['detection']['reveal_segment']
+                    reveal_text = metadata.get("detection", {}).get("reveal_segment", "")
                 else:
                     raise ValueError(f"Unknown dataset '{dataset_name}' - cannot extract reveal text")
                 
@@ -210,6 +214,9 @@ def load_summaries_and_source_docs(summary_path: str, range_spec: str, add_revea
                 elif dataset_name == "true-detective":
                     # For true-detective: documents[0]['metadata']['original_metadata']['reveal_text']
                     reveal_text = metadata.get("original_metadata", {}).get("reveal_text", "")
+                elif dataset_name == "detectiveqa":
+                    # For detectiveqa: documents[0]['metadata']['detection']['reveal_segment']
+                    reveal_text = metadata.get("detection", {}).get("reveal_segment", "")
                 else:
                     raise ValueError(f"Unknown dataset '{dataset_name}' - cannot extract reveal text")
                 
@@ -728,13 +735,13 @@ Range specifications:
     parser.add_argument(
         "--add-reveal",
         action="store_true",
-        help="Append reveal text to source documents (for bmds and true-detective datasets)",
+        help="Append reveal text to source documents (for bmds, true-detective, and detectiveqa datasets)",
     )
 
     parser.add_argument(
         "--reveal-only",
         action="store_true",
-        help="Use only reveal text as source documents (for bmds and true-detective datasets)",
+        help="Use only reveal text as source documents (for bmds, true-detective, and detectiveqa datasets)",
     )
 
     # Parse arguments

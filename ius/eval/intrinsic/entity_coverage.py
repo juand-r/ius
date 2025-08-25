@@ -147,6 +147,9 @@ def get_source_entities(item_id: str, dataset_name: str, nlp, force_extract: boo
             elif dataset_name == "true-detective":
                 # For true-detective: documents[0]['metadata']['original_metadata']['reveal_text']
                 reveal_text = metadata.get("original_metadata", {}).get("reveal_text", "")
+            elif dataset_name == "detectiveqa":
+                # For detectiveqa: documents[0]['metadata']['detection']['reveal_segment']
+                reveal_text = metadata.get("detection", {}).get("reveal_segment", "")
             else:
                 logger.warning(f"Unknown dataset '{dataset_name}' - cannot extract reveal text")
                 raise ValueError(f"Unknown dataset '{dataset_name}' - cannot extract reveal text")
@@ -174,6 +177,9 @@ def get_source_entities(item_id: str, dataset_name: str, nlp, force_extract: boo
             elif dataset_name == "true-detective":
                 # For true-detective: documents[0]['metadata']['original_metadata']['reveal_text']
                 reveal_text = metadata.get("original_metadata", {}).get("reveal_text", "")
+            elif dataset_name == "detectiveqa":
+                # For detectiveqa: documents[0]['metadata']['detection']['reveal_segment']
+                reveal_text = metadata.get("detection", {}).get("reveal_segment", "")
             else:
                 logger.warning(f"Unknown dataset '{dataset_name}' - cannot extract reveal text")
                 raise ValueError(f"Unknown dataset '{dataset_name}' - cannot extract reveal text")

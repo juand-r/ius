@@ -228,13 +228,13 @@ Supported models:
     parser.add_argument(
         "--add-reveal",
         action="store_true",
-        help="Append reveal text to source documents (for bmds and true-detective datasets)",
+        help="Append reveal text to source documents (for bmds, true-detective, and detectiveqa datasets)",
     )
 
     parser.add_argument(
         "--reveal-only",
         action="store_true",
-        help="Use only reveal text as source documents (for bmds and true-detective datasets)",
+        help="Use only reveal text as source documents (for bmds, true-detective, and detectiveqa datasets)",
     )
 
     # Parse arguments
