@@ -4,8 +4,8 @@
 #
 #    pip-compile requirements-dev.in
 #
--e .
-    # via -r requirements.in
+-e .[dev]
+    # via -[dev]
 aiohappyeyeballs==2.6.1
     # via aiohttp
 aiohttp==3.12.15
@@ -137,11 +137,14 @@ pyyaml==6.0.2
 rapidfuzz==3.13.0
     # via -r requirements.in
 regex==2025.7.34
-    # via nltk
+    # via
+    #   nltk
+    #   tiktoken
 requests==2.32.5
     # via
     #   datasets
     #   huggingface-hub
+    #   tiktoken
 ruff==0.12.10
     # via ius
 six==1.17.0
@@ -152,6 +155,8 @@ sniffio==1.3.1
     # via
     #   anyio
     #   openai
+tiktoken==0.11.0
+    # via ius
 tqdm==4.67.1
     # via
     #   datasets
@@ -159,7 +164,7 @@ tqdm==4.67.1
     #   ius
     #   nltk
     #   openai
-typing-extensions==4.14.1
+typing-extensions==4.15.0
     # via
     #   aiosignal
     #   anyio
