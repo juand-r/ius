@@ -1355,12 +1355,20 @@ def run_whodunit_evaluation(
     # Generate output directory name
     if output_dir is None:
         input_name = input_path.name
+        
+        # NOTE: Hacky fix for CLI/function default mismatch
+        # CLI default is 20000, but old evaluations used 100000. To match existing 
+        # evaluation directories and avoid re-running, we temporarily use 100000 
+        # for hash calculation only, while keeping the actual max_completion_tokens 
+        # value for the evaluation itself.
+        hash_max_tokens = 100000 if max_completion_tokens == 20000 else max_completion_tokens
+        
         hash_params = {
             "model": model,
             "prompt_name": prompt_name,
             "range_spec": range_spec,
             "temperature": 0.1,#temperature,
-            "max_completion_tokens": max_completion_tokens
+            "max_completion_tokens": hash_max_tokens
         }
         output_hash = generate_output_hash(hash_params)
         output_dir = f"outputs/eval/extrinsic/{input_name}_whodunit_{output_hash}"
