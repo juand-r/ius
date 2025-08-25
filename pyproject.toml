@@ -16,6 +16,10 @@ dependencies = [
     "numpy>=1.20.0",
     "tqdm>=4.60.0",
     "openai>=1.0.0",
+    "huggingface-hub==0.34.2",
+    "datasets==4.0.0",
+    "langdetect",
+ 
 ]
 
 # Package discovery - only include the 'ius' package
