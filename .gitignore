@@ -4,6 +4,7 @@ datasets/booookscore/
 datasets/detectiveqa/
 
 supert_venv/
+cumulative-openai-spending.txt
 
 .DS_Store
 
