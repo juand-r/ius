@@ -1222,14 +1222,12 @@ The configuration system provides automatic validation:
 The DetectiveQA dataset requires preprocessing from the original Hugging Face format:
 
 ```bash
-# Download raw novels first
-python download_detectiveqa_novels.py
+# download the data
+python ingester-scripts/download_detectiveqa_annotation_files.py
+python ingester-scripts/download_detectiveqa_novels.py
 
-# Basic ingestion (preserves original format)
-python ingester_detectiveqa.py
-
-# With content splitting and name corrections (do it this way)
-python ingester_detectiveqa.py --split-reveal --apply-name-corrections
+# process (filter, clean, and reformat)
+python ingester-scripts/ingester_detectiveqa.py --split-reveal --apply-name-corrections
 ```
 
 **Name Corrections Feature**: The `--apply-name-corrections` flag fixes character name variants and OCR errors found in the original texts using 121 manually curated corrections. This ensures consistent character names across questions, answers, and story content.
