@@ -201,7 +201,7 @@ def get_source_entities(item_id: str, dataset_name: str, nlp, force_extract: boo
     logger.info(f"Extracted {len(original_entities)} original entities, now deduplicating...")
     
     # Deduplicate entities
-    deduplicated_entities, grouping_info, deduplication_response = deduplicate_entities_with_llm(original_entities, model, content)
+    deduplicated_entities, grouping_info, deduplication_response = deduplicate_entities_with_llm(original_entities, model, content, item_id)
     logger.info(f"Deduplicated to {len(deduplicated_entities)} canonical entities")
     
     # Save to cache
@@ -287,7 +287,7 @@ def select_summary_text(summaries: List[str], range_spec: str) -> Tuple[str, Lis
     
     return selected_text, selected_indices
 
-def deduplicate_entities_with_llm(entities: List[str], model: str = "gpt-5-mini", context_text: str = "") -> Tuple[List[str], Dict[str, List[str]], str]:
+def deduplicate_entities_with_llm(entities: List[str], model: str = "gpt-5-mini", context_text: str = "", item_id: Optional[str] = None) -> Tuple[List[str], Dict[str, List[str]], str]:
     """
     Use LLM to group entity variations that refer to the same person/entity.
     Uses OpenAI structured outputs to guarantee valid JSON.
@@ -299,6 +299,42 @@ def deduplicate_entities_with_llm(entities: List[str], model: str = "gpt-5-mini"
     """
     if not entities:
         return [], {}, ""
+    
+    # Skip deduplication for very large entity lists to avoid LLM token limits
+    if len(entities) > 1000:
+        item_info = f" (ITEM: {item_id})" if item_id else ""
+        warning_msg = """
+##############################################################################
+##############################################################################
+##########                                                        ##########
+##########  🚨🚨🚨 MASSIVE ENTITY LIST DETECTED! 🚨🚨🚨           ##########
+##########                                                        ##########
+##########  📊 ENTITY COUNT: {entity_count} entities{item_info}             ##########
+##########  ⚠️  EXCEEDS LIMIT: 1000 entities                      ##########
+##########                                                        ##########
+##########  🔄 SKIPPING LLM DEDUPLICATION to avoid token overflow ##########
+##########  📝 USING ORIGINAL ENTITIES WITHOUT GROUPING           ##########
+##########                                                        ##########
+##########  ⚡ This prevents "Please confirm output scope" errors  ##########
+##########  🎯 Entity coverage will still be calculated correctly ##########
+##########                                                        ##########
+##############################################################################
+##############################################################################
+        """.format(entity_count=len(entities), item_info=item_info)
+        
+        logger.warning(warning_msg)
+        print(warning_msg)  # Also print to console for visibility
+        
+        # Log to file for later review
+        if item_id:
+            try:
+                with open("entity-skipped.txt", "a") as f:
+                    f.write(f"{datetime.now().isoformat()}: Skipped ENTIRE ITEM {item_id} ({len(entities)} source entities > 1000 limit)\n")
+            except Exception as e:
+                logger.warning(f"Failed to write to entity-skipped.txt: {e}")
+        
+        # Return original entities without deduplication
+        return entities, {entity: [entity] for entity in entities}, f"SKIPPED_DEDUPLICATION_TOO_MANY_ENTITIES_{len(entities)}"
     
     entity_list = ", ".join(entities)
     
@@ -882,14 +918,26 @@ def run_entity_coverage_evaluation(
                 failed_items += 1
                 continue
             
-            # Extract and deduplicate entities from summary
+            # Extract entities from summary
             original_summary_entities = extract_entities_with_spacy(selected_text, nlp)
-            logger.info(f"Extracted {len(original_summary_entities)} original summary entities, now deduplicating...")
-            summary_entities, summary_grouping_info, summary_dedup_response = deduplicate_entities_with_llm(original_summary_entities, model, selected_text)
-            logger.info(f"Deduplicated to {len(summary_entities)} canonical summary entities")
+            logger.info(f"Extracted {len(original_summary_entities)} original summary entities")
             
             # Get source entities (Step 1 - with caching and deduplication)
             original_source_entities, source_entities, source_grouping_info, source_dedup_response = get_source_entities(item_id, dataset_name, nlp, model=model, add_reveal=add_reveal, reveal_only=reveal_only)
+            
+            # Check if source deduplication was skipped due to large entity count
+            skip_all_deduplication = "SKIPPED_DEDUPLICATION_TOO_MANY_ENTITIES" in source_dedup_response
+            if skip_all_deduplication:
+                logger.warning(f"🚨🚨🚨 SKIPPING ENTIRE ITEM {item_id} - TOO MANY SOURCE ENTITIES ({len(original_source_entities)}) 🚨🚨🚨")
+                logger.warning(f"⏩ Entity matching would be computationally expensive and not meaningful with {len(original_source_entities)} source entities")
+                logger.warning(f"📝 Continuing to next item...")
+                skipped_items += 1
+                continue
+            
+            # Normal deduplication for summary entities
+            logger.info(f"Now deduplicating {len(original_summary_entities)} summary entities...")
+            summary_entities, summary_grouping_info, summary_dedup_response = deduplicate_entities_with_llm(original_summary_entities, model, selected_text, item_id)
+            logger.info(f"Deduplicated to {len(summary_entities)} canonical summary entities")
             
             if not source_entities:
                 logger.warning(f"No source entities found for {item_id}")
@@ -1061,6 +1109,8 @@ def run_entity_coverage_evaluation(
     
     logger.info(f"Entity coverage evaluation complete!")
     logger.info(f"Processed {successful_items}/{len(item_files)} items successfully")
+    if skipped_items > 0:
+        logger.warning(f"🚨 SKIPPED {skipped_items} items due to excessive source entity counts (>1000)")
     logger.info(f"Results saved to: {output_path}")
     logger.info(f"Total matching calls: {total_matching_calls}")
     logger.info(f"Estimated total cost: ${total_cost:.3f}")
