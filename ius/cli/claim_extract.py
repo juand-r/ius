@@ -32,9 +32,10 @@ def extract_claims_from_dataset(
     prompt_name: str = "default-claim-extraction",
     scope: str = "all",
     item_ids: list[str] | None = None,
-    domain: str = "story",
     ask_user_confirmation: bool = False,
     verbose: bool = False,
+    overwrite: bool = False,
+    stop: int | None = None,
 ) -> dict[str, Any]:
     """
     CLI wrapper for extracting claims from summary datasets.
@@ -46,9 +47,10 @@ def extract_claims_from_dataset(
         prompt_name: Name of the prompt directory to use
         scope: Processing scope ("all" or "item")
         item_ids: List of specific item IDs to process
-        domain: Domain context for the summaries
         ask_user_confirmation: Whether to ask for confirmation before API calls
         verbose: Enable verbose logging
+        overwrite: Whether to overwrite existing output files
+        stop: Stop after processing this many items
         
     Returns:
         Dictionary containing processing results and metadata
@@ -75,9 +77,10 @@ def extract_claims_from_dataset(
             model=model,
             prompt_name=prompt_name,
             ask_user_confirmation=ask_user_confirmation,
-            domain=domain,
             scope=scope,
             item_ids=item_ids,
+            overwrite=overwrite,
+            stop=stop,
         )
         
         # Print processing statistics
@@ -171,17 +174,24 @@ Examples:
         nargs="+",
         help="Specific item IDs to process (required when scope is 'item')"
     )
-    
-    parser.add_argument(
-        "--domain", "-d",
-        default="story",
-        help="Domain context for the summaries (default: story)"
-    )
+
     
     parser.add_argument(
         "--confirm", "-c",
         action="store_true",
         help="Ask for user confirmation before making API calls"
+    )
+    
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Overwrite existing output files"
+    )
+    
+    parser.add_argument(
+        "--stop",
+        type=int,
+        help="Stop after processing this many items"
     )
     
     parser.add_argument(
@@ -207,9 +217,10 @@ Examples:
         prompt_name=args.prompt_name,
         scope=args.scope,
         item_ids=args.item_ids,
-        domain=args.domain,
         ask_user_confirmation=args.confirm,
         verbose=args.verbose,
+        overwrite=args.overwrite,
+        stop=args.stop,
     )
 
 

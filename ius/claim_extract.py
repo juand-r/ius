@@ -38,7 +38,7 @@ def extract_claims_from_summaries(
     model: str = "gpt-4o-mini",
     prompt_name: str = "default-claim-extraction",
     ask_user_confirmation: bool = False,
-    domain: str = "story",
+    domain: str = "text",
     **kwargs
 ) -> list[dict[str, Any]]:
     """
@@ -83,9 +83,7 @@ def extract_claims_from_summaries(
         
         template_vars = {
             "text": summary,
-            "domain": domain,
-            "summary_index": i + 1,
-            "total_summaries": len(summaries)
+            "domain": domain
         }
         
         result = call_llm(
@@ -117,9 +115,10 @@ def process_dataset_summaries(
     model: str = "gpt-4o-mini",
     prompt_name: str = "default-claim-extraction",
     ask_user_confirmation: bool = False,
-    domain: str = "story",
     scope: str = "all",
     item_ids: list[str] | None = None,
+    overwrite: bool = False,
+    stop: int | None = None,
     **kwargs
 ) -> dict[str, Any]:
     """
@@ -131,9 +130,10 @@ def process_dataset_summaries(
         model: LLM model to use
         prompt_name: Name of the prompt directory to use
         ask_user_confirmation: Whether to ask for confirmation before API calls
-        domain: Domain context for the summaries
         scope: Processing scope ("all" or "item")
         item_ids: List of specific item IDs to process (if scope is "item")
+        overwrite: Whether to overwrite existing output files
+        stop: Stop after processing this many items
         **kwargs: Additional parameters for LLM calls
     
     Returns:
@@ -171,6 +171,7 @@ def process_dataset_summaries(
     errors = {}
     total_cost = 0.0
     total_tokens = 0
+    processed_count = 0
     
     for item_id in items_to_process:
         try:
@@ -195,15 +196,86 @@ def process_dataset_summaries(
                 logger.warning(f"No summaries found for item {item_id}")
                 continue
             
-            # Extract claims from summaries
-            claim_results = extract_claims_from_summaries(
-                summaries=summaries,
-                model=model,
-                prompt_name=prompt_name,
-                ask_user_confirmation=ask_user_confirmation,
-                domain=domain,
-                **kwargs
-            )
+            # Extract domain and summarization metadata if not provided
+            try:
+                # Get metadata from documents[0]["metadata"]["item_experiment_metadata"]
+                first_doc = item_data.get("documents", [{}])[0]
+                metadata = first_doc.get("metadata", {})
+                item_exp_metadata = metadata.get("item_experiment_metadata", {})
+                template_vars = item_exp_metadata.get("template_vars", {})
+                
+                # Extract domain
+                extracted_domain = template_vars.get("domain", "story")
+                logger.info(f"Extracted domain '{extracted_domain}' from item {item_id} metadata")
+                
+                # Extract summarization info for collection metadata (first item only)
+                if item_id == items_to_process[0]:  # Only extract from first item
+                    summarization_info = {
+                        "optional_summary_length": template_vars.get("optional_summary_length"),
+                        "strategy_function": item_exp_metadata.get("strategy_function"),
+                        "summary_content_type": item_exp_metadata.get("summary_content_type"),
+                        "step_k_inputs": item_exp_metadata.get("step_k_inputs")
+                    }
+                    # Store for later use in collection metadata
+                    globals()['_summarization_info'] = summarization_info
+                    logger.info(f"Extracted summarization info: {summarization_info}")
+                    
+            except (IndexError, KeyError, TypeError) as e:
+                raise ValueError("No domain found.")
+            
+            # Create item directory for saving individual summary results
+            item_output_dir = Path(output_path) / "items" / item_id
+            item_output_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Process each summary individually and save immediately
+            claim_results = []
+            for summary_idx, summary in enumerate(summaries, 1):
+                # Check if this summary has already been processed
+                summary_output_file = item_output_dir / f"{summary_idx}.json"
+                if summary_output_file.exists() and not overwrite:
+                    logger.debug(f"Skipping {item_id} summary {summary_idx} (already exists)")
+                    continue
+                
+                # Extract claims from this single summary
+                single_summary_results = extract_claims_from_summaries(
+                    summaries=[summary],  # Process one summary at a time
+                    model=model,
+                    prompt_name=prompt_name,
+                    ask_user_confirmation=ask_user_confirmation,
+                    domain=extracted_domain,
+                    **kwargs
+                )
+                
+                # Parse the claims from the LLM response
+                if single_summary_results:
+                    raw_response = single_summary_results[0].get("response", "")
+                    parsed_claims = _parse_claims_from_response(raw_response)
+                    llm_result = single_summary_results[0]  # Keep full LLM result for debugging
+                else:
+                    parsed_claims = []
+                    llm_result = {}
+                
+                # Save this summary's claims immediately with relevant metadata
+                summary_output_file = item_output_dir / f"{summary_idx}.json"
+                with open(summary_output_file, 'w') as f:
+                    json.dump({
+                        "item_id": item_id,
+                        "summary_index": summary_idx,
+                        "claims": parsed_claims,  # Clean list of individual claims
+                        "summary_text": summary,
+                        "domain": extracted_domain,
+                        "evaluation_metadata": {
+                            "model": model,
+                            "prompt_name": prompt_name,
+                            "processing_time": llm_result.get("processing_time", 0.0),
+                            "usage": llm_result.get("usage", {}),
+                            "total_claims_extracted": len(parsed_claims)
+                        },
+                        "llm_result": llm_result  # Keep full LLM response for debugging
+                    }, f, indent=2)
+                
+                logger.info(f"Saved claims for {item_id} summary {summary_idx}")
+                claim_results.extend(single_summary_results)
             
             # Transform results to match expected output format
             # Convert summaries to claims with chunks structure
@@ -255,10 +327,25 @@ def process_dataset_summaries(
                 }
             }
             
+            # Increment processed count and check stop condition
+            processed_count += 1
+            if stop is not None and processed_count >= stop:
+                logger.info(f"Stopping after processing {processed_count} items (--stop {stop})")
+                break
+            
         except Exception as e:
             error_msg = f"Error processing item {item_id}: {str(e)}"
             logger.error(error_msg)
             errors[item_id] = error_msg
+            
+            # Also count failed items towards the stop limit
+            processed_count += 1
+            if stop is not None and processed_count >= stop:
+                logger.info(f"Stopping after processing {processed_count} items (--stop {stop})")
+                break
+    
+    # Get summarization info if available
+    summarization_info = globals().get('_summarization_info', {})
     
     # Create output metadata
     output_metadata = {
@@ -273,6 +360,7 @@ def process_dataset_summaries(
                 "source_collection": str(summary_collection_path),
                 "hash_parameters": _generate_hash_parameters(model, prompt_name, scope),
             },
+            "summarization_info": summarization_info,
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
             "items_processed": list(results.keys()),
             "processing_stats": {
@@ -284,7 +372,6 @@ def process_dataset_summaries(
             }
         }
     }
-    
     # Save results
     save_claims(results, output_metadata, output_path, errors)
     
