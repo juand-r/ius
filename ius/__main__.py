@@ -63,6 +63,10 @@ def main():
         from ius.cli.continuity import main as continuity_main
         
         continuity_main()
+    elif command == "faithfulness":
+        from ius.cli.faithfulness import main as faithfulness_main
+        
+        faithfulness_main()
     elif command == "help" or command == "-h" or command == "--help":
         print_help()
     else:
@@ -82,6 +86,7 @@ def print_help():
     print("  chunk           Chunk documents for summarization")
     print("  summarize       Generate summaries from chunked data")
     print("  claim-extract   Extract claims from summaries")
+    print("  faithfulness    Evaluate faithfulness of extracted claims")
     print("  whodunit        Evaluate detective stories (whodunit analysis)")
     print("  entity-coverage       Evaluate entity coverage in summaries")
     print("  entity-coverage-multi Evaluate entity coverage across multiple ranges")
@@ -94,6 +99,7 @@ def print_help():
     print("  python -m ius chunk --dataset bmds --strategy fixed_size --size 2048")
     print("  python -m ius summarize --input outputs/chunks/ipython_test")
     print("  python -m ius claim-extract --input outputs/summaries/bmds_summaries")
+    print("  python -m ius faithfulness --input outputs/summaries-claims/bmds_claims_default-claim-extraction")
     print("  python -m ius whodunit --input outputs/summaries/bmds_summaries --range 1-3")
     print("  python -m ius entity-coverage --input outputs/summaries/bmds_summaries --range penultimate")
     print("  python -m ius entity-coverage-multi --input outputs/summaries/bmds_summaries --max-range 5")
@@ -106,6 +112,7 @@ def print_help():
     print("  python -m ius chunk --help")
     print("  python -m ius summarize --help")
     print("  python -m ius claim-extract --help")
+    print("  python -m ius faithfulness --help")
     print("  python -m ius whodunit --help")
     print("  python -m ius entity-coverage --help")
     print("  python -m ius entity-coverage-multi --help")
