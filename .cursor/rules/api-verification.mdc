@@ -1,0 +1,61 @@
+---
+alwaysApply: true
+---
+
+# API Verification Rule
+
+Before making any claims about external library APIs, functions, or data structures, MUST verify the actual implementation programmatically. Never assume parameter names, function signatures, or behavior.
+
+## Core Requirements
+
+1. **Always verify before claiming** - Check actual API documentation, function signatures, or run test code before making statements about how something works
+2. **Use help(), inspect, or test commands** - Verify parameter names, default values, and expected behavior
+3. **Be explicit about uncertainty** - Say "Let me check how this API works" instead of assuming
+4. **Test small examples first** - Run minimal test code to confirm behavior before implementing
+5. **Never guess parameter names** - Always check the actual function signature
+
+## Examples
+
+### ❌ DON'T (Assuming without verification):
+```python
+# Assuming FaithfulnessEvaluator takes a 'model' parameter
+evaluator = FaithfulnessEvaluator(method=method, model=model)
+```
+
+### ✅ DO (Verify first):
+```bash
+# First check the actual API
+python -c "from faithfulness_evaluator import FaithfulnessEvaluator; help(FaithfulnessEvaluator.__init__)"
+
+# Then implement correctly
+evaluator = FaithfulnessEvaluator(llm_model=model, method=method)
+```
+
+# or do a web search!
+
+
+## Verification Methods
+
+- `help(function_name)` - Check function documentation and signatures
+- `inspect.signature(function)` - Get parameter details
+- Small test scripts - Verify behavior with minimal examples
+- Library documentation - Check official docs when available
+- Error messages - Read actual error messages to understand what's wrong
+
+## When This Rule Applies
+
+- Using external libraries or APIs for the first time
+- Making claims about function parameters or behavior
+- Implementing integrations with third-party code
+- Debugging API-related issues
+- Any time you're uncertain about how something works
+
+## Verification Checklist
+
+- [ ] Have I checked the actual function signature?
+- [ ] Do I know the correct parameter names?
+- [ ] Have I verified the expected behavior?
+- [ ] Am I making assumptions about how this works?
+- [ ] Should I run a quick test to confirm?
+
+Remember: 30 seconds of verification prevents minutes of debugging and rebuilding trust. Always verify before claiming.
