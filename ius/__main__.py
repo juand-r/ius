@@ -59,6 +59,10 @@ def main():
         from ius.cli.overlap_metrics_multi import main as overlap_metrics_multi_main
         
         overlap_metrics_multi_main()
+    elif command == "continuity":
+        from ius.cli.continuity import main as continuity_main
+        
+        continuity_main()
     elif command == "help" or command == "-h" or command == "--help":
         print_help()
     else:
@@ -83,6 +87,7 @@ def print_help():
     print("  entity-coverage-multi Evaluate entity coverage across multiple ranges")
     print("  overlap_metrics       Evaluate summaries using overlap-based metrics (ROUGE, SUPERT)")
     print("  overlap-metrics-multi Evaluate overlap metrics across multiple ranges")
+    print("  continuity            Evaluate continuity between consecutive summaries (ROUGE, BERTScore)")
     print("  help                  Show this help message")
     print()
     print("Examples:")
@@ -94,6 +99,7 @@ def print_help():
     print("  python -m ius entity-coverage-multi --input outputs/summaries/bmds_summaries --max-range 5")
     print("  python -m ius overlap_metrics --rouge --input outputs/summaries/bmds_summaries --range all")
     print("  python -m ius overlap-metrics-multi --rouge --input outputs/summaries/bmds_summaries --max-range 3")
+    print("  python -m ius continuity --rouge --input outputs/summaries/bmds_summaries --range all")
     print("  python -m ius help")
     print()
     print("For command-specific help:")
@@ -105,6 +111,7 @@ def print_help():
     print("  python -m ius entity-coverage-multi --help")
     print("  python -m ius overlap_metrics --help")
     print("  python -m ius overlap-metrics-multi --help")
+    print("  python -m ius continuity --help")
 
 
 if __name__ == "__main__":
