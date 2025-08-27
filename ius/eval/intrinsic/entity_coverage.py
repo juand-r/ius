@@ -28,10 +28,32 @@ def load_spacy_model():
         nlp = spacy.load("en_core_web_lg")
         return nlp
     except OSError:
-        raise ValidationError(
-            "spaCy English model not found. Please install it with: "
-            "python -m spacy download en_core_web_lg"
-        )
+        logger.info("spaCy English model 'en_core_web_lg' not found. Downloading automatically...")
+        try:
+            import subprocess
+            import sys
+            
+            # Download the model
+            result = subprocess.run([
+                sys.executable, "-m", "spacy", "download", "en_core_web_lg"
+            ], capture_output=True, text=True, check=True)
+            
+            logger.info("Successfully downloaded en_core_web_lg model")
+            
+            # Try loading again
+            nlp = spacy.load("en_core_web_lg")
+            return nlp
+            
+        except subprocess.CalledProcessError as e:
+            raise ValidationError(
+                f"Failed to automatically download spaCy model. Error: {e.stderr}\n"
+                "Please install it manually with: python -m spacy download en_core_web_lg"
+            )
+        except Exception as e:
+            raise ValidationError(
+                f"Failed to load spaCy model after download attempt. Error: {e}\n"
+                "Please install it manually with: python -m spacy download en_core_web_lg"
+            )
 
 def extract_entities_with_spacy(text: str, nlp) -> List[str]:
     """Extract named entities from text using spaCy."""
