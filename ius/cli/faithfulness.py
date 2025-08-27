@@ -227,6 +227,42 @@ def calculate_summary_faithfulness_score(claim_results: List[Dict[str, Any]]) ->
     }
 
 
+def save_individual_summary_result(
+    item_id: str,
+    summary_result: Dict[str, Any],
+    original_claim_data: Dict[str, Any],
+    method: str,
+    output_path: Path,
+    summary_index: int
+) -> None:
+    """Save individual summary result immediately after processing."""
+    items_dir = output_path / "items"
+    items_dir.mkdir(exist_ok=True)
+    
+    # Create item subdirectory
+    item_dir = items_dir / item_id
+    item_dir.mkdir(exist_ok=True)
+    
+    summary_file_result = {
+        "item_id": item_id,
+        "faithfulness_results": [summary_result],  # Keep as list for consistency
+        "parameters": {
+            "method": method,
+            "implementation": "faithfulness-evaluator"
+        },
+        "original_data": {
+            "summary_text": original_claim_data.get("summary_text", ""),
+            "domain": original_claim_data.get("domain", ""),
+            "summary_index": summary_result.get("summary_index", 0)
+        }
+    }
+    
+    with open(item_dir / f"{summary_index}.json", 'w') as f:
+        json.dump(summary_file_result, f, indent=2)
+    
+    logger.debug(f"Saved summary result to {item_id}/{summary_index}.json")
+
+
 def save_faithfulness_results(
     results: Dict[str, List[Dict[str, Any]]],
     claim_data: Dict[str, List[Dict[str, Any]]],
@@ -306,39 +342,8 @@ def save_faithfulness_results(
     with open(output_path / "collection.json", 'w') as f:
         json.dump(collection_data, f, indent=2)
     
-    # Save individual summary results
-    items_dir = output_path / "items"
-    items_dir.mkdir(exist_ok=True)
-    
-    # Flatten all summary results and save sequentially
-    summary_index = 1
-    for item_id, item_results in results.items():
-        for summary_result in item_results:
-            # Get original claim data for this summary
-            original_claim_data = None
-            for claim_summary in claim_data.get(item_id, []):
-                if claim_summary.get("summary_index") == summary_result.get("summary_index"):
-                    original_claim_data = claim_summary
-                    break
-            
-            summary_file_result = {
-                "item_id": item_id,
-                "faithfulness_results": [summary_result],  # Keep as list for consistency
-                "parameters": {
-                    "method": method,
-                    "implementation": "faithfulness-evaluator"
-                },
-                "original_data": {
-                    "summary_text": original_claim_data.get("summary_text", "") if original_claim_data else "",
-                    "domain": original_claim_data.get("domain", "") if original_claim_data else "",
-                    "summary_index": summary_result.get("summary_index", 0)
-                }
-            }
-            
-            with open(items_dir / f"{summary_index}.json", 'w') as f:
-                json.dump(summary_file_result, f, indent=2)
-            
-            summary_index += 1
+    # Individual results are now saved incrementally during processing
+    logger.info(f"Collection metadata saved to {output_path / 'collection.json'}")
 
 
 async def evaluate_dataset(
@@ -350,6 +355,7 @@ async def evaluate_dataset(
     verbose: bool = False,
     stop: Optional[int] = None,
     item_id: Optional[str] = None,
+    range_spec: str = "last",
 ) -> Dict[str, Any]:
     """
     Evaluate faithfulness of claims in a claim extraction dataset.
@@ -363,6 +369,7 @@ async def evaluate_dataset(
         verbose: Enable verbose logging
         stop: Stop after processing this many items
         item_id: Process only this specific item
+        range_spec: Which summary chunks to process ("all" or "last")
     
     Returns:
         Dictionary containing processing results and statistics
@@ -461,6 +468,11 @@ async def evaluate_dataset(
             item_results = []
             
             logger.info(f"Evaluating faithfulness for {item_id} ({len(summary_claims_list)} summaries)")
+
+            # Filter summaries based on range_spec
+            if range_spec == "last":
+                summary_claims_list = [summary_claims_list[-1]] if summary_claims_list else []
+            # For "all", use the full list (no filtering needed)
             
             for summary_claims in summary_claims_list:
                 claims = summary_claims.get("claims", [])
@@ -487,9 +499,19 @@ async def evaluate_dataset(
                     }
                 }
                 
+                # Save individual result immediately
+                save_individual_summary_result(
+                    item_id=item_id,
+                    summary_result=summary_result,
+                    original_claim_data=summary_claims,
+                    method=method,
+                    output_path=output_path,
+                    summary_index=summary_index
+                )
+                
                 item_results.append(summary_result)
                 
-                logger.debug(f"  Summary {summary_index}: {faithfulness_stats['faithful_claims']}/{faithfulness_stats['total_claims']} faithful claims ({faithfulness_stats['faithfulness_score']:.3f})")
+                logger.info(f"  Summary {summary_index}: {faithfulness_stats['faithful_claims']}/{faithfulness_stats['total_claims']} faithful claims ({faithfulness_stats['faithfulness_score']:.3f}) -> Saved as {item_id}/{summary_index}.json")
             
             results[item_id] = item_results
         
@@ -578,6 +600,12 @@ Examples:
     )
     
     parser.add_argument(
+        "--range",
+        default="last",
+        help="Which summary chunks to process: 'all' for all chunks, 'last' for only the last chunk (default: all)"
+    )
+    
+    parser.add_argument(
         "--output", "-o",
         help="Output directory name (auto-generated if not specified)"
     )
@@ -622,6 +650,7 @@ Examples:
             verbose=args.verbose,
             stop=args.stop,
             item_id=args.item_id,
+            range_spec=args.range,
         ))
     except KeyboardInterrupt:
         logger.info("Evaluation interrupted by user")
