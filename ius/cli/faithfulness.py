@@ -354,6 +354,7 @@ async def evaluate_dataset(
     overwrite: bool = False,
     verbose: bool = False,
     stop: Optional[int] = None,
+    claim_stop: Optional[int] = None,
     item_id: Optional[str] = None,
     range_spec: str = "last",
 ) -> Dict[str, Any]:
@@ -368,6 +369,7 @@ async def evaluate_dataset(
         overwrite: Whether to overwrite existing results
         verbose: Enable verbose logging
         stop: Stop after processing this many items
+        claim_stop: Stop after processing this many claims per summary
         item_id: Process only this specific item
         range_spec: Which summary chunks to process ("all" or "last")
     
@@ -380,6 +382,8 @@ async def evaluate_dataset(
     logger.info(f"Starting faithfulness evaluation for: {input_path}")
     logger.info(f"Method: {method}")
     logger.info(f"Model: {model}")
+    if claim_stop is not None:
+        logger.info(f"Claim limit: {claim_stop} claims per summary")
     
     start_time = time.time()
     
@@ -482,6 +486,11 @@ async def evaluate_dataset(
                     logger.warning(f"No claims found for {item_id} summary {summary_index}")
                     continue
                 
+                # Limit number of claims if claim_stop is specified
+                if claim_stop is not None and len(claims) > claim_stop:
+                    logger.info(f"Limiting {item_id} summary {summary_index} from {len(claims)} to {claim_stop} claims")
+                    claims = claims[:claim_stop]
+                
                 # Evaluate claims faithfulness
                 claim_evaluations = await evaluate_claims_faithfulness(source_text, claims, method, model)
                 
@@ -577,6 +586,9 @@ Examples:
 
   # Limit to first 10 items for testing
   python -m ius.cli.faithfulness --input outputs/summaries-claims/bmds_claims_default-claim-extraction --stop 10
+  
+  # Limit to first 5 claims per summary for faster testing
+  python -m ius.cli.faithfulness --input outputs/summaries-claims/bmds_claims_default-claim-extraction --claim-stop 5
         """
     )
     
@@ -602,7 +614,7 @@ Examples:
     parser.add_argument(
         "--range",
         default="last",
-        help="Which summary chunks to process: 'all' for all chunks, 'last' for only the last chunk (default: all)"
+        help="Which summary chunks to process: 'all' for all chunks, 'last' for only the last chunk (default: last)"
     )
     
     parser.add_argument(
@@ -620,6 +632,12 @@ Examples:
         "--stop",
         type=int,
         help="Stop after processing this many items"
+    )
+    
+    parser.add_argument(
+        "--claim-stop",
+        type=int,
+        help="Stop after processing this many claims per summary"
     )
     
     parser.add_argument(
@@ -649,6 +667,7 @@ Examples:
             overwrite=args.overwrite,
             verbose=args.verbose,
             stop=args.stop,
+            claim_stop=args.claim_stop,
             item_id=args.item_id,
             range_spec=args.range,
         ))
