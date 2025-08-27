@@ -7,9 +7,11 @@ help:  ## Show this help message
 
 install:  ## Install production dependencies
 	pip install -r requirements.txt
+	python -m spacy download en_core_web_lg
 
 install-dev:  ## Install development dependencies  
 	pip install -r requirements-dev.txt
+	python -m spacy download en_core_web_lg
 
 sync-requirements:  ## Sync requirements.txt with pyproject.toml
 	python sync_requirements.py

@@ -20,7 +20,8 @@ dependencies = [
     "huggingface-hub==0.34.2",
     "datasets==4.0.0",
     "langdetect",
- 
+    "spacy==3.8.7",
+
 ]
 
 # Package discovery - only include the 'ius' package
@@ -38,6 +39,7 @@ metrics = [
     "sacrerouge",
     "GoogleDriveDownloader==0.4",
 ]
+
 
 [tool.ruff]
 # Set the maximum line length to 88 (Black's default)
