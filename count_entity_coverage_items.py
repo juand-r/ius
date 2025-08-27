@@ -2,8 +2,8 @@
 """
 Entity Coverage Items Counter
 
-Counts the number of directories in items/ subdirectory for each 
-true-detective entity-coverage evaluation directory.
+Counts the number of directories and JSON files in items/ subdirectory for each 
+entity-coverage evaluation directory.
 """
 
 import os
@@ -12,7 +12,7 @@ import sys
 
 def count_items_directories(base_path: str = "outputs/eval/intrinsic/entity-coverage") -> None:
     """
-    Count the number of directories in items/ for each true-detective entity-coverage directory.
+    Count the number of directories and JSON files in items/ for each entity-coverage directory.
     
     Args:
         base_path: Path to the entity-coverage evaluation results directory
@@ -24,18 +24,18 @@ def count_items_directories(base_path: str = "outputs/eval/intrinsic/entity-cove
         print(f"Error: Directory not found: {base_path}")
         return
     
-    # Find all directories starting with "true-detective"
-    true_detective_dirs = []
+    # Find all entity coverage directories
+    entity_coverage_dirs = []
     for item in base_dir.iterdir():
-        if item.is_dir() and item.name.startswith("true-detective"):
-            true_detective_dirs.append(item)
+        if item.is_dir() and "entity_coverage" in item.name:
+            entity_coverage_dirs.append(item)
     
-    if not true_detective_dirs:
-        print(f"No directories starting with 'true-detective' found in {base_path}")
+    if not entity_coverage_dirs:
+        print(f"No entity coverage directories found in {base_path}")
         return
     
     # Sort directories by name for consistent output
-    true_detective_dirs.sort(key=lambda x: x.name)
+    entity_coverage_dirs.sort(key=lambda x: x.name)
     
     print("Entity Coverage Items Directory and JSON File Count")
     print("=" * 70)
@@ -45,7 +45,7 @@ def count_items_directories(base_path: str = "outputs/eval/intrinsic/entity-cove
     total_directories = 0
     total_json_files = 0
     
-    for eval_dir in true_detective_dirs:
+    for eval_dir in entity_coverage_dirs:
         items_dir = eval_dir / "items"
         
         if not items_dir.exists():
@@ -71,13 +71,13 @@ def count_items_directories(base_path: str = "outputs/eval/intrinsic/entity-cove
         print(f"{eval_dir.name:60} | {dir_count:3d} dirs | {json_count:4d} JSONs")
     
     print("-" * 80)
-    print(f"{'Total directories across all true-detective evaluations':60} | {total_directories:3d}")
-    print(f"{'Total JSON files across all true-detective evaluations':60} | {total_json_files:3d}")
-    print(f"{'Number of true-detective evaluation directories':60} | {len(true_detective_dirs):3d}")
+    print(f"{'Total directories across all entity coverage evaluations':60} | {total_directories:3d}")
+    print(f"{'Total JSON files across all entity coverage evaluations':60} | {total_json_files:3d}")
+    print(f"{'Number of entity coverage evaluation directories':60} | {len(entity_coverage_dirs):3d}")
     
-    if len(true_detective_dirs) > 0:
-        avg_dirs = total_directories / len(true_detective_dirs)
-        avg_jsons = total_json_files / len(true_detective_dirs)
+    if len(entity_coverage_dirs) > 0:
+        avg_dirs = total_directories / len(entity_coverage_dirs)
+        avg_jsons = total_json_files / len(entity_coverage_dirs)
         print(f"{'Average directories per evaluation':60} | {avg_dirs:6.1f}")
         print(f"{'Average JSON files per evaluation':60} | {avg_jsons:6.1f}")
 
