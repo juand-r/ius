@@ -112,13 +112,15 @@ def load_claim_extraction_results(claims_path: str, item_id: Optional[str] = Non
     return data, collection_metadata
 
 
-def load_source_documents(dataset_name: str, item_ids: List[str]) -> Dict[str, str]:
+def load_source_documents(dataset_name: str, item_ids: List[str], add_reveal: bool = False, reveal_only: bool = False) -> Dict[str, str]:
     """
     Load source documents for the given items.
     
     Args:
         dataset_name: Name of the dataset (e.g., 'bmds', 'true-detective')
         item_ids: List of item IDs to load
+        add_reveal: If True, append reveal text to source content
+        reveal_only: If True, use only reveal text as source content
     
     Returns:
         Dict mapping item_id to source document content
@@ -145,9 +147,73 @@ def load_source_documents(dataset_name: str, item_ids: List[str]) -> Dict[str, s
             continue
             
         source_content = source_docs_list[0].get("content", "")
-        if not source_content:
+        if not source_content and not reveal_only:
             logger.warning(f"No content found in source file: {source_file}")
             continue
+        
+        # Add reveal text if requested
+        if add_reveal:
+            reveal_text = None
+            try:
+                metadata = source_docs_list[0].get("metadata", {})
+                
+                if dataset_name == "bmds":
+                    # For bmds: documents[0]['metadata']['detection']['reveal_segment']
+                    detection = metadata.get("detection", None)
+                    reveal_text = detection.get("reveal_segment", None) if detection else None
+                elif dataset_name == "true-detective":
+                    # For true-detective: documents[0]['metadata']['original_metadata']['reveal_text']
+                    original_metadata = metadata.get("original_metadata", None)
+                    reveal_text = original_metadata.get("reveal_text", None) if original_metadata else None
+                elif dataset_name == "detectiveqa":
+                    # For detectiveqa: documents[0]['metadata']['detection']['reveal_segment']
+                    detection = metadata.get("detection", None)
+                    reveal_text = detection.get("reveal_segment", None) if detection else None
+                else:
+                    raise ValueError(f"Unknown dataset '{dataset_name}' - cannot extract reveal text")
+                
+                if reveal_text:
+                    source_content = source_content + "\n\n" + reveal_text
+                    logger.debug(f"Added reveal text to {item_id} (length: {len(reveal_text)} chars)")
+                else:
+                    logger.warning(f"No reveal text found for {item_id}")
+                    raise ValueError(f"No reveal text found for {item_id}")
+                    
+            except Exception as e:
+                logger.warning(f"Failed to extract reveal text for {item_id}: {e}")
+                raise ValueError(f"Failed to extract reveal text for {item_id}: {e}")
+        
+        # Use only reveal text if requested
+        if reveal_only:
+            reveal_text = None
+            try:
+                metadata = source_docs_list[0].get("metadata", {})
+                
+                if dataset_name == "bmds":
+                    # For bmds: documents[0]['metadata']['detection']['reveal_segment']
+                    detection = metadata.get("detection", None)
+                    reveal_text = detection.get("reveal_segment", None) if detection else None
+                elif dataset_name == "true-detective":
+                    # For true-detective: documents[0]['metadata']['original_metadata']['reveal_text']
+                    original_metadata = metadata.get("original_metadata", None)
+                    reveal_text = original_metadata.get("reveal_text", None) if original_metadata else None
+                elif dataset_name == "detectiveqa":
+                    # For detectiveqa: documents[0]['metadata']['detection']['reveal_segment']
+                    detection = metadata.get("detection", None)
+                    reveal_text = detection.get("reveal_segment", None) if detection else None
+                else:
+                    raise ValueError(f"Unknown dataset '{dataset_name}' - cannot extract reveal text")
+                
+                if reveal_text:
+                    source_content = reveal_text
+                    logger.debug(f"Using only reveal text for {item_id} (length: {len(reveal_text)} chars)")
+                else:
+                    logger.warning(f"No reveal text found for {item_id}")
+                    raise ValueError(f"No reveal text found for {item_id}")
+                    
+            except Exception as e:
+                logger.warning(f"Failed to extract reveal text for {item_id}: {e}")
+                raise ValueError(f"Failed to extract reveal text for {item_id}: {e}")
         
         source_docs[item_id] = source_content
         logger.debug(f"Loaded source document for {item_id} (length: {len(source_content)} chars)")
@@ -357,6 +423,8 @@ async def evaluate_dataset(
     claim_stop: Optional[int] = None,
     item_id: Optional[str] = None,
     range_spec: str = "last",
+    add_reveal: bool = False,
+    reveal_only: bool = False,
 ) -> Dict[str, Any]:
     """
     Evaluate faithfulness of claims in a claim extraction dataset.
@@ -371,7 +439,9 @@ async def evaluate_dataset(
         stop: Stop after processing this many items
         claim_stop: Stop after processing this many claims per summary
         item_id: Process only this specific item
-        range_spec: Which summary chunks to process ("all" or "last")
+        range_spec: Which summary chunks to process ('all' or 'last')
+        add_reveal: If True, append reveal text to source content
+        reveal_only: If True, use only reveal text as source content
     
     Returns:
         Dictionary containing processing results and statistics
@@ -457,7 +527,7 @@ async def evaluate_dataset(
         
         # Load source documents
         item_ids = list(claim_data.keys())
-        source_docs = load_source_documents(dataset_name, item_ids)
+        source_docs = load_source_documents(dataset_name, item_ids, add_reveal, reveal_only)
         
         # Evaluate faithfulness for each item
         results = {}
@@ -468,6 +538,8 @@ async def evaluate_dataset(
                 results[item_id] = []
                 continue
             
+            breakpoint()
+
             source_text = source_docs[item_id]
             item_results = []
             
@@ -651,11 +723,27 @@ Examples:
         help="Enable verbose logging"
     )
     
+    parser.add_argument(
+        "--add-reveal",
+        action="store_true",
+        help="Add reveal text to the end of source documents"
+    )
+    
+    parser.add_argument(
+        "--reveal-only",
+        action="store_true",
+        help="Use only reveal text as source documents (ignore main content)"
+    )
+    
     args = parser.parse_args()
     
     # Validate arguments
     if not Path(args.input).exists():
         parser.error(f"Input path does not exist: {args.input}")
+    
+    # Check for conflicting reveal flags
+    if args.add_reveal and args.reveal_only:
+        raise ValueError("Cannot use both --add-reveal and --reveal-only flags together")
     
     # Execute faithfulness evaluation
     try:
@@ -670,6 +758,8 @@ Examples:
             claim_stop=args.claim_stop,
             item_id=args.item_id,
             range_spec=args.range,
+            add_reveal=args.add_reveal,
+            reveal_only=args.reveal_only,
         ))
     except KeyboardInterrupt:
         logger.info("Evaluation interrupted by user")
