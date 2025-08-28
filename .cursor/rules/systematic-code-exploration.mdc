@@ -1,0 +1,64 @@
+---
+alwaysApply: true
+---
+
+# Systematic Code Exploration Rule
+
+When searching for code that performs a specific function, MUST follow a systematic, methodical approach rather than jumping to complex search patterns.
+
+## Core Requirements
+
+1. **Complete the systematic search FIRST** - If you identify candidate files (e.g., through matplotlib imports), examine EACH ONE thoroughly before moving to complex searches
+2. **Trust user expertise** - When users say "we definitely discussed this" or "it exists," believe them and search more systematically
+3. **Simple before complex** - Start with basic searches (file names, simple keywords) before attempting complex regex patterns. Search for the MOST general terms first to not rule things out prematurely.
+4. **Document your systematic approach** - Explicitly state your search strategy and follow it completely
+
+## Search Strategy Process
+
+### Step 1: Identify Candidates
+- Find all files that could contain the functionality (e.g., all files importing matplotlib for plotting)
+- List them explicitly
+
+### Step 2: Systematic Examination  
+- Examine EACH candidate file thoroughly
+- Don't skip files just because they don't have obvious names
+- Read enough of each file to understand its purpose
+
+### Step 3: Complex Searches (Only After Step 2)
+- Only use complex regex patterns after systematic examination fails
+- Use multiple simple searches rather than one complex search
+
+## Examples
+
+### ❌ DON'T:
+```
+User: "Find the script that creates this plot"
+Assistant: [Immediately searches for complex patterns like "item.*bar.*range"]
+```
+
+### ✅ DO:
+```
+User: "Find the script that creates this plot"  
+Assistant: 
+1. "Let me find all plotting scripts first"
+2. [Lists all matplotlib files]
+3. "Now I'll examine each one systematically:"
+4. [Checks create_rouge_comparison_plots.py, create_entity_coverage_charts.py, etc.]
+```
+
+## When This Rule Applies
+
+- User asks to find specific code/scripts
+- Searching for functionality in unfamiliar codebases  
+- User corrects you saying something exists
+- Any exploratory code search task
+
+## Verification Checklist
+
+- [ ] Did I identify all candidate files first?
+- [ ] Did I examine each candidate systematically?
+- [ ] Did I trust the user's expertise about what exists?
+- [ ] Did I avoid jumping to complex searches too early?
+- [ ] Did I document my systematic approach?
+
+Remember: Systematic thoroughness beats clever search patterns.
