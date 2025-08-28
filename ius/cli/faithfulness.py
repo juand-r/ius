@@ -537,8 +537,6 @@ async def evaluate_dataset(
                 logger.warning(f"No source document found for {item_id}, skipping")
                 results[item_id] = []
                 continue
-            
-            breakpoint()
 
             source_text = source_docs[item_id]
             item_results = []
