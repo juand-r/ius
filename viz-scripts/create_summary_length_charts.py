@@ -252,7 +252,7 @@ def get_summary_data(dataset_filter="bmds", include_error_bars=False):
         if input_type == 'summaries':
             source_collection_file = Path("..") / source_collection / "collection.json"
             if not source_collection_file.exists():
-            continue
+                continue
             
         with open(source_collection_file, 'r') as f:
             source_data = json.load(f)
@@ -362,8 +362,8 @@ def get_summary_data(dataset_filter="bmds", include_error_bars=False):
         
         # Handle categorization differently for summaries vs chunks
         if input_type == 'summaries':
-        # Shorten the length constraint as requested
-        short_constraint = shorten_length_constraint(length_constraint)
+            # Shorten the length constraint as requested
+            short_constraint = shorten_length_constraint(length_constraint)
         
             # Categorize by range_spec and method
             if range_spec == '1':
@@ -372,7 +372,7 @@ def get_summary_data(dataset_filter="bmds", include_error_bars=False):
             elif 'concat' in eval_dir.name:
                 concat_data.append((words, accuracy, short_constraint, avg_chars, bootstrap_error))
                 print(f"    -> Added to concat_data: {words} words, {accuracy:.1%} accuracy, constraint: {short_constraint}")
-        elif 'iterative' in eval_dir.name:
+            elif 'iterative' in eval_dir.name:
                 iterative_data.append((words, accuracy, short_constraint, avg_chars, bootstrap_error))
                 print(f"    -> Added to iterative_data: {words} words, {accuracy:.1%} accuracy, constraint: {short_constraint}")
             else:
@@ -643,10 +643,10 @@ def create_summary_length_charts(dataset="bmds", include_error_bars=False):
         iterative_data_point = iterative_dict[category]
         
         print(f"\n{category} constraint:")
-            if include_error_bars:
+        if include_error_bars:
             print(f"  Concat:    {int(concat_data_point[0]):3d} words ({int(concat_data_point[3]):4d} chars): {concat_data_point[1]:.1%} ± {concat_data_point[4]:.1%} (95% CI)")
             print(f"  Iterative: {int(iterative_data_point[0]):3d} words ({int(iterative_data_point[3]):4d} chars): {iterative_data_point[1]:.1%} ± {iterative_data_point[4]:.1%} (95% CI)")
-            else:
+        else:
             print(f"  Concat:    {int(concat_data_point[0]):3d} words ({int(concat_data_point[3]):4d} chars): {concat_data_point[1]:.1%} accuracy")
             print(f"  Iterative: {int(iterative_data_point[0]):3d} words ({int(iterative_data_point[3]):4d} chars): {iterative_data_point[1]:.1%} accuracy")
     
