@@ -338,24 +338,14 @@ def get_summary_data(dataset_filter="bmds", include_error_bars=False):
         
         # Calculate error bars if requested
         if include_error_bars:
-            # Bootstrap confidence interval for proportion
-            # Create binary array: 1 for correct, 0 for incorrect
-            successes = np.array([1] * correct_items + [0] * (total_items - correct_items))
-            
-            # Bootstrap resampling
-            n_bootstrap = 1000
-            bootstrap_means = []
-            np.random.seed(42)  # For reproducibility
-            
-            for _ in range(n_bootstrap):
-                bootstrap_sample = np.random.choice(successes, size=total_items, replace=True)
-                bootstrap_means.append(np.mean(bootstrap_sample))
-            
-            # Calculate 95% confidence interval
-            ci_lower, ci_upper = np.percentile(bootstrap_means, [2.5, 97.5])
-            bootstrap_error = ci_upper - accuracy  # Use upper bound distance as error bar
+            # Standard error for proportion: sqrt(p * (1-p) / n)
+            # where p is the proportion and n is the sample size
+            if total_items > 1:
+                standard_error = np.sqrt(accuracy * (1 - accuracy) / total_items)
+            else:
+                standard_error = 0.0
         else:
-            bootstrap_error = 0.0
+            standard_error = 0.0
         
         words = total_words / total_items  # Actual average word count
         avg_chars = total_chars / total_items  # Actual average character count
@@ -367,13 +357,13 @@ def get_summary_data(dataset_filter="bmds", include_error_bars=False):
         
             # Categorize by range_spec and method
             if range_spec == '1':
-                first_chunk_data.append((words, accuracy, short_constraint, avg_chars, bootstrap_error))
+                first_chunk_data.append((words, accuracy, short_constraint, avg_chars, standard_error))
                 print(f"    -> Added to first_chunk_data: {words} words, {accuracy:.1%} accuracy, constraint: {short_constraint}")
             elif 'concat' in eval_dir.name:
-                concat_data.append((words, accuracy, short_constraint, avg_chars, bootstrap_error))
+                concat_data.append((words, accuracy, short_constraint, avg_chars, standard_error))
                 print(f"    -> Added to concat_data: {words} words, {accuracy:.1%} accuracy, constraint: {short_constraint}")
             elif 'iterative' in eval_dir.name:
-                iterative_data.append((words, accuracy, short_constraint, avg_chars, bootstrap_error))
+                iterative_data.append((words, accuracy, short_constraint, avg_chars, standard_error))
                 print(f"    -> Added to iterative_data: {words} words, {accuracy:.1%} accuracy, constraint: {short_constraint}")
             else:
                 print(f"    -> NOT CATEGORIZED: range_spec={range_spec}, dir={eval_dir.name}")
@@ -381,13 +371,13 @@ def get_summary_data(dataset_filter="bmds", include_error_bars=False):
         elif input_type == 'chunks':
             # Categorize chunks by their range_spec - no constraint categorization needed
             if range_spec == 'all':
-                chunks_all_data.append((words, accuracy, 'chunks-all', avg_chars, bootstrap_error))
+                chunks_all_data.append((words, accuracy, 'chunks-all', avg_chars, standard_error))
                 print(f"    -> Added to chunks_all_data: {words:.1f} words, {accuracy:.1%} accuracy")
             elif range_spec in ['penultimate', 'all-but-last']:
-                chunks_pre_data.append((words, accuracy, 'chunks-pre', avg_chars, bootstrap_error))
+                chunks_pre_data.append((words, accuracy, 'chunks-pre', avg_chars, standard_error))
                 print(f"    -> Added to chunks_pre_data: {words:.1f} words, {accuracy:.1%} accuracy")
             elif range_spec == '1':
-                first_chunk_data.append((words, accuracy, 'chunks-first', avg_chars, bootstrap_error))
+                first_chunk_data.append((words, accuracy, 'chunks-first', avg_chars, standard_error))
                 print(f"    -> Added to first_chunk_data (chunks): {words:.1f} words, {accuracy:.1%} accuracy")
     
     # Sort by word count
@@ -627,7 +617,7 @@ def create_summary_length_charts(dataset="bmds", include_error_bars=False):
     plt.figtext(0.5, 0.02, 'Summary Length Constraint', ha='center', fontsize=12)
     
     # Generate filename based on error bar setting
-    error_suffix = "_with_ci" if include_error_bars else ""
+    error_suffix = "_with_se" if include_error_bars else ""
     filename = f'summary_length_comparison_{dataset}{error_suffix}.png'
     output_path = f'../plots/{filename}'
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
@@ -644,8 +634,8 @@ def create_summary_length_charts(dataset="bmds", include_error_bars=False):
         
         print(f"\n{category} constraint:")
         if include_error_bars:
-            print(f"  Concat:    {int(concat_data_point[0]):3d} words ({int(concat_data_point[3]):4d} chars): {concat_data_point[1]:.1%} ± {concat_data_point[4]:.1%} (95% CI)")
-            print(f"  Iterative: {int(iterative_data_point[0]):3d} words ({int(iterative_data_point[3]):4d} chars): {iterative_data_point[1]:.1%} ± {iterative_data_point[4]:.1%} (95% CI)")
+            print(f"  Concat:    {int(concat_data_point[0]):3d} words ({int(concat_data_point[3]):4d} chars): {concat_data_point[1]:.1%} ± {concat_data_point[4]:.1%} (SE)")
+            print(f"  Iterative: {int(iterative_data_point[0]):3d} words ({int(iterative_data_point[3]):4d} chars): {iterative_data_point[1]:.1%} ± {iterative_data_point[4]:.1%} (SE)")
         else:
             print(f"  Concat:    {int(concat_data_point[0]):3d} words ({int(concat_data_point[3]):4d} chars): {concat_data_point[1]:.1%} accuracy")
             print(f"  Iterative: {int(iterative_data_point[0]):3d} words ({int(iterative_data_point[3]):4d} chars): {iterative_data_point[1]:.1%} accuracy")
@@ -667,9 +657,9 @@ def create_summary_length_charts(dataset="bmds", include_error_bars=False):
         first_chunk_avg_words = np.mean([d[0] for d in first_chunk_data])
         print(f"\nFirst Chunk Only:")
         print(f"  Found {len(first_chunk_data)} evaluation(s)")
-        for words, acc, cat, chars, bootstrap_err in first_chunk_data:
+        for words, acc, cat, chars, standard_err in first_chunk_data:
             if include_error_bars:
-                print(f"    {int(words):3d} words ({int(chars):4d} chars): {acc:.1%} ± {bootstrap_err:.1%} (95% CI) [{cat}]")
+                print(f"    {int(words):3d} words ({int(chars):4d} chars): {acc:.1%} ± {standard_err:.1%} (SE) [{cat}]")
             else:
                 print(f"    {int(words):3d} words ({int(chars):4d} chars): {acc:.1%} accuracy [{cat}]")
         print(f"  Average: {first_chunk_avg_acc:.1%} accuracy, {first_chunk_avg_words:.0f} words")
@@ -685,7 +675,7 @@ if __name__ == "__main__":
                        choices=["bmds", "true-detective", "detectiveqa"],
                        help="Dataset to analyze (default: bmds)")
     parser.add_argument("--no-error-bars", action="store_true",
-                       help="Disable bootstrap confidence interval error bars")
+                       help="Disable standard error bars")
     
     args = parser.parse_args()
     
@@ -693,7 +683,7 @@ if __name__ == "__main__":
     
     print(f"Creating charts for dataset: {args.dataset}")
     if include_error_bars:
-        print("Including bootstrap 95% confidence intervals")
+        print("Including standard error bars")
     else:
         print("Error bars disabled")
     
