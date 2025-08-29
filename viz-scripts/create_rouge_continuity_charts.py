@@ -7,6 +7,8 @@ import json
 import sys
 import pandas as pd
 from pathlib import Path
+import scipy.stats as stats
+from collections import defaultdict
 
 def get_continuity_data(dataset_filter="bmds"):
     """Extract ROUGE continuity data from the evaluation results and their source collections."""
@@ -154,11 +156,13 @@ def get_continuity_data(dataset_filter="bmds"):
         # Categorize by method (concat vs iterative)
         if 'concat' in eval_dir.name:
             for rouge_metric in ['rougeLsum', 'rougeL', 'rouge2']:
-                concat_data.append((avg_words, avg_rouge_scores[rouge_metric], short_constraint, avg_chars, rouge_metric))
+                # Store: (avg_words, avg_score, constraint, avg_chars, rouge_metric, individual_scores)
+                concat_data.append((avg_words, avg_rouge_scores[rouge_metric], short_constraint, avg_chars, rouge_metric, rouge_scores[rouge_metric]))
                 print(f"    -> Added to concat_data ({rouge_metric}): {avg_words:.1f} words, {avg_rouge_scores[rouge_metric]:.1f} precision, constraint: {short_constraint}")
         elif 'iterative' in eval_dir.name:
             for rouge_metric in ['rougeLsum', 'rougeL', 'rouge2']:
-                iterative_data.append((avg_words, avg_rouge_scores[rouge_metric], short_constraint, avg_chars, rouge_metric))
+                # Store: (avg_words, avg_score, constraint, avg_chars, rouge_metric, individual_scores)
+                iterative_data.append((avg_words, avg_rouge_scores[rouge_metric], short_constraint, avg_chars, rouge_metric, rouge_scores[rouge_metric]))
                 print(f"    -> Added to iterative_data ({rouge_metric}): {avg_words:.1f} words, {avg_rouge_scores[rouge_metric]:.1f} precision, constraint: {short_constraint}")
         else:
             print(f"    -> NOT CATEGORIZED: dir={eval_dir.name}")
@@ -199,7 +203,7 @@ def shorten_length_constraint(constraint):
             return f"<{match.group(1)}"
         return constraint[:10] + "..." if len(constraint) > 10 else constraint
 
-def create_rouge_continuity_charts(dataset="bmds", rouge_metric="rougeLsum"):
+def create_rouge_continuity_charts(dataset="bmds", rouge_metric="rougeLsum", add_error_bars=False):
     """Create charts showing ROUGE continuity precision vs summary length."""
     
     concat_data, iterative_data = get_continuity_data(dataset)
@@ -233,11 +237,45 @@ def create_rouge_continuity_charts(dataset="bmds", rouge_metric="rougeLsum"):
     }
     rouge_title = rouge_title_map.get(rouge_metric, rouge_metric.upper())
     
-    fig.suptitle(f'{dataset_title}: {rouge_title} Continuity Precision vs Summary Length', fontsize=16, fontweight='bold')
+
     
-    # Match concat and iterative data by constraint category
-    concat_dict = {d[2]: d for d in concat_filtered}  # category -> data tuple
-    iterative_dict = {d[2]: d for d in iterative_filtered}  # category -> data tuple
+    # Aggregate data by constraint category for error bar calculation
+    
+    concat_by_category = defaultdict(list)
+    iterative_by_category = defaultdict(list)
+    
+    # Group individual scores by constraint category
+    for data_point in concat_filtered:
+        category = data_point[2]
+        individual_scores = data_point[5]  # individual_scores is the 6th element
+        concat_by_category[category].extend(individual_scores)
+    
+    for data_point in iterative_filtered:
+        category = data_point[2]
+        individual_scores = data_point[5]  # individual_scores is the 6th element
+        iterative_by_category[category].extend(individual_scores)
+    
+    # Calculate means and standard errors for each category
+    concat_dict = {}
+    iterative_dict = {}
+    
+    for category in concat_by_category:
+        scores = concat_by_category[category]
+        if scores:
+            mean_score = np.mean(scores)
+            sem_score = stats.sem(scores) if len(scores) > 1 else 0
+            # Find a representative data point for word count
+            representative = next(d for d in concat_filtered if d[2] == category)
+            concat_dict[category] = (representative[0], mean_score, category, representative[3], representative[4], sem_score)
+    
+    for category in iterative_by_category:
+        scores = iterative_by_category[category]
+        if scores:
+            mean_score = np.mean(scores)
+            sem_score = stats.sem(scores) if len(scores) > 1 else 0
+            # Find a representative data point for word count
+            representative = next(d for d in iterative_filtered if d[2] == category)
+            iterative_dict[category] = (representative[0], mean_score, category, representative[3], representative[4], sem_score)
     
     # Find common categories and sort by word length
     common_categories = set(concat_dict.keys()) & set(iterative_dict.keys())
@@ -266,14 +304,18 @@ def create_rouge_continuity_charts(dataset="bmds", rouge_metric="rougeLsum"):
         concat_x = x_base[i] - bar_width/2
         iterative_x = x_base[i] + bar_width/2
         
-        # Plot concat bar
+        # Plot concat bar with optional error bars
+        concat_yerr = concat_data_point[5] if add_error_bars else None
         concat_bar = ax.bar(concat_x, concat_data_point[1], 
                           color=concat_color, alpha=0.8, width=bar_width, 
+                          yerr=concat_yerr, capsize=5 if add_error_bars else 0,
                           label='Concat' if i == 0 else "")
         
-        # Plot iterative bar
+        # Plot iterative bar with optional error bars
+        iterative_yerr = iterative_data_point[5] if add_error_bars else None
         iterative_bar = ax.bar(iterative_x, iterative_data_point[1], 
                              color=iterative_color, alpha=0.8, width=bar_width, 
+                             yerr=iterative_yerr, capsize=5 if add_error_bars else 0,
                              label='Iterative' if i == 0 else "")
         
         # Add precision score labels above bars
@@ -282,15 +324,11 @@ def create_rouge_continuity_charts(dataset="bmds", rouge_metric="rougeLsum"):
         ax.text(iterative_x, iterative_data_point[1] + 1, f'{iterative_data_point[1]:.1f}', 
                 ha='center', va='bottom', fontweight='bold', fontsize=10)
         
-        # Add word count labels below each bar
-        ax.text(concat_x, -0.05, f'~{int(concat_data_point[0])}', 
-                ha='center', va='top', transform=ax.get_xaxis_transform(), fontsize=9)
-        ax.text(iterative_x, -0.05, f'~{int(iterative_data_point[0])}', 
-                ha='center', va='top', transform=ax.get_xaxis_transform(), fontsize=9)
+
         
         # Add constraint label below the pair of bars
         pair_center = x_base[i]
-        ax.text(pair_center, -0.12, category, ha='center', va='top', 
+        ax.text(pair_center, -0.02, category, ha='center', va='top', 
                 transform=ax.get_xaxis_transform(), fontsize=11, fontweight='bold')
     
     # Customize the plot
@@ -305,10 +343,10 @@ def create_rouge_continuity_charts(dataset="bmds", rouge_metric="rougeLsum"):
     # Add legend
     ax.legend(loc='upper right')
     
-    plt.tight_layout(pad=4.0)  # Add padding for constraint labels
+    plt.tight_layout(pad=2.0)  # Add padding for constraint labels
     
     # Add x-axis label at the very bottom of the figure
-    plt.figtext(0.5, 0.02, 'Summary Length Constraint', ha='center', fontsize=12)
+    plt.figtext(0.5, 0.005, 'Summary Length Constraint', ha='center', fontsize=12)
     
     # Generate filename
     filename = f'rouge_continuity_{rouge_metric}_{dataset}.png'
@@ -342,7 +380,7 @@ def create_rouge_continuity_charts(dataset="bmds", rouge_metric="rougeLsum"):
     
     return output_path
 
-def create_all_rouge_continuity_charts(dataset="bmds"):
+def create_all_rouge_continuity_charts(dataset="bmds", add_error_bars=False):
     """Create charts for all ROUGE metrics."""
     rouge_metrics = ['rougeLsum', 'rougeL', 'rouge2']
     output_paths = []
@@ -352,7 +390,7 @@ def create_all_rouge_continuity_charts(dataset="bmds"):
         print(f"Creating {rouge_metric} continuity chart for {dataset}")
         print(f"{'='*60}")
         
-        output_path = create_rouge_continuity_charts(dataset, rouge_metric)
+        output_path = create_rouge_continuity_charts(dataset, rouge_metric, add_error_bars)
         if output_path:
             output_paths.append(output_path)
     
@@ -369,18 +407,22 @@ if __name__ == "__main__":
     parser.add_argument("--rouge-metric", default="all",
                        choices=["rougeLsum", "rougeL", "rouge2", "all"],
                        help="ROUGE metric to plot (default: all)")
+    parser.add_argument("--add-error-bars", action="store_true",
+                       help="Add error bars showing standard error of the mean")
     
     args = parser.parse_args()
     
     print(f"Creating ROUGE continuity charts for dataset: {args.dataset}")
     
+    print(f"Error bars: {'enabled' if args.add_error_bars else 'disabled'}")
+    
     if args.rouge_metric == "all":
-        output_paths = create_all_rouge_continuity_charts(args.dataset)
+        output_paths = create_all_rouge_continuity_charts(args.dataset, args.add_error_bars)
         print(f"\nAll charts saved:")
         for path in output_paths:
             print(f"  {path}")
     else:
-        output_path = create_rouge_continuity_charts(args.dataset, args.rouge_metric)
+        output_path = create_rouge_continuity_charts(args.dataset, args.rouge_metric, args.add_error_bars)
         if output_path:
             print(f"\nChart saved as: {output_path}")
         else:

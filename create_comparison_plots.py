@@ -715,7 +715,7 @@ def create_chunk_average_plot(concat_data, iterative_data, optional_summary_leng
     
     return saved_files
 
-def create_chunk_average_diffs_plot(concat_data, iterative_data, optional_summary_length, eval_type, output_dir=".", dataset=""):
+def create_chunk_average_diffs_plot(concat_data, iterative_data, optional_summary_length, eval_type, output_dir=".", dataset="", add_error_bars=False):
     """Create bar plot showing average differences between consecutive chunks (concat vs iterative)."""
     
     if not concat_data or not iterative_data:
@@ -838,9 +838,15 @@ def create_chunk_average_diffs_plot(concat_data, iterative_data, optional_summar
             width = 0.35
             
             bars_concat = ax.bar(x_positions - width/2, concat_means, width, 
-                               color='#FF7F50', alpha=0.8, label='Concat')
+                               color='#FF7F50', alpha=0.8, label='Concat',
+                               yerr=concat_sems if add_error_bars else None, 
+                               capsize=5 if add_error_bars else 0,
+                               error_kw={'ecolor': 'lightgray', 'alpha': 0.7, 'elinewidth': 1.5} if add_error_bars else {})
             bars_iterative = ax.bar(x_positions + width/2, iterative_means, width,
-                                  color='#9370DB', alpha=0.8, label='Iterative')
+                                  color='#9370DB', alpha=0.8, label='Iterative',
+                                  yerr=iterative_sems if add_error_bars else None,
+                                  capsize=5 if add_error_bars else 0,
+                                  error_kw={'ecolor': 'lightgray', 'alpha': 0.7, 'elinewidth': 1.5} if add_error_bars else {})
             
             # Add value labels on bars
             for i, (concat_mean, iterative_mean) in enumerate(zip(concat_means, iterative_means)):
@@ -1092,6 +1098,8 @@ def main():
                        help="Generate line plots for individual stories (5 stories max)")
     parser.add_argument("--all-plots", action="store_true", default=False,
                        help="Generate all plot types")
+    parser.add_argument("--add-error-bars", action="store_true", default=False,
+                       help="Add error bars showing standard error of the mean (for --chunk-average-diffs)")
     
     args = parser.parse_args()
     
@@ -1161,7 +1169,7 @@ def main():
     
     if args.all_plots or args.chunk_average_diffs:
         print("Creating chunk average diffs plots...")
-        saved_files = create_chunk_average_diffs_plot(concat_data, iterative_data, args.optional_summary_length, eval_type, dataset=args.dataset)
+        saved_files = create_chunk_average_diffs_plot(concat_data, iterative_data, args.optional_summary_length, eval_type, dataset=args.dataset, add_error_bars=args.add_error_bars)
         all_saved_files.extend(saved_files)
     
     if args.all_plots or args.line_plots:
