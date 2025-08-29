@@ -319,9 +319,18 @@ def create_rouge_continuity_charts(dataset="bmds", rouge_metric="rougeLsum", add
                              label='Iterative' if i == 0 else "")
         
         # Add precision score labels above bars
-        ax.text(concat_x, concat_data_point[1] + 1, f'{concat_data_point[1]:.1f}', 
+        if add_error_bars:
+            # Position text above error bars
+            concat_y_pos = concat_data_point[1] + concat_data_point[5] + 2  # mean + sem + offset
+            iterative_y_pos = iterative_data_point[1] + iterative_data_point[5] + 2  # mean + sem + offset
+        else:
+            # Standard positioning
+            concat_y_pos = concat_data_point[1] + 1
+            iterative_y_pos = iterative_data_point[1] + 1
+            
+        ax.text(concat_x, concat_y_pos, f'{concat_data_point[1]:.1f}', 
                 ha='center', va='bottom', fontweight='bold', fontsize=10)
-        ax.text(iterative_x, iterative_data_point[1] + 1, f'{iterative_data_point[1]:.1f}', 
+        ax.text(iterative_x, iterative_y_pos, f'{iterative_data_point[1]:.1f}', 
                 ha='center', va='bottom', fontweight='bold', fontsize=10)
         
 
