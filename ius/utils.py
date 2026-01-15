@@ -86,7 +86,13 @@ def _call_openai(text: str, model: str, system_and_user_prompt: dict[str, str] =
     if not api_key:
         raise ValidationError("OPENAI_API_KEY environment variable not set")
 
-    client = OpenAI(api_key=api_key)
+    # Support regional endpoints via OPENAI_BASE_URL environment variable
+    # Example: export OPENAI_BASE_URL=https://us.api.openai.com/v1
+    base_url = os.getenv("OPENAI_BASE_URL")
+    if base_url:
+        client = OpenAI(api_key=api_key, base_url=base_url)
+    else:
+        client = OpenAI(api_key=api_key)
 
     # Build messages from prompts using provided template_vars
     messages = _build_messages_from_prompts(template_vars, system_and_user_prompt)

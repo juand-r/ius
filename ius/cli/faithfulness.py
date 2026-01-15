@@ -515,15 +515,8 @@ async def evaluate_dataset(
             claim_data = dict(list(claim_data.items())[:stop])
         
         # Extract dataset name from the claims path
-        # Claims path format: .../{summary_collection_name}_claims_{hash}
-        # Summary collection name format: {dataset_name}_{other_params}
-        claims_dir_name = Path(input_path).name
-        if "_claims_" in claims_dir_name:
-            summary_collection_name = claims_dir_name.split("_claims_")[0]
-            # Extract just the dataset name (first part before underscore)
-            dataset_name = summary_collection_name.split("_")[0]
-        else:
-            raise ValueError(f"Cannot extract dataset name from claims path: {input_path}")
+        # Use the same extraction method as save_faithfulness_results for consistency
+        dataset_name = extract_dataset_name(input_path)
         
         # Load source documents
         item_ids = list(claim_data.keys())
@@ -554,6 +547,18 @@ async def evaluate_dataset(
                 
                 if not claims:
                     logger.warning(f"No claims found for {item_id} summary {summary_index}")
+                    continue
+                
+                # Check if this item/summary has already been processed (skip if exists and not overwriting)
+                items_dir = output_path / "items" / item_id
+                existing_file = items_dir / f"{summary_index}.json"
+                if existing_file.exists() and not overwrite:
+                    logger.info(f"  Skipping {item_id} summary {summary_index} - already processed (exists: {existing_file})")
+                    # Load existing result to include in results dict
+                    with open(existing_file) as f:
+                        existing_data = json.load(f)
+                    if existing_data.get("faithfulness_results"):
+                        item_results.append(existing_data["faithfulness_results"][0])
                     continue
                 
                 # Limit number of claims if claim_stop is specified
@@ -595,9 +600,12 @@ async def evaluate_dataset(
             results[item_id] = item_results
         
         # Capture the command that was run
+        # Note: sys.argv has the subcommand removed by __main__.py, so we need to add it back
         argv_copy = sys.argv.copy()
         if argv_copy[0].endswith("__main__.py"):
             argv_copy[0] = "python -m ius"
+            # Insert "faithfulness" subcommand after "python -m ius"
+            argv_copy.insert(1, "faithfulness")
         command_run = " ".join(argv_copy)
         
         # Save results
