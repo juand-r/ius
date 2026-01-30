@@ -1101,6 +1101,10 @@ pip install -e ".[metrics]"
 # 3. Set up ROUGE metric dependencies (downloads Perl scripts to ~/.sacrerouge/)
 sacrerouge setup-metric rouge
 ```
+NOTE: in case step 3 fails, might need to:
+sudo apt-get update && sudo apt-get install -y libxml-dom-perl
+And in the virtualenv:
+python -c "import nltk; nltk.download('punkt_tab')"
 
 #### Option 2: Manual Installation
 
